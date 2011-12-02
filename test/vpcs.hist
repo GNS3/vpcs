@@ -1,0 +1,50 @@
+ip clear
+clear ipv6
+sh
+sh
+ip auto
+sh
+quit
+sh
+p 2001:12::C800:5DFF:FE0C:6
+p FE80::C800:5DFF:FE0C:6
+quit
+p FE80::C800:5DFF:FE0C:6
+quit
+p FE80::C800:5DFF:FE0C:6
+p FE80::C800:5DFF:FE0C:6
+p FE80::C800:5DFF:FE0C:6
+p FE80::C800:5DFF:FE0C:6
+sh
+p FE80::C800:5DFF:FE0C:6
+clear ?
+clear neightbor
+p FE80::C800:5DFF:FE0C:6
+clear neightbor
+p FE80::C800:5DFF:FE0C:6 -c 1
+xx
+p FE80::C800:5DFF:FE0C:6 -c 1
+quit
+xx
+p FE80::C800:5DFF:FE0C:6 -c 1
+sh
+quit
+quit
+quit
+quit
+quit
+quit
+quit
+sh
+quit
+quit
+sh
+4
+sh
+ip 2001:12::2050:79ff:fe66:6803 96
+sh
+ip 2001:12::2050:79ff:fe66:6803 eui-64
+sh
+qui
+sh
+quit
