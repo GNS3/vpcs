@@ -1,0 +1,33 @@
+RM=rm -f
+CC=gcc
+OSTYPE=Linux
+CPUTYPE=i386
+OPT=-O2
+
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) -Dcygwin $(OPT) -Wall -I.
+LDFLAGS=-static -lpthread -s -static-libgcc
+OBJS=vpcs.o \
+	readline.o \
+	packets.o \
+	getopt.o \
+	utils.o \
+	queue.o \
+	command.o \
+	dev.o \
+	dhcp.o \
+	command6.o \
+	packets6.o \
+	ip.o \
+	tcp.o \
+	inet6.o
+	
+all: vpcs
+
+vpcs: $(OBJS)
+	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
+	
+.c.o: keys.h vpcs.h packets.h dhcp.h
+	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
+
+clean:
+	$(RM) *.o vpcs vpcs.exe
