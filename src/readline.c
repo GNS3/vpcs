@@ -410,7 +410,7 @@ int _readline(struct rls *rls)
 		
 	reset_terminal(&termios);
 	
-	return 1;
+	return (rls->pos > 0 ? 1 : 0);
 }
 
 int findhistory(struct rls *rls, int start)
