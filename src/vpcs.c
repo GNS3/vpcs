@@ -605,4 +605,4 @@ int run_help(char *dummy)
 		"quit                       Quit program\n");
 	return 1;			
 }
-/* end of file *
+/* end of file */

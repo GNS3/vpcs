@@ -76,10 +76,12 @@ int loadhistory(const char *filename, struct rls *rls)
 {
 	FILE *fp = fopen(filename, "r");
 	int len;
+	int i;
 	
 	if (fp == NULL)
 		return errno;
 
+	i = 0;
 	while (fgets(rls->kbuffer, rls->maxbuflen, fp)) {
 		len = strlen(rls->kbuffer);
 		if (len == 0)
@@ -87,14 +89,14 @@ int loadhistory(const char *filename, struct rls *rls)
 		if (rls->kbuffer[len - 1] == '\n')
 			rls->kbuffer[len - 1] = '\0';
 			
-		if (rls->hist_curr == rls->maxhistnum) {
+		if (i == rls->maxhistnum) {
 			memmove(rls->history[0], rls->history[1], rls->maxhistnum - 1);
-			rls->hist_curr--;
+			i--;
 		}
-		strcpy(rls->history[rls->hist_curr++], rls->kbuffer);
+		strcpy(rls->history[i++], rls->kbuffer);
 
 	}
-	rls->hist_total = rls->hist_curr;
+	rls->hist_total = i;
 	fclose(fp);
 	
 	return 0;
@@ -181,7 +183,6 @@ int _readline(struct rls *rls)
 	
 	memset(rls->kbuffer, 0, rls->maxbuflen);
 	rls->pos = 0;
-	rls->hist_curr = rls->hist_total;
 	/*
 	flags = fcntl(0, F_GETFL);
 	fcntl(0, F_SETFL, flags);
