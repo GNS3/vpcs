@@ -1,0 +1,11 @@
+Linux:
+$ cd src
+$ make -f Makefile.linux
+
+Windows:
+$ cd src
+$ make -f Makefile.cygwin
+
+OSX
+$ cd src
+$ make -f Makefile.osx
