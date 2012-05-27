@@ -41,12 +41,13 @@
 #include "dev.h"
 #include "command.h"
 #include "command6.h"
+#include "daemon.h"
 
 #ifndef Darwin
 #include "getopt.h"
 #endif
 
-const char *ver = "0.3";
+const char *ver = "0.4a";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
@@ -67,6 +68,8 @@ u_int time_tick = 0; /* time tick (second) */
 
 int ctrl_c = 0; /* ctrl+c was pressed */
 struct rls *rls = NULL;
+
+int daemon_port = 0;
 
 void *pth_proc(void *devid);
 void *pth_timer_tick(void *);
@@ -137,6 +140,7 @@ int main(int argc, char **argv)
 	pthread_t timer_pid;
 	char *cmd;
 	
+	
 	if (!isatty(0)) {
 		printf("Please run in the tty\n");
 		exit(-1);
@@ -144,7 +148,7 @@ int main(int argc, char **argv)
 	
 	devtype = DEV_UDP;
 	while (1) {
-		c = getopt(argc, argv, "-h?eus:c:r:t:");
+		c = getopt(argc, argv, "-h?eus:c:r:t:p:");
 		if (-1 == c)
 			break;
 		switch (c) {
@@ -155,7 +159,7 @@ int main(int argc, char **argv)
 				sport = arg_to_int(optarg, 1024, 65000, 20000);
 				break;
 			case 'c':
-				rport = arg_to_int(optarg, 1024, 65000, 20000);
+				rport = arg_to_int(optarg, 1024, 65000, 30000);
 				break;
 			case 'r':
 				startupfile = optarg;
@@ -166,6 +170,9 @@ int main(int argc, char **argv)
 			case 't':
 				if (inet_addr(optarg) != -1)
 					rhost = inet_addr(optarg);
+				break;
+			case 'p':
+				daemon_port = arg_to_int(optarg, 1024, 65000, 10000);
 				break;
 			case 'h':
 			case '?':
@@ -179,6 +186,9 @@ int main(int argc, char **argv)
 	signal(SIGCHLD, SIG_IGN);
 	signal(SIGINT, &sig_int);
 	
+	if (daemon_port && daemonize(daemon_port))
+		exit(1);
+		
 	welcome();
 	
 	srand(time(0));
@@ -514,6 +524,14 @@ int run_save(char *cmdstr)
 int run_quit(char *dummy)
 {
 	int i;
+	pid_t pid;
+	
+	if (daemon_port) {
+		pid = getppid();
+		kill(pid, SIGUSR1);
+		return 0;
+	}
+		
 	for (i = 0; i < NUM_PTHS; i++)
 		close(vpc[i].fd);
 
@@ -570,6 +588,7 @@ void welcome(void)
 void usage()
 {
 	printf ("usage: vpcs [options]\n"
+		"           -p port   daemon port\n"
 		"           -u        udp mode, default\n"
 		"           -e        tap mode, using /dev/tapx (only linux)\n"
 		"           -s port   local udp port, default from 20000\n"

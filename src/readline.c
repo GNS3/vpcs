@@ -56,7 +56,6 @@ char *readline(const char *prompt, struct rls *rls)
 		return NULL;
 
 	printf("%s", prompt);
-	fflush(stdout);	
 	rls->prompt = (char *)prompt;
 	if (_readline(rls) == 0)
 		return NULL;
@@ -187,12 +186,13 @@ int _readline(struct rls *rls)
 	flags = fcntl(0, F_GETFL);
 	fcntl(0, F_SETFL, flags);
 	*/
-	
+
 	flags = 0;
 	ihist = 0;
 	kb = rls->kb;
 	do {
 		fflush(stdout);
+			
 		memset(kb, 0, sizeof(rls->kb));
 		rc = read(0, kb, sizeof(rls->kb));
 		if (rc <= 0) {
@@ -287,7 +287,7 @@ int _readline(struct rls *rls)
 		flags = 0;
 				
 		/* 'enter' */
-		if (kb[0] == LF) {
+		if (kb[0] == LF || kb[0] == CR) {
 			trimspace(rls->kbuffer);
 			rls->pos = strlen(rls->kbuffer);
 			if (rls->pos == 0)
@@ -409,7 +409,7 @@ int _readline(struct rls *rls)
 	} while (kb[0] != CTRLP);
 		
 	reset_terminal(&termios);
-	
+
 	return (rls->pos > 0 ? 1 : 0);
 }
 
@@ -484,6 +484,7 @@ void set_terminal(struct termios *stored_settings)
 	tcgetattr(0, stored_settings);
 	new_settings = *stored_settings;
 	new_settings.c_lflag &= ~(ICANON | ECHO | ISIG);
+	//new_settings.c_iflag &= IGNCR;
 	new_settings.c_cc[VTIME] = 0;
 	new_settings.c_cc[VMIN] = 1;
 

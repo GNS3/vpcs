@@ -36,6 +36,8 @@
 #define BACKSP0		8			/* backspace */
 #define BACKSP1		127			/* backspace */  
 #define LF		10
+#define CR		13
+
 
 /* escape seqence */
 #define ESC		27

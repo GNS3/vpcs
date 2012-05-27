@@ -5,8 +5,9 @@ CPUTYPE=i386
 OPT=-O2
 
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) -Wall -I. -DTAP -Wno-strict-aliasing
-LDFLAGS=-lpthread -s
+LDFLAGS=-lpthread -s -lutil
 OBJS=vpcs.o \
+	daemon.o \
 	readline.o \
 	packets.o \
 	getopt.o \
