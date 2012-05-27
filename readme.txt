@@ -1,5 +1,5 @@
 
-   Welcome to Virtual PC Simulator, Ver 0.3.
+   Welcome to Virtual PC Simulator, Ver 0.4a.
    
    The VPCS can simulate up to 9 PCs. You can ping/traceroute them, or 
 ping/traceroute the other hosts/routers from the VPCS when you study the Cisco 
@@ -23,6 +23,7 @@ line. All the commands in the startup file are the internal commands of the VPCS
 The line started with '#' or '!' will be discarded.
 
 	vpcs [options]
+           -p port   daemon mode, listen port, default is 10000
            -u        udp mode, default
            -e        tap mode, using /dev/tapx
            -s port   local udp port, default from 20000
@@ -30,12 +31,15 @@ The line started with '#' or '!' will be discarded.
            -r file   run startup file
 
    NOTE: 
-     The cygwin1.dll used by VPCS maybe conflicted with other version. Please 
-   keep the latest cygwin1.dll in your system.
+   1. The cygwin1.dll used by VPCS maybe conflicted with other version. Please 
+      keep the latest cygwin1.dll in your system.
+   2. Set telnet LINEMODE to 'character at a time' while running as the daemon
+      'telnet> mode character'
  
 Website: http://wiki.freecode.com.cn or http://mirnshi.cublog.cn
    
 History:
+   0.4a    support daemon mode
    0.3     under BSD license
    0.20a   support IPv6 linklocal, stateless autoconfiguration
            new 'ping' with many optins, and implement the tcp state machine

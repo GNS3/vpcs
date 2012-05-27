@@ -1,5 +1,5 @@
 
-    欢迎使用 VPCS, 最新版本为 0.3.
+    欢迎使用 VPCS, 最新版本为 0.4a.
 
     VPCS 可以模拟最多 9 个虚拟的 PC。你可以 ping/traceroute 这些 PC，或者
 在这些 PC 中 ping/traceroute 其他的主机或路由器。当然这些虚拟的 PC，并不
@@ -19,18 +19,23 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 
    VPCS 的命令行选项
    usage: vpcs [options]
+           -p port   daemon mode, listen port, default is 10000
            -u        udp mode, default
            -e        tap mode, using /dev/tapx
            -s port   local udp port, default from 20000
            -c port   remote udp port(dynamips udp ports), default from 30000
            -r file   run startup file
 
-   注意：VPCS 使用的 cygwin1.dll 可能与其他 cygwin1.dll 不兼容。建议在一系统
-内只保留最新版本的。
+   注意：
+   1. VPCS 使用的 cygwin1.dll 可能与其他 cygwin1.dll 不兼容。建议在一系统
+      内只保留最新版本的。
+   2. 后台服务模式时，需设置telnet LINEMODE为'一次传送一字符'：
+      'telnet> mode character'
 
 站点：http://wiki.freecode.com.cn 或 http://mirnshi.cublog.cn
 
 历史版本：
+   0.4a    增加后台服务模式
    0.3     BSD许可
    0.20a   进一步增强IPv6，支持LinkLocal，无状态自动配置，手工eui-64
            支持更多参数的ping，实现了tcp从连接到关闭的完整状态
