@@ -43,7 +43,8 @@
 #include <fcntl.h>
 #include <syslog.h>
 
-#include "termios.h"
+#include <termios.h>
+
 #ifdef Darwin
 #include <util.h>
 #else
