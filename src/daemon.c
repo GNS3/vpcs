@@ -45,11 +45,15 @@
 
 #include <termios.h>
 
+
 #ifdef Darwin
 #include <util.h>
-#else
+#elif Linux
 #include <pty.h>
+#elif FreeBSD
+#include <libutil.h>
 #endif
+
 
 static int cmd_quit = 0;
 
