@@ -44,7 +44,11 @@
 #include <syslog.h>
 
 #include "termios.h"
+#ifdef Darwin
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 
 static int cmd_quit = 0;
 

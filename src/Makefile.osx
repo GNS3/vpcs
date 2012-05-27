@@ -7,6 +7,7 @@ OPT=-g
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) -Wall -I. 
 LDFLAGS=-g -lpthread
 OBJS=vpcs.o \
+	daemon.o \
 	readline.o \
 	packets.o \
 	getopt.o \

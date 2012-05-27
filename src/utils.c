@@ -70,7 +70,7 @@ int mkargv(char *str, char **argv, int max)
 int timeout(struct timeval tv, int mseconds)
 {
 	struct timeval tvx;
-	u_int usec;
+	unsigned int usec;
 	
 	gettimeofday(&(tvx), (void*)0);
 	usec = (tvx.tv_sec - tv.tv_sec) * 1000000 + tvx.tv_usec - tv.tv_usec;
