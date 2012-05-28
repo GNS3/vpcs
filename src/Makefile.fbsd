@@ -5,7 +5,7 @@ CPUTYPE=i386
 OPT=-g
 
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) -Wall -I. 
-LDFLAGS=-g -lpthread -lutil
+LDFLAGS=-g -lpthread -lutil -static
 OBJS=vpcs.o \
 	daemon.o \
 	readline.o \

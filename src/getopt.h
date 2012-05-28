@@ -49,7 +49,9 @@ extern int optind;
 extern int opterr;
 extern int optopt;
 
+#ifndef FreeBSD
 int getopt(int argc, char** argv, char* optstr);
+#endif
 int arg_to_int(const char* arg, int min, int max, int defalt);
 
 #ifdef __cplusplus
