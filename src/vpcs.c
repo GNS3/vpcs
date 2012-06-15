@@ -47,13 +47,14 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a";
+const char *ver = "0.4a2";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
 int devtype = 0;
 int sport = 20000;
 int rport = 30000;
+int rport_flag = 0;
 u_int rhost = 0; /* remote host */
 int dmpflag = 0;
 int canEcho = 0; /* echoing on if 1, off if 0 */
@@ -146,6 +147,8 @@ int main(int argc, char **argv)
 		exit(-1);
 	}	
 	
+	rhost = inet_addr("127.0.0.1");
+	
 	devtype = DEV_UDP;
 	while (1) {
 		c = getopt(argc, argv, "-h?eus:c:r:t:p:");
@@ -159,6 +162,7 @@ int main(int argc, char **argv)
 				sport = arg_to_int(optarg, 1024, 65000, 20000);
 				break;
 			case 'c':
+				rport_flag = 1;
 				rport = arg_to_int(optarg, 1024, 65000, 30000);
 				break;
 			case 'r':
@@ -320,26 +324,37 @@ void *pth_proc(void *devid)
 	struct packet *m = NULL;
 	u_char buf[PKT_MAXSIZE];
 	int rc;
+	u_int local_ip;
 
 	id = *(int *)devid;
 	pc  = &vpc[id];
 	pc->id = id;
 
+	local_ip = inet_addr("127.0.0.1");
+	
 	pc->rhost = rhost;
 	pc->sport = sport + id;
-	pc->rport = rport + id;
+	if (rhost != local_ip && !rport_flag)
+		pc->rport = sport + id;
+	else
+		pc->rport = rport + id;
 	pc->ip4.mac[0] = 0x00;
 	pc->ip4.mac[1] = 0x50;
 	pc->ip4.mac[2] = 0x79;
 	pc->ip4.mac[3] = 0x66;
 	pc->ip4.mac[4] = 0x68;
-	pc->ip4.mac[5] = id & 0xff;
+	pc->ip4.mac[5] = (getpid() & 0xff) + id;
 	
 	if (pc->fd == 0)
 		pc->fd = open_dev(id);
 		
-	if (pc->fd <= 0)
+	if (pc->fd <= 0) {
+		if (devtype == DEV_TAP)
+			printf("Create Tap%d error [%s]\n", id, strerror(errno));
+		else if (devtype == DEV_UDP)
+			printf("Open port %d error [%s]\n", vpc[id].sport, strerror(errno));
 		return NULL;
+	}
 		
 	pthread_mutex_init(&(pc->locker), NULL);
 	init_queue(&pc->iq);
@@ -484,6 +499,8 @@ int run_save(char *cmdstr)
 	char *argv[2];
 	int argc;
 	char buf[64];
+	u_int local_ip;
+	struct in_addr in;
 	
 	argc = mkargv(cmdstr, argv, 2);
 	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
@@ -495,13 +512,23 @@ int run_save(char *cmdstr)
 	}	
 	fp = fopen(argv[1], "w");
 	if (fp != NULL) {
+		local_ip = inet_addr("127.0.0.1");
 		for (i = 0; i < NUM_PTHS; i++) {
 			fprintf(fp, "%d\n", i + 1);
 			
-			sprintf(buf, "PC%d", i + 1);
+			sprintf(buf, "VPCS[%d]", i + 1);
 			if (strncmp(vpc[i].xname, buf, 3)) 
 				fprintf(fp, "set pcname %s\n", vpc[i].xname);
 			
+			if (vpc[i].sport != (20000 + i)) 
+				fprintf(fp, "set lport %d\n", vpc[i].sport);
+				
+			if (vpc[i].rport != (30000 + i)) 
+				fprintf(fp, "set rport %d\n", vpc[i].rport);
+			if (vpc[i].rhost != local_ip) {
+				in.s_addr = vpc[i].rhost;
+				fprintf(fp, "set rhost %s\n", inet_ntoa(in));
+			}
 			if (vpc[i].ip4.dynip == 1) 
 				fputs("dhcp\n", fp);
 			else {
@@ -514,6 +541,7 @@ int run_save(char *cmdstr)
 			}
 			printf(".");
 		}
+		fprintf(fp, "1\n");
 		fclose(fp);
 		printf("  done\n");
 	} else
@@ -592,7 +620,9 @@ void usage()
 		"           -u        udp mode, default\n"
 		"           -e        tap mode, using /dev/tapx (only linux)\n"
 		"           -s port   local udp port, default from 20000\n"
-		"           -c port   remote udp port(dynamips udp ports), default from 30000\n"
+		"           -c port   remote udp port(dynamips udp ports)\n"
+		"                     default from 30000, or 20000 if rhost is set\n"
+		"           -t rhost  remote host\n"
 		"           -r file   run startup file\n"
 		"\n");
 }

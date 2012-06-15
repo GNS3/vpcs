@@ -415,6 +415,8 @@ typedef struct sesscb {
 	int aproto;
 	u_char icmptype;
 	u_char icmpcode;
+	int mtu;
+	int frag;
 	char *data;
 } sesscb;
 

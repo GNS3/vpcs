@@ -75,9 +75,9 @@ int run_arp(char *dummy)
 }
 			
 /*
- *          1         2         3         4         5
- * 01234567890123456789012345678901234567890123456789012345678
- * name   ip/cidr              gw                LPort   RPort
+ *          1         2         3         4         5         6
+ * 012345678901234567890123456789012345678901234567890123456789012345678
+ * name   ip/cidr              gw                LPort   RHost:RPort
  */
 int run_show(char *dummy)
 {
@@ -136,7 +136,7 @@ int run_show(char *dummy)
 			buf[j + 46] = ' ';
 			j = sprintf(buf + 65, "LPORT");
 			buf[j + 65] = ' ';
-			j = sprintf(buf + 72, "RPORT");
+			j = sprintf(buf + 72, "RHOST:PORT");
 			printf("%s\n", buf);
 			
 			for (i = 0; i < NUM_PTHS; i++) {
@@ -162,7 +162,8 @@ int run_show(char *dummy)
 				buf[64] = ' ';
 				j = sprintf(buf + 65, "%d", vpc[i].sport);
 				buf[j + 65] = ' ';
-				j = sprintf(buf + 72, "%d", vpc[i].rport);
+				in.s_addr = vpc[i].rhost;
+				j = sprintf(buf + 72, "%s:%d", inet_ntoa(in), vpc[i].rport);
 				printf("%s\n", buf);
 				run_show6(&vpc[i]);
 			}
@@ -201,7 +202,8 @@ int run_ping(char *cmdstr)
 			"    -c count       packet count \n"
 			"    -l size        data size\n"
 			"    -T ttl         set TTL, default 64\n"
-			"    -p port        source and destination port\n"
+			"    -s port        source port\n"
+			"    -p port        destination port\n"
 			"    -f flag        tcp head flag, |C|E|U|A|P|R|S|F|\n"
 			"                             bits |7 6 5 4 3 2 1 0|\n"
 			"    -t             send packet until interrupt by Ctrl+C\n"
@@ -209,14 +211,15 @@ int run_ping(char *cmdstr)
 			"    -w ms          wait 'ms' milliseconds to receive the response\n");
 		return 0;
 	}
-	
+	pc->mscb.frag = 0;
+	pc->mscb.mtu = 1500;
 	pc->mscb.waittime = 1000;
 	pc->mscb.ipid = time(0) & 0xffff;
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_ICMP;
 	pc->mscb.ttl = TTL;
 	pc->mscb.dsize = 20;
-	pc->mscb.sport = 7;
+	pc->mscb.sport = (random() % (65000 - 1024)) + 1024;
 	pc->mscb.dport = 7;
 	pc->mscb.sip = pc->ip4.ip;
 	memcpy(pc->mscb.smac, pc->ip4.mac, 6);
@@ -232,6 +235,14 @@ int run_ping(char *cmdstr)
 		c = argv[i - 1][1];
 					
 		switch (c) {
+			case 'D':
+				pc->mscb.frag = 1;
+				break;
+			case 'u':
+				if (i < argc)
+					pc->mscb.mtu = atoi(argv[i++]);
+				if (pc->mscb.mtu < 576 || pc->mscb.mtu > 65535)
+					pc->mscb.mtu = 1500;
 			case '1':
 				pc->mscb.proto = IPPROTO_ICMP;
 				strcpy(proto_seq, "icmp_seq");
@@ -271,11 +282,13 @@ int run_ping(char *cmdstr)
 				if (i < argc)
 					pc->mscb.ttl = atoi(argv[i++]);
 				break;
-			case 'p':
-				if (i < argc) {
+			case 's':
+				if (i < argc)
 					pc->mscb.sport = atoi(argv[i++]);
-					pc->mscb.dport = pc->mscb.sport;
-				}
+				break;
+			case 'p':
+				if (i < argc)
+					pc->mscb.dport = atoi(argv[i++]);
 				break;
 			case 'a':
 				if (i < argc)
@@ -316,10 +329,6 @@ int run_ping(char *cmdstr)
 					}	
 					i++;
 				}
-				break;
-			case 's':
-				if (i < argc)
-					pc->mscb.winsize = atoi(argv[i++]);
 				break;
 			case 'i':
 				if (i < argc)
@@ -912,9 +921,10 @@ int run_set(char *cmdstr)
 		/*       12345678901234567890123456789012345678901234567890123456789012345678901234567890
 		 *       1         2         3         4         5         6         7         8
 		 */
-		printf( "\n\033[1mset [lport|rport|pcname|echo]\033[0m, Set connection port, hostname or echo setting\n"
-			"    lport port     local port, listen by VPCS\n"
-			"    rport port     remote port, listen by dynamips\n"
+		printf( "\n\033[1mset [lport|rport|rhost|pcname|echo]\033[0m\n"
+			"    lport port     local port\n"
+			"    rport port     remote peer port\n"
+			"    rhost address  remote peer host\n"
 			"    pcname name    rename the current pc\n"
 			"    echo [on|off]  set echoing on or off\n");
 		return 0;

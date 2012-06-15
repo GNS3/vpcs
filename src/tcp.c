@@ -502,7 +502,7 @@ int tcp(pcs *pc, struct packet *m)
 	struct packet *p = NULL;
 	int i;
 	
-	if (ip->dip != pc->ip4.ip || ti->ti_sport != ti->ti_dport)
+	if (ip->dip != pc->ip4.ip)
 		return PKT_DROP;
 
 	/* response packet 
@@ -511,7 +511,7 @@ int tcp(pcs *pc, struct packet *m)
 	 * 3. destination is me
 	 * 4. mscb.proto is TCP
 	 */
-	if (pc->mscb.sock && ntohs(ti->ti_sport) == pc->mscb.sport && 
+	if (pc->mscb.sock && ntohs(ti->ti_dport) == pc->mscb.sport && 
 		ip->sip == pc->mscb.dip && pc->mscb.proto == ip->proto) {
 		
 		/* mscb is actived, up to the upper application */

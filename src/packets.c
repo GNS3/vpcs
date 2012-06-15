@@ -87,6 +87,7 @@ int upv4(pcs *pc, struct packet *m)
 			
 		} else if (ip->proto == IPPROTO_UDP) {
 			udpiphdr *ui;
+			char *data = NULL;
 			ui = (udpiphdr *)ip;
 			
 			/* dhcp packet */
@@ -96,26 +97,17 @@ int upv4(pcs *pc, struct packet *m)
 			if (IN_MULTICAST(ip->dip))
 				return PKT_DROP;
 					
+			data = ((char*)(ui + 1));
+			
 			/* udp echo reply */	
-			if (ui->ui_sport == ui->ui_dport) {
-				char *data = ((char*)(ui + 1));
-				if (memcmp(data, eh->dst, 6) == 0)
-					return PKT_UP;
-				else {
-					struct packet *p;
-					p = udpReply(m);
-					if (p != NULL)
-						enq(&pc->oq, p);
-				}
-			} else {
-				/* traceroute reply*/
+			if (memcmp(data, eh->dst, 6) == 0)
+				return PKT_UP;
+			else {
 				struct packet *p;
-				
-				p = icmpReply(m, ICMP_UNREACH);
+				p = udpReply(m);
 				if (p != NULL)
 					enq(&pc->oq, p);
-			}
-			
+			}			
 			/* anyway tell caller to drop this packet */
 			return PKT_DROP;
 		} else if (ip->proto == IPPROTO_TCP) {
@@ -333,6 +325,9 @@ struct packet *packet(sesscb *sesscb)
 			break;
 	}
 	
+	if (len > 1500)
+		len = 1500;
+		
 	m = new_pkt(len);
 	
 	if (m == NULL)

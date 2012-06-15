@@ -80,10 +80,7 @@ int VWrite(pcs *pc, void *buf, int len)
 			bzero(&addr, sizeof(addr));
 			addr.sin_family = AF_INET;
 			addr.sin_port = htons(pc->rport);
-			if (pc->rhost == 0)
-				addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-			else
-				addr.sin_addr.s_addr = pc->rhost;
+			addr.sin_addr.s_addr = pc->rhost;
 		
 			n = sendto(pc->fd, buf, len, 0, (struct sockaddr *)&addr, sizeof(addr));
 
@@ -105,7 +102,6 @@ int open_dev(int id)
 			fd = open_tap(id);
 			if (fd <= 0) {
 				fd = 0;
-				printf("Create Tap%d error [%s]\n", id, strerror(errno));
 				return 0;
 			}
 			break;
@@ -114,7 +110,6 @@ int open_dev(int id)
 			fd = open_udp(vpc[id].sport);
 			if (fd <= 0) {
 				fd = 0;
-				printf("Open port %d error [%s]\n", vpc[id].sport, strerror(errno));
 				return 0;
 			}
 			break;
