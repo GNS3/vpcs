@@ -47,7 +47,7 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a2";
+const char *ver = "0.4a3";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
@@ -636,11 +636,11 @@ int run_ver(char *dummy)
 int run_help(char *dummy) 
 {
 	printf ("\n"
-		"show                       Print the net configuration of PCs\n"
+		"show [options]             Print the net configuration of PCs\n"
 		"d                          Switch to the PC[d], d is digit, range 1 to 9\n"
 		"history                    List the command history\n"
 		"ip [arguments]             Configure PC's IP settings\n"
-		"dhcp                       Configure host/gateway address using DHCP\n"
+		"dhcp [options]             Configure host/gateway address using DHCP\n"
 		"arp                        Show arp table\n"
 		"ping address [options]     Ping the network host\n"
 		"tracert address [maxhops]  Print the route packets take to network host\n"

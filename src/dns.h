@@ -24,18 +24,24 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
-#ifndef _PACKETS_H_
-#define _PACKETS_H_
+#ifndef _DNS_H_
+#define _DNS_H_
 
-#include "vpcs.h"
-#include "ip.h"
+#include <sys/types.h>
 
-struct packet *packet(sesscb *sesscb);
-int upv4(pcs *pc, struct packet *pkt);
-int response(struct packet *pkt, sesscb *sesscb);
-int arpResolve(pcs *pc, u_int ip, u_char *dmac);
-int host2ip(pcs *pc, const char *name, u_int *ip);
+typedef struct {
+	u_short id;
+	u_short flags;
+	u_short query;
+	u_short answer;
+	u_short author;
+	u_short addition;
+} dnshdr;
+
+#define MAX_DNS_NAME 64
+#define DNS_MAGIC 0x424c
+
+int hostresolv(pcs *pc, const char *name, u_int *ip);
 
 #endif
-
 /* end of file */

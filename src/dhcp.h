@@ -62,23 +62,32 @@ typedef struct dhcp4_packet {
 #define DHO_SUBNET_MASK                 1
 #define DHO_TIME_OFFSET                 2
 #define DHO_ROUTERS                     3
+#define DHO_DNS                         6
 #define DHO_HOST_NAME                   12
+#define DHO_DOMAIN                      15
 #define DHO_DHCP_REQUESTED_ADDRESS      50
 #define DHO_DHCP_LEASE_TIME             51
 #define DHO_DHCP_MESSAGE_TYPE           53
 #define DHO_DHCP_SERVER_IDENTIFIER      54
 #define DHO_DHCP_PARAMETER_REQUEST_LIST 55
 #define DHO_DHCP_MESSAGE                56
+#define DHO_DHCP_RENEWAL_TIME           58
+#define DHO_DHCP_REBIND_TIME            59
 #define DHO_DHCP_CLIENT_IDENTIFIER      61
+#define DHO_TFTP_SERVER                 150
 
 #define DHO_END                         255
 
 #define DHCP4_PSIZE (512)
 
-struct packet * dhcp4_discover(pcs *pc);
+struct packet * dhcp4_discover(pcs *pc, int renew);
 struct packet * dhcp4_request(pcs *pc);
+struct packet * dhcp4_renew(pcs *pc);
+struct packet * dhcp4_release(pcs *pc);
 int isDhcp4_Offer(pcs *pc, struct packet *m);
 int isDhcp4_packer(pcs *pc, struct packet *m);
+
+int dmp_dhcp(pcs *pc, const struct packet *m);
 
 #endif
 /* end of file */

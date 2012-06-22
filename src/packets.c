@@ -90,13 +90,17 @@ int upv4(pcs *pc, struct packet *m)
 			char *data = NULL;
 			ui = (udpiphdr *)ip;
 			
+			if (IN_MULTICAST(ip->dip))
+				return PKT_DROP;
+			
 			/* dhcp packet */
 			if (ui->ui_sport == htons(67) && ui->ui_dport == htons(68)) 
 				return PKT_UP;
 			
-			if (IN_MULTICAST(ip->dip))
-				return PKT_DROP;
-					
+			/* dns response */
+			if (ui->ui_sport == htons(53))
+				return PKT_UP;
+						
 			data = ((char*)(ui + 1));
 			
 			/* udp echo reply */	
@@ -104,7 +108,10 @@ int upv4(pcs *pc, struct packet *m)
 				return PKT_UP;
 			else {
 				struct packet *p;
-				p = udpReply(m);
+				if (ip->ttl == 1)
+					p = icmpReply(m, ICMP_UNREACH);
+				else
+					p = udpReply(m);
 				if (p != NULL)
 					enq(&pc->oq, p);
 			}			
@@ -173,6 +180,19 @@ int response(struct packet *m, sesscb *sesscb)
 	/* tracerouter response */
 	if (ip->proto == IPPROTO_ICMP) {
 		icmphdr *icmp = (icmphdr *)(ip + 1);
+		/* redirect for network */
+		if (icmp->type == ICMP_REDIRECT) {
+			if (icmp->code == ICMP_REDIRECT_NET) {
+				icmprdr *rdr = (icmprdr *)icmp;
+				
+				sesscb->icmptype = icmp->type;
+				sesscb->icmpcode = icmp->code;
+				/* should check sum */
+				sesscb->rdip = rdr->ip;	
+				/* should check data */
+				return IPPROTO_ICMP;
+			}
+		}
 		if (icmp->type == ICMP_UNREACH || icmp->type == ICMP_TIMXCEED) {
 			sesscb->icmptype = icmp->type;
 			sesscb->icmpcode = icmp->code;
@@ -289,22 +309,19 @@ struct packet *packet(sesscb *sesscb)
 	
 	int i;
 	struct packet *m;
-	int dlen = 0;
-	int len = 0;
+	int dlen = 0; /* the size of payload */
+	int hdr_len = 0;
+	int frag = 0;
 	char b[9];
 	
-	if (sesscb->dsize < 60000)
-		dlen = sesscb->dsize;
+	dlen = sesscb->dsize;
 
-	len = sizeof(ethdr) + sizeof(iphdr);
 	switch (sesscb->proto) {
 		case IPPROTO_ICMP:
-			len += sizeof(icmphdr) + dlen;
+			hdr_len = sizeof(iphdr) + sizeof(icmphdr);
 			break;
 		case IPPROTO_UDP:
-			if (dlen < 6)
-				dlen = 6;
-			len += sizeof(udphdr) + dlen;
+			hdr_len = sizeof(iphdr) + sizeof(udphdr);
 			break;
 		case IPPROTO_TCP:
 			if (sesscb->flags != (TH_ACK | TH_PUSH))
@@ -320,15 +337,14 @@ struct packet *packet(sesscb *sesscb)
 				dlen = sesscb->rmss - sizeof(ethdr) - 
 				    sizeof(iphdr) - sizeof(tcphdr);
 			
-			len += sizeof(tcphdr) + dlen;
-
+			hdr_len = sizeof(iphdr) + sizeof(tcphdr);
 			break;
 	}
 	
-	if (len > 1500)
-		len = 1500;
-		
-	m = new_pkt(len);
+	if (dlen > sesscb->mtu - hdr_len)
+		dlen = sesscb->mtu - hdr_len;
+	
+	m = new_pkt(sizeof(ethdr) + hdr_len + dlen);
 	
 	if (m == NULL)
 		return NULL;
@@ -338,9 +354,12 @@ struct packet *packet(sesscb *sesscb)
 	
 	ip->ver = 4;
 	ip->ihl = sizeof *ip >> 2;
-	ip->len = htons(len - sizeof(ethdr));
+	ip->len = htons(hdr_len + dlen);
 	ip->id = htons(sesscb->ipid++);
-	ip->frag = htons(0x4000);
+	if (!frag)
+		ip->frag = htons(0x4000);
+	else
+		ip->frag = htons(0x2000);
 	ip->ttl = sesscb->ttl;
 	ip->proto = sesscb->proto;
 	ip->sip = sesscb->sip;
@@ -357,29 +376,33 @@ struct packet *packet(sesscb *sesscb)
 		icmp->id = time(0) & 0xffff;
 		
 		for (i = 0; i < dlen; i++)
-			data[i] = i + sizeof(icmphdr);
+			data[i] = (i + sizeof(icmphdr)) & 0xff;
 		
 		icmp->cksum = cksum((unsigned short *) (icmp), 
-		    len - sizeof(iphdr)- sizeof(ethdr));
+		    hdr_len + dlen - sizeof(iphdr));
 	} else if (sesscb->proto == IPPROTO_UDP) {
 		udpiphdr *ui = (udpiphdr *)ip;
 		char *data = ((char*)(ui + 1));
 		
 		ui->ui_sport = htons(sesscb->sport);
 		ui->ui_dport = htons(sesscb->dport);
-		ui->ui_ulen = htons(len - sizeof(iphdr) - sizeof(ethdr));
+		ui->ui_ulen = htons(hdr_len + dlen - sizeof(iphdr));
 		ui->ui_sum = 0;
 		
 		/* this's my footprint */
-		memcpy(data, sesscb->smac, 6);	
-		for (i = 6; i < dlen; i++)
-			data[i] = i + sizeof(udphdr);
-			
+		if (sesscb->data != NULL) {
+			memcpy(data, sesscb->data, dlen);
+		} else {
+			memcpy(data, sesscb->smac, 6);	
+			for (i = 6; i < dlen; i++)
+				data[i] = (i + sizeof(udphdr)) & 0xff;
+		}
+				
 		bcopy(((struct ipovly *)ip)->ih_x1, b, 9);
 		bzero(((struct ipovly *)ip)->ih_x1, 9);
 		
 		ui->ui_len = ui->ui_ulen;
-		ui->ui_sum = cksum((u_short*)ui, len - sizeof(ethdr));
+		ui->ui_sum = cksum((u_short*)ui, hdr_len + dlen);
 		
 		bcopy(b, ((struct ipovly *)ip)->ih_x1, 9);
 		
@@ -391,7 +414,7 @@ struct packet *packet(sesscb *sesscb)
 		
 		ti->ti_sport = htons(sesscb->sport);
 		ti->ti_dport = htons(sesscb->dport);
-		ti->ti_len = htons(len - sizeof(iphdr) - sizeof(ethdr));
+		ti->ti_len = htons(hdr_len + dlen - sizeof(iphdr));
 		ti->ti_ack = htonl(sesscb->ack);
 		ti->ti_seq = htonl(sesscb->seq);
 		ti->ti_win = htons(sesscb->winsize);
@@ -457,7 +480,7 @@ struct packet *packet(sesscb *sesscb)
 		bcopy(((struct ipovly *)ip)->ih_x1, b, 9);
 		bzero(((struct ipovly *)ip)->ih_x1, 9);
 		
-		ti->ti_sum = cksum((u_short*)ti, len - sizeof(ethdr));
+		ti->ti_sum = cksum((u_short*)ti, hdr_len + dlen);
 		bcopy(b, ((struct ipovly *)ip)->ih_x1, 9);
 	}
 	ip->cksum = 0;
@@ -465,8 +488,7 @@ struct packet *packet(sesscb *sesscb)
 	
 	encap_ehead(m->data, sesscb->smac, sesscb->dmac, ETHERTYPE_IP);
 	
-	return m;	
-	
+	return m;
 }
 
 struct packet *arp(pcs *pc, u_int dip)

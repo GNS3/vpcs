@@ -251,23 +251,19 @@ int upv6(pcs *pc, struct packet *m)
 			return PKT_DROP;
 			
 		/* udp echo reply */	
-		if (ui->sport == ui->dport) {
-			char *data = ((char*)(ui + 1));
-			if (memcmp(data, eh->dst, 6) == 0)
-				return PKT_UP;
-			else {
-				struct packet *p;
-				p = udp6Reply(m);
-				if (p != NULL)
-					enq(&pc->oq, p);
-			}
-		} else {
-			/* traceroute reply */
+		char *data = ((char*)(ui + 1));
+		if (memcmp(data, eh->dst, 6) == 0)
+			return PKT_UP;
+		else {
 			struct packet *p;
-			p = icmp6Reply(m);
+			if (ip->ip6_hlim == 1)
+				p = icmp6Reply(m);
+			else
+				p = udp6Reply(m);
 			if (p != NULL)
 				enq(&pc->oq, p);
 		}
+
 		/* anyway tell caller to drop this packet */
 		return PKT_DROP;	
 	} else if (ip->ip6_nxt == IPPROTO_TCP) {

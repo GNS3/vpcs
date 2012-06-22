@@ -50,6 +50,7 @@ typedef struct {
 	u_int netmask;
 	u_int gw;
 	u_int xid;
+	u_int dns[2];
 } dhcp;
 
 typedef struct {
@@ -67,6 +68,7 @@ typedef struct {
 #define IP6TYPE_EUI64 1
 #define IP6TYPE_LOCALLINK 2
 	u_char gmac[6];			/* destination host mac */
+	int mtu;
 } hipv6;
 	
 typedef struct {
@@ -78,6 +80,8 @@ typedef struct {
 	u_char gmac[6];		/* destination host mac */
 	dhcp dhcp;				
 	u_int lease;		/* dhcp lease time */
+	u_int dns[2];		/* dns server */
+	int mtu;
 } hipv4;
 
 #define MAX_NAMES_LEN	(6)	

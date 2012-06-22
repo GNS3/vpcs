@@ -44,6 +44,7 @@
 #include "queue.h"
 #include "dhcp.h"
 #include "tcp.h"
+#include "dns.h"
 
 extern int pcid;
 extern int devtype;
@@ -60,17 +61,25 @@ int run_arp(char *dummy)
 	int i, j;
 	struct in_addr in;
 	char buf[18];
+	u_char zero[ETH_ALEN] = {0};
+	int empty = 1;
 	
 	for (i = 0; i < ARP_SIZE; i++) {
+		if (pc->ipmac4[i].ip == 0)
+			continue;
+		if (memcmp(pc->ipmac4[i].mac, zero, ETH_ALEN) == 0)
+			continue;
 		if (time_tick - pc->ipmac4[i].timeout < 120) {
 			for (j = 0; j < 6; j++)
 				sprintf(buf + j * 3, "%2.2x:", pc->ipmac4[i].mac[j]);
 			buf[17] = '\0';
 			in.s_addr = pc->ipmac4[i].ip;
 			printf("%s  %s\n", buf, inet_ntoa(in));
+			empty = 0;
 		}
 	}
-		
+	if (empty)
+		printf("arp table is empty\n");
 	return 1;
 }
 			
@@ -79,8 +88,10 @@ int run_arp(char *dummy)
  * 012345678901234567890123456789012345678901234567890123456789012345678
  * name   ip/cidr              gw                LPort   RHost:RPort
  */
-int run_show(char *dummy)
+int run_show(char *cmdstr)
 {
+	char *argv[3];
+	int argc;
 	int i, j, k;
 	struct in_addr in;
 	char buf[128];
@@ -90,6 +101,19 @@ int run_show(char *dummy)
 	memset(buf, 0, sizeof(buf));
 	memset(buf, ' ', sizeof(buf) - 1);
 
+	argc = mkargv(cmdstr, argv, 2);
+	if (argc == 2) {
+		if (!strncmp("arp", argv[1], strlen(argv[1]))) {
+			run_arp(NULL);
+			return 1;
+		}
+		/*       12345678901234567890123456789012345678901234567890
+		 *       1         2         3         4         5                 
+		 */
+		printf( "\033[1mshow [arp]\033[0m\n"
+			"    arp     Show arp table\n");
+		return 1;
+	}
 	switch(devtype) {
 		case DEV_TAP:
 			j = sprintf(buf, "NAME");
@@ -212,13 +236,13 @@ int run_ping(char *cmdstr)
 		return 0;
 	}
 	pc->mscb.frag = 0;
-	pc->mscb.mtu = 1500;
+	pc->mscb.mtu = pc->ip4.mtu;
 	pc->mscb.waittime = 1000;
 	pc->mscb.ipid = time(0) & 0xffff;
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_ICMP;
 	pc->mscb.ttl = TTL;
-	pc->mscb.dsize = 20;
+	pc->mscb.dsize = 64;
 	pc->mscb.sport = (random() % (65000 - 1024)) + 1024;
 	pc->mscb.dport = 7;
 	pc->mscb.sip = pc->ip4.ip;
@@ -355,14 +379,20 @@ int run_ping(char *cmdstr)
 	if (pc->mscb.winsize == 0)
 		pc->mscb.winsize = 0xb68; /* 1460 * 4 */
 
-	if (strchr(argv[1], ':') != NULL)
+	if (strchr(argv[1], ':') != NULL) {
+		pc->mscb.mtu = pc->ip6.mtu;
 		return run_ping6(count, interval, cmdstr);
-		
+	}	
 	pc->mscb.dip = inet_addr(argv[1]);
 	
 	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
-		printf("Invalid address: %s\n", argv[1]);
-		return 0;
+		if (hostresolv(pc, argv[1], &(pc->mscb.dip)) == 0) {
+			printf("Cannot resolve %s\n", argv[1]);
+			return 0;
+		} else {
+			in.s_addr = pc->mscb.dip;
+			printf("%s resolved to %s\n", argv[1], inet_ntoa(in)); 	
+		}
 	}
 	
 	/* find ether address of destination host or gateway */
@@ -376,7 +406,8 @@ int run_ping(char *cmdstr)
 		}
 		return 1;
 	}
-		
+
+redirect:		
 	if (sameNet(pc->mscb.dip, pc->ip4.ip, pc->ip4.cidr))
 		gip = pc->mscb.dip;
 	else {
@@ -524,6 +555,17 @@ int run_ping(char *cmdstr)
 						
 					if (respok == IPPROTO_ICMP) {
 						struct in_addr din;
+						
+						if (pc->mscb.icmptype == ICMP_REDIRECT && 
+						    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
+						    	din.s_addr = pc->ip4.gw;	
+						    	printf("Redirect Network, gateway %s",  inet_ntoa(din));
+						    	din.s_addr = pc->mscb.rdip;
+						    	printf(" -> %s\n", inet_ntoa(din));
+						    	
+						    	pc->ip4.gw = pc->mscb.rdip;
+						    	goto redirect;
+						}
 						din.s_addr = pc->mscb.rdip;
 						printf("*%s %s=%d ttl=%d time=%.3f ms", 
 						    inet_ntoa(din), proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
@@ -546,7 +588,7 @@ int run_ping(char *cmdstr)
 	return 1;
 }
 
-int run_dhcp(char *dummy)
+int run_dhcp(char *cmdstr)
 {
 	int i;
 	struct packet *m;
@@ -555,7 +597,52 @@ int run_dhcp(char *dummy)
 	int ts[3] = {1, 3, 9};
 	struct packet *p;
 	struct in_addr in;
+	char *argv[3];
+	int argc;
+	int opt_dump = 0;
+	int opt_renew = 0;
+	int opt_release = 0;
+	u_char mac[6];
 	
+	argc = mkargv(cmdstr, (char**)argv, 3);
+	
+	i = 1;
+	while (i < argc) {
+		if (argv[i][0] != '-')
+			continue;
+		switch (argv[i][1]) {
+			case 'd':
+				opt_dump = 1;
+				break;
+			case 'r':
+				opt_renew = 1;
+				break;
+			case 'x':
+				opt_release = 1;
+				break;
+			case '?':
+				printf( "\n\033[1mdhcp [options]\033[0m\n"		       
+					"    -d   Show packet decode\n"
+					"    -r   Renew DHCP lease\n"
+					"    -x   Release DHCP lease\n");
+				return 0;
+		}
+		i++;
+	}
+	if (opt_release) {
+		m = dhcp4_release(pc);	
+		if (m == NULL) {
+			printf("out of memory\n");
+			return 0;
+		}
+		if (opt_dump)
+			dmp_dhcp(pc, m);
+		enq(&pc->oq, m);
+		pc->ip4.ip = 0;
+		pc->ip4.cidr = 0;
+		pc->ip4.gw = 0;
+		return 0;
+	}
 	srand(time(0));
 	pc->ip4.dhcp.xid = rand();
 	
@@ -563,18 +650,29 @@ int run_dhcp(char *dummy)
 	i = 0;
 	ok = 0;
 	while (i < 3 && !ok) {
-		printf("D"); fflush(stdout);
-		m = dhcp4_discover(pc);
+		if (!opt_dump) {
+			printf("D"); 
+			fflush(stdout);
+		}
+		m = dhcp4_discover(pc, opt_renew);
 		if (m == NULL) {
 			printf("out of memory\n");
 			return 0;
 		}
+		if (opt_dump)
+			dmp_dhcp(pc, m);
 		enq(&pc->oq, m);
 		sleep(ts[i]);
 		
 		while ((p = deq(&pc->iq)) != NULL && !ok) {
-			if ((ok = isDhcp4_Offer(pc, p)))
-				printf("O"); fflush(stdout);
+			if ((ok = isDhcp4_Offer(pc, p))) {
+				if (opt_dump)
+					dmp_dhcp(pc, p);
+				else {
+					printf("O"); 
+					fflush(stdout);
+				}
+			}
 			free(p);
 		}
 		
@@ -589,18 +687,29 @@ int run_dhcp(char *dummy)
 	i = 0;
 	ok = 0;
 	while (i < 3 && !ok) {
-		printf("R"); fflush(stdout);
 		m = dhcp4_request(pc);
 		if (m == NULL) {
 			printf("out of memory\n");
 			return 0;
 		}
+		if (opt_dump)
+			dmp_dhcp(pc, m);
+		else {
+			printf("R"); 
+			fflush(stdout);
+		}
 		enq(&pc->oq, m);
 		sleep(1);
 		
 		while ((p = deq(&pc->iq)) != NULL && !ok) {
-			if ((ok = isDhcp4_packer(pc, p)))
-				printf("A");fflush(stdout);
+			if ((ok = isDhcp4_packer(pc, p))) {
+				if (opt_dump)
+					dmp_dhcp(pc, p);
+				else {
+					printf("A");
+					fflush(stdout);
+				}
+			}
 			free(p);
 		}
 		
@@ -611,14 +720,31 @@ int run_dhcp(char *dummy)
 		return 1;
 	}
 
+	/* check ip address via gratuitous ARP */
+	if (arpResolve(pc, pc->ip4.ip, mac) == 1) {
+		in.s_addr = pc->ip4.ip;
+		PRINT_MAC(mac);
+		printf(" use my ip %s\n",  inet_ntoa(in));  	
+		
+		/* clear ip address */
+		pc->ip4.ip = 0;
+		pc->ip4.cidr = 0;
+		pc->ip4.gw = 0;
+		
+		return 0;
+	}
+	 
 	in.s_addr = pc->ip4.ip;
-	printf(", IP %s/%d",  inet_ntoa(in), pc->ip4.cidr);
+	if (!opt_dump)
+		printf(", ");
+	printf("IP %s/%d",  inet_ntoa(in), pc->ip4.cidr);
 	if (pc->ip4.gw != 0) {
 		in.s_addr = pc->ip4.gw;
 		printf(" GW %s\n", inet_ntoa(in));
 	}
 	pc->ip4.dynip = 1;
-
+	pc->ip4.mtu = MTU;
+	
 	return 1;
 }
 
@@ -629,7 +755,7 @@ int run_ipset(char *cmdstr)
 	char *argv[4];
 	int argc;
 	int icidr = 24;
-	u_long rip, gip, tip;
+	u_int rip, gip, tip;
 	int i;
 	int hasgip = 1;
 	pcs *pc = &vpc[pcid];
@@ -640,7 +766,7 @@ int run_ipset(char *cmdstr)
 		/*       12345678901234567890123456789012345678901234567890123456789012345678901234567890
 		 *       1         2         3         4         5         6         7         8
 		 */
-		printf( "\n\033[1mip [dhcp|auto|address]\033[0m, Configure PC's IP settings\n"
+		printf( "\n\033[1mip [arguments]\033[0m, Configure PC's IP settings\n"
 			"    dhcp         Configure host/gateway address using DHCP, only ipv4\n"
 			"    auto         Stateless address autoconfiguration, only ipv6\n"
 			"                 PC will try to get the ipv6 address from the router at startup\n"
@@ -650,14 +776,89 @@ int run_ipset(char *cmdstr)
 			"                 the ip of the tapx is the maximum host ID of the subnet.\n\n"
 			"                 'ip 10.1.1.70 10.1.1.65 26', set the host ip to 10.1.1.70, \n"
 			"                 the gateway ip to 10.1.1.65, the netmask to 255.255.255.192, \n"
-			"                 the tapx ip to 10.1.1.126 in the ether mode.\n");
+			"                 the tapx ip to 10.1.1.126 in the ether mode.\n"
+			"    mtu value    set MTU, at least 576\n"
+			"    dns ip       set dns, delete if ip is '0'\n"
+			"    show         Show mtu and dns\n");
 
 		return 0;
 	}
 	
 	if (strchr(argv[1], ':') != NULL)
 		return run_ipset6(cmdstr);	
-		
+	
+	if (!strncmp("dhcp", argv[1], strlen(argv[1])))
+		return run_dhcp((void *)0);
+	
+	if (!strncmp("auto", argv[1], strlen(argv[1]))) {
+		struct packet *m = nbr_sol(&vpc[pcid]);	
+		if (m != NULL)
+			enq(&vpc[pcid].oq, m);
+		return 1;
+	}
+	if (!strncmp("mtu", argv[1], strlen(argv[1]))) {
+		i = atoi(argv[2]);
+		if (i < 576) {
+			printf("Invalid MTU, should bigger than 576\n");
+		} else
+			pc->ip4.mtu = i;
+		return 1;
+	}
+	
+	if (!strncmp("dns", argv[1], strlen(argv[1]))) {
+		if (argc == 3) {
+			if (!strcmp(argv[2], "0")) {
+				pc->ip4.dns[0] = 0;
+				return 1;
+			}
+			rip = inet_addr(argv[2]);
+			if (rip == -1 || rip == 0) {
+				printf("Invalid address\n");
+				return 0;
+			}
+			pc->ip4.dns[0] = rip;
+		}				
+		if (argc == 4) {
+			if (!strcmp(argv[2], "0")) {
+				pc->ip4.dns[0] = 0;
+				return 1;
+			}
+			rip = inet_addr(argv[2]);
+			if (rip == -1 || rip == 0) {
+				printf("Invalid address: %s\n", argv[2]);
+				return 0;
+			}
+			pc->ip4.dns[0] = rip;
+
+			if (!strcmp(argv[3], "0")) {
+				pc->ip4.dns[0] = 0;
+				return 1;
+			}
+			rip = inet_addr(argv[3]);
+			if (rip == -1 || rip == 0) {
+				printf("Invalid address: %s\n", argv[3]);
+				return 0;
+			}
+			pc->ip4.dns[1] = rip;	
+		}
+		return 1;
+	}
+	if (!strncmp("show", argv[1], strlen(argv[1]))) {
+		printf("\n");
+		printf("MTU = %d\n",  pc->ip4.mtu);
+	
+		if (pc->ip4.dns[0] != 0) {
+			in.s_addr = pc->ip4.dns[0];
+			printf("DNS Primary Server: %s\n", inet_ntoa(in));
+		}
+		if (pc->ip4.dns[1] != 0) {
+			in.s_addr = pc->ip4.dns[1];
+			printf("DNS Secondary Server: %s\n", inet_ntoa(in));
+		}
+
+		return 1;	
+	}
+	
 	switch (argc) {
 		case 4:
 			rip = inet_addr(argv[1]);
@@ -680,15 +881,6 @@ int run_ipset(char *cmdstr)
 			}
 			break;
 		case 2:
-			if (strcmp("dhcp", argv[1]) == 0)
-				return run_dhcp((void *)0);
-			if (strcmp("auto", argv[1]) == 0) {
-				struct packet *m = nbr_sol(&vpc[pcid]);	
-				if (m != NULL)
-					enq(&vpc[pcid].oq, m);
-				return 1;
-			}
-				
 			rip = inet_addr(argv[1]);
 			hasgip = gip = 0;
 			icidr = 24;
@@ -724,10 +916,11 @@ int run_ipset(char *cmdstr)
 			return 0;
 		}
 	}
-
+	pc->ip4.dynip = 0;
 	pc->ip4.ip = rip;
 	pc->ip4.gw = gip;
 	pc->ip4.cidr = icidr;
+	pc->ip4.mtu = MTU;
 	
 	/* set tap ip address */
 	if (DEV_TAP == devtype) {
@@ -765,10 +958,12 @@ int run_tracert(char *cmdstr)
 	pcs *pc = &vpc[pcid];
 	int ok = 0;
 	int pktnum = 3;
+	int prn_ip = 1;
 		
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_UDP;
-	pc->mscb.dsize = 20;
+	pc->mscb.dsize = 64;
+	pc->mscb.mtu = pc->ip4.mtu;
 	pc->mscb.sport = rand() & 0xfff1;
 	pc->mscb.dport = pc->mscb.sport + 1;
 	pc->mscb.sip = pc->ip4.ip;
@@ -791,14 +986,21 @@ int run_tracert(char *cmdstr)
 	if (count < 1 || count > 64)
 		count = 64;
 	
-	if (strchr(argv[1], ':'))
-		return run_tracert6(count, cmdstr);	
+	if (strchr(argv[1], ':')) {
+		pc->mscb.mtu = pc->ip6.mtu;
+		return run_tracert6(count, cmdstr);
+	}
 		
 	pc->mscb.dip = inet_addr(argv[1]);
-	
+
 	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
-		printf("Invalid address: %s\n", argv[1]);
-		return 0;
+		if (hostresolv(pc, argv[1], &(pc->mscb.dip)) == 0) {
+			printf("Cannot resolve %s\n", argv[1]);
+			return 0;
+		} else {
+			in.s_addr = pc->mscb.dip;
+			printf("%s resolved to %s\n", argv[1], inet_ntoa(in)); 	
+		}
 	}
 	
 	if (pc->mscb.dip == pc->ip4.ip) {
@@ -809,6 +1011,7 @@ int run_tracert(char *cmdstr)
 		return 1;
 	}
 
+redirect:
 	if (sameNet(pc->mscb.dip, pc->ip4.ip, pc->ip4.cidr))
 		gip = pc->mscb.dip;
 	else {
@@ -819,6 +1022,7 @@ int run_tracert(char *cmdstr)
 		
 		gip = pc->ip4.gw;
 	}
+	
 	/* try to get the ether address of destination */
 	if (!arpResolve(pc, gip, pc->mscb.dmac)) {
 		in.s_addr = gip;
@@ -828,6 +1032,8 @@ int run_tracert(char *cmdstr)
 	printf("traceroute to %s, %d hops max, press Ctrl+C to stop\n", argv[1], count);
 	
 	/* send the udp packets */
+	
+	
 	i = 1;
 	while (i <= count && !ctrl_c) {
 		struct packet *p;
@@ -835,6 +1041,11 @@ int run_tracert(char *cmdstr)
 		u_int usec;
 		int j;
 		
+		/* clean input queue */
+		while ((p = deq(&pc->iq)) != NULL)
+			del_pkt(p);
+			
+		prn_ip = 1;
 		printf("%2d   ", i);
 		for (j = 0; j < pktnum && !ctrl_c; j++) {
 			pc->mscb.ttl = i;
@@ -864,11 +1075,25 @@ int run_tracert(char *cmdstr)
 
 					del_pkt(p);
 					
+					if (pc->mscb.icmptype == ICMP_REDIRECT && 
+					    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
+						in.s_addr = pc->ip4.gw;	
+						printf("Redirect Network, gateway %s",  inet_ntoa(in));
+						in.s_addr = pc->mscb.rdip;
+						printf(" -> %s\n", inet_ntoa(in));
+						    	
+						pc->ip4.gw = pc->mscb.rdip;
+						
+						goto redirect;
+					}
+					
 					if (pc->mscb.icmptype == ICMP_TIMXCEED || 
 					    (pc->mscb.dip == pc->mscb.rdip)) {
 						in.s_addr = pc->mscb.rdip;
-						if (j == 0)
+						if (prn_ip) {
 							printf("%s ", inet_ntoa(in));
+							prn_ip = 0;
+						}	
 						printf("  %.3f ms", usec / 1000.0);
 						fflush(stdout);
 						tv.tv_sec = 0;
@@ -877,17 +1102,18 @@ int run_tracert(char *cmdstr)
 					} else if (pc->mscb.icmptype == ICMP_UNREACH) {
 						in.s_addr = pc->mscb.rdip;
 						
-						if (j == 0) {
+						if (prn_ip) {
 							printf("*%s   %.3f ms (ICMP type:%d, code:%d, %s)\n", 
 							    inet_ntoa(in), usec / 1000.0, pc->mscb.icmptype, 
 							    pc->mscb.icmpcode, 
 							    icmpTypeCode2String(4, pc->mscb.icmptype, 
 							        pc->mscb.icmpcode));
+							prn_ip = 0;
 						}
 						tv.tv_sec = 0;
 
 						return 1;
-					}
+					} 
 				}
 			}
 			if (!ok && !ctrl_c) {
@@ -907,7 +1133,7 @@ int run_tracert(char *cmdstr)
 
 int run_set(char *cmdstr)
 {
-	int port;
+	int value;
 	char *argv[3];
 	int argc;
 	int fd;
@@ -930,11 +1156,11 @@ int run_set(char *cmdstr)
 		return 0;
 	}
 	if (!strncmp("lport", argv[1], strlen(argv[1]))) {
-		port = atoi(argv[2]);
-		if (port < 1024 || port > 65000) {
+		value = atoi(argv[2]);
+		if (value < 1024 || value > 65000) {
 			printf("Invalid port. 1024 > port < 65000.\n");
 		} else {
-			fd = open_udp(port);
+			fd = open_udp(value);
 			if (fd <= 0) {
 				fd = 0;
 				printf("Device(%d) open error [%s]\n", pcid, strerror(errno));
@@ -942,18 +1168,18 @@ int run_set(char *cmdstr)
 			}
 		
 			pc->fd = fd;
-			pc->sport = port;
+			pc->sport = value;
 		
 			flags = fcntl(pc->fd, F_GETFL, NULL);
 			flags |= O_NONBLOCK;
 			fcntl(pc->fd, F_SETFL, flags);
 		}
 	} else if (!strncmp("rport", argv[1], strlen(argv[1]))) {
-		port = atoi(argv[2]);
-		if (port < 1024 || port > 65000) {
+		value = atoi(argv[2]);
+		if (value < 1024 || value > 65000) {
 			printf("Invalid port. 1024 > port < 65000.\n");
 		} else
-			pc->rport = port;
+			pc->rport = value;
 	} else if (!strncmp("rhost", argv[1], strlen(argv[1]))) {
 			ip = inet_addr(argv[2]);
 			if (ip == -1) {
@@ -972,7 +1198,7 @@ int run_set(char *cmdstr)
 		} else if (!strcasecmp(argv[2], "off")) {
 			canEcho = 0;
 		}
-	} else
+	} else 
 		printf("Invalid command.\n");
 	return 1;
 }

@@ -189,8 +189,10 @@ void set_telnet_mode(int s)
 	    "\xFF\xFB\x01"
 	    "\xFF\xFD\x03"
 	    "\xFF\xFB\x03";
-
-	(void) write(s, neg, strlen(neg));
+	int rc;
+	
+	rc = write(s, neg, strlen(neg));
+	if (rc);
 }
 
 /* end of file */

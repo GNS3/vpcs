@@ -31,6 +31,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#define MTU          1500
+#define IPV6_MMTU    1280
+
 #define ETH_ALEN 6
 #define ETHERTYPE_IP	0x0800	/* IP */
 #define ETHERTYPE_ARP	0x0806	/* Address resolution */
@@ -94,6 +97,11 @@ typedef struct iphdr iphdr;
 #define ICMP_UNREACH_PORT 3
 #endif
 
+#ifndef ICMP_REDIRECT
+#define ICMP_REDIRECT 5
+#define ICMP_REDIRECT_NET 0
+#endif
+
 struct icmphdr 
 { 
 	u_char type;		/* echo or echo reply */
@@ -103,6 +111,17 @@ struct icmphdr
 	u_short seq;
 }; 
 typedef struct icmphdr icmphdr;
+
+struct icmprdr 
+{ 
+	u_char type;		/* echo or echo reply */
+	u_char code;		/* type sub code */
+	u_short cksum;
+	u_int ip;
+	u_char data[0];
+}; 
+
+typedef struct icmprdr icmprdr;
 
 struct icmpthdr 
 { 
@@ -440,6 +459,9 @@ void swap_ip6head(struct packet *m);
 int getCIDR(u_long mask);
 
 const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code);
+
+#define PRINT_MAC(x) \
+    printf("%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x", (x)[0], (x)[1], (x)[2], (x)[3], (x)[4], (x)[5]);
 #endif
 
 /* end of file */
