@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -46,7 +46,6 @@ extern int pcid;
 extern int devtype;
 extern int ctrl_c;
 extern u_int time_tick;
-extern int dmpflag;
 
 int run_net6(char *cmdstr);
 
@@ -214,7 +213,6 @@ int run_ping6(int count, int waittime, char *cmdstr)
 				printf("out of memory\n");
 				return false;
 			}
-			dmp_packet(m, dmpflag);
 			
 			gettimeofday(&(tv), (void*)0);
 			enq(&pc->oq, m);
@@ -230,9 +228,6 @@ int run_ping6(int count, int waittime, char *cmdstr)
 					respok = response6(p, &pc->mscb);
 					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 +
 					    p->ts.tv_usec - tv.tv_usec;
-					
-					if (respok != 0)
-						dmp_packet(p, dmpflag);
 										
 					del_pkt(p);
 					
@@ -406,9 +401,7 @@ int run_tracert6(int count, char *cmdstr)
 				printf("out of memory\n");
 				return 0;
 			}
-			
-			dmp_packet(m, dmpflag);
-			
+
 			gettimeofday(&(tv), (void*)0);
 			enq(&pc->oq, m);
 			
@@ -423,9 +416,6 @@ int run_tracert6(int count, char *cmdstr)
 					ok = response6(p, &pc->mscb);
 					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 + 
 					    p->ts.tv_usec - tv.tv_usec;
-					
-					if (ok)
-						dmp_packet(p, dmpflag);
 						
 					del_pkt(p);
 					

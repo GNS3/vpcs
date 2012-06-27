@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -37,18 +37,12 @@
 #include <sys/ioctl.h>
 #endif
 
-#include <termios.h>
-
-#include "keydef.h"
 #include "readline.h"
 
 int _readline(struct rls *rls);
 int findhistory(struct rls *rls, int start);
 void trimspace(char *buf);
 void vprint(char *s, int len);
-
-void set_terminal(struct termios *ts);
-void reset_terminal(struct termios *ts);
 
 char *readline(const char *prompt, struct rls *rls)
 {	

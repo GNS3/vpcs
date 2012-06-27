@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -170,11 +170,6 @@ struct packet * dhcp4_request(pcs *pc)
 	dh->options[i++] = 1;
 	dh->options[i++] = DHCPREQUEST;
 	
-	dh->options[i++] = DHO_DHCP_PARAMETER_REQUEST_LIST;
-	dh->options[i++] = 2;
-	dh->options[i++] = DHO_SUBNET_MASK;
-	dh->options[i++] = DHO_ROUTERS;
-	
 	dh->options[i++] = DHO_DHCP_SERVER_IDENTIFIER;
 	dh->options[i++] = 4;
 	((int*)(&dh->options[i]))[0] = pc->ip4.dhcp.svr;
@@ -185,20 +180,13 @@ struct packet * dhcp4_request(pcs *pc)
 	((int*)(&dh->options[i]))[0] = pc->ip4.dhcp.ip;
 	i += sizeof(int);
 	
-	if (pc->ip4.dhcp.dns[0] != 0) {
-		dh->options[i++] = DHO_DNS;
-		k = i;
-		i++;
-		((int*)(&dh->options[i]))[0] = 	pc->ip4.dhcp.dns[0];
-		if (pc->ip4.dhcp.dns[1] != 0) {
-			((int*)(&dh->options[i]))[1] = 	pc->ip4.dhcp.dns[1];
-			dh->options[k] = 2 * sizeof(int);
-			i += 2 * sizeof(int);
-		} else {
-			dh->options[k] = sizeof(int);
-			i += sizeof(int);
-		}
-	}
+	dh->options[i++] = DHO_DHCP_CLIENT_IDENTIFIER;
+	dh->options[i++] = 7;
+	/* using hardware address as my identifier */
+	dh->options[i++] = 1;
+	memcpy(&dh->options[i], pc->ip4.mac, 6);
+	i += 6;
+	
 	dh->options[i++] = DHO_HOST_NAME;
 	k = strlen(pc->xname);
 	dh->options[i++] = k + 1;
@@ -206,12 +194,12 @@ struct packet * dhcp4_request(pcs *pc)
 	i += k;
 	dh->options[i++] = pc->id + '1';
 	
-	dh->options[i++] = DHO_DHCP_CLIENT_IDENTIFIER;
-	dh->options[i++] = 7;
-	/* using hardware address as my identifier */
-	dh->options[i++] = 1;
-	memcpy(&dh->options[i], pc->ip4.mac, 6);
-	i += 6;
+	dh->options[i++] = DHO_DHCP_PARAMETER_REQUEST_LIST;
+	dh->options[i++] = 3;
+	dh->options[i++] = DHO_SUBNET_MASK;
+	dh->options[i++] = DHO_ROUTERS;
+	dh->options[i++] = DHO_DNS;
+
 	dh->options[i] = DHO_END;
 		
 	ui->ui_sport = htons(68);
@@ -442,10 +430,16 @@ int isDhcp4_packer(pcs *pc, struct packet *m)
 				} else if (*p == DHO_DNS) {
 					if (*(p + 1) == 4) {
 						pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
+						if (pc->ip4.dns[0] == 0)
+							pc->ip4.dns[0] = pc->ip4.dhcp.dns[0];
 						p += 6;
 					} else if (*(p + 1) >= 8) {
 						pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
 						pc->ip4.dhcp.dns[1] = ((int*)(p + 2))[1];
+						if (pc->ip4.dns[0] == 0)
+							pc->ip4.dns[0] = pc->ip4.dhcp.dns[0];
+						if (pc->ip4.dns[1] == 0)
+							pc->ip4.dns[1] = pc->ip4.dhcp.dns[1];	
 						p += *(p + 1) + 2;
 					}
 					continue;

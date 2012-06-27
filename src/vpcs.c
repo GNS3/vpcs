@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -47,7 +47,7 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a3";
+const char *ver = "0.4a5";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
@@ -56,7 +56,7 @@ int sport = 20000;
 int rport = 30000;
 int rport_flag = 0;
 u_int rhost = 0; /* remote host */
-int dmpflag = 0;
+//int dmpflag = 0;
 int canEcho = 0; /* echoing on if 1, off if 0 */
 int runLoad = 0; /* work with canEcho */
 
@@ -68,6 +68,7 @@ char *histfile = "vpcs.hist";
 u_int time_tick = 0; /* time tick (second) */
 
 int ctrl_c = 0; /* ctrl+c was pressed */
+
 struct rls *rls = NULL;
 
 int daemon_port = 0;
@@ -100,6 +101,7 @@ extern int run_dhcp(char *);
 extern int run_nb6(char *dummy);
 extern int run_zzz(char *time);
 extern int run_echo(char *);
+extern int run_remote(char *);
 
 extern char *get_pc_cfg(int i);
 extern char *get_pc_cfg6(int i);
@@ -130,6 +132,7 @@ cmdStub cmd_entry[] = {
 	{"load",	run_load},
 	{"clear",	run_clear},
 	{"echo",	run_echo},
+	{"rlogin",      run_remote},
 	{NULL, NULL}
 };
 
@@ -203,15 +206,17 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 		strcpy(vpc[i].xname, "VPCS");
-		delay_ms(20);
+		while (vpc[i].ip4.mac[4] == 0) 
+			delay_ms(10);
+		delay_ms(50);
 	}
 	pthread_create(&timer_pid, NULL, pth_timer_tick, (void *)0);
 	pcid = 0;
 	
-	delay_ms(20);
+	delay_ms(50);
 	autoconf6();
 	
-	delay_ms(20);
+	delay_ms(50);
 	startup();
 	
 	rls = readline_init(50, MAX_LEN);
@@ -251,20 +256,6 @@ void parse_cmd(char *cmdstr)
 	
 	rc = 0;
 	printf("\n");
-	
-	/* dump packet in hex format */
-	if (strcmp(argv[0], "x") == 0) {
-		dmpflag = 1;
-		return;
-	}
-	if (strcmp(argv[0], "xx") == 0) {
-		dmpflag = 2;
-		return;
-	}
-	if (strcmp(argv[0], "X") == 0) {
-		dmpflag = 0;
-		return;
-	}
 	
 	if (!strncmp(argv[0], "echo", strlen(argv[0]))) {
 		char *p = NULL;
@@ -343,7 +334,7 @@ void *pth_proc(void *devid)
 	pc->ip4.mac[2] = 0x79;
 	pc->ip4.mac[3] = 0x66;
 	pc->ip4.mac[4] = 0x68;
-	pc->ip4.mac[5] = (getpid() & 0xff) + id;
+	pc->ip4.mac[5] = id & 0xff;
 	
 	if (pc->fd == 0)
 		pc->fd = open_dev(id);
@@ -373,7 +364,7 @@ void *pth_proc(void *devid)
 			if (pkt == NULL) 
 				break;
 
-			dmp_packet(pkt, dmpflag);
+			dmp_packet(pkt, pc->dmpflag);
 			if (VWrite(pc, pkt->data, pkt->len) != pkt->len)
 				printf("Send packet error\n");
 			del_pkt(pkt);
@@ -390,12 +381,14 @@ void *pth_proc(void *devid)
 			m->len = rc;
 			gettimeofday(&(m->ts), (void*)0);
 
+			if (pc->dmpflag & DMP_ALL || !memcmp(m->data, pc->ip4.mac, ETH_ALEN))
+				dmp_packet(m, pc->dmpflag);
 			rc = upv4(pc, m);
 			
 			if (rc == PKT_UP) {
-				if (pc->mscb.sock != 0)
+				if (pc->mscb.sock != 0) {
 					enq(&pc->iq, m);
-				else
+				} else
 					del_pkt(m);
 			} else if (rc == PKT_DROP)
 				del_pkt(m);
@@ -644,6 +637,7 @@ int run_help(char *dummy)
 		"arp                        Show arp table\n"
 		"ping address [options]     Ping the network host\n"
 		"tracert address [maxhops]  Print the route packets take to network host\n"
+		"rlogin [ip] port           Telnet remote host, connect 127.0.0.1 if no ip\n"
 		"echo [text]                Display text in output\n"
 		"clear [arguments]          Clear ip/ipv6, arp/neighbor cache\n"
 		"set [arguments]            Set hostname, connection port and echo on or off\n"

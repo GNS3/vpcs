@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -45,12 +45,13 @@
 #include "dhcp.h"
 #include "tcp.h"
 #include "dns.h"
+#include "remote.h"
 
 extern int pcid;
 extern int devtype;
 extern int ctrl_c;
+extern int ctrl_z;
 extern u_int time_tick;
-extern int dmpflag;
 extern u_long ip_masks[33];
 extern int canEcho;
 extern void clear_hist(void);
@@ -74,7 +75,8 @@ int run_arp(char *dummy)
 				sprintf(buf + j * 3, "%2.2x:", pc->ipmac4[i].mac[j]);
 			buf[17] = '\0';
 			in.s_addr = pc->ipmac4[i].ip;
-			printf("%s  %s\n", buf, inet_ntoa(in));
+			printf("%s  %s expires in %d seconds \n", buf, inet_ntoa(in), 
+			    120 - (time_tick - pc->ipmac4[i].timeout));
 			empty = 0;
 		}
 	}
@@ -518,8 +520,6 @@ redirect:
 				printf("out of memory\n");
 				return 0;
 			}
-        	
-			dmp_packet(m, dmpflag);
 			
 			gettimeofday(&(tv), (void*)0);
 			enq(&pc->oq, m);
@@ -534,9 +534,6 @@ redirect:
 					respok = response(p, &pc->mscb);
 					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 + 
 					    p->ts.tv_usec - tv.tv_usec;
-					
-					if (respok != 0)
-						dmp_packet(p, dmpflag);
 					
 					del_pkt(p);
 					
@@ -725,7 +722,7 @@ int run_dhcp(char *cmdstr)
 		in.s_addr = pc->ip4.ip;
 		PRINT_MAC(mac);
 		printf(" use my ip %s\n",  inet_ntoa(in));  	
-		
+		memset(pc->ipmac4, 0, sizeof(pc->ipmac4));
 		/* clear ip address */
 		pc->ip4.ip = 0;
 		pc->ip4.cidr = 0;
@@ -735,9 +732,8 @@ int run_dhcp(char *cmdstr)
 	}
 	 
 	in.s_addr = pc->ip4.ip;
-	if (!opt_dump)
-		printf(", ");
-	printf("IP %s/%d",  inet_ntoa(in), pc->ip4.cidr);
+
+	printf(" IP %s/%d",  inet_ntoa(in), pc->ip4.cidr);
 	if (pc->ip4.gw != 0) {
 		in.s_addr = pc->ip4.gw;
 		printf(" GW %s\n", inet_ntoa(in));
@@ -759,7 +755,8 @@ int run_ipset(char *cmdstr)
 	int i;
 	int hasgip = 1;
 	pcs *pc = &vpc[pcid];
-
+	u_char mac[6];
+	
 	argc = mkargv(cmdstr, (char **)argv, 4);
 	
 	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
@@ -916,6 +913,21 @@ int run_ipset(char *cmdstr)
 			return 0;
 		}
 	}
+	/* check ip address via gratuitous ARP */
+	pc->ip4.ip = rip;
+	if (arpResolve(pc, rip, mac) == 1) {
+		in.s_addr = rip;
+		PRINT_MAC(mac);
+		printf(" use my ip %s\n",  inet_ntoa(in));  	
+		memset(pc->ipmac4, 0, sizeof(pc->ipmac4));
+		/* clear ip address */
+		pc->ip4.ip = 0;
+		pc->ip4.cidr = 0;
+		pc->ip4.gw = 0;
+		
+		return 0;
+	}
+	
 	pc->ip4.dynip = 0;
 	pc->ip4.ip = rip;
 	pc->ip4.gw = gip;
@@ -959,6 +971,8 @@ int run_tracert(char *cmdstr)
 	int ok = 0;
 	int pktnum = 3;
 	int prn_ip = 1;
+	char outbuf[1024];
+	int buf_off = 0;
 		
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_UDP;
@@ -1032,8 +1046,6 @@ redirect:
 	printf("traceroute to %s, %d hops max, press Ctrl+C to stop\n", argv[1], count);
 	
 	/* send the udp packets */
-	
-	
 	i = 1;
 	while (i <= count && !ctrl_c) {
 		struct packet *p;
@@ -1046,7 +1058,7 @@ redirect:
 			del_pkt(p);
 			
 		prn_ip = 1;
-		printf("%2d   ", i);
+		buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, "%2d   ", i);
 		for (j = 0; j < pktnum && !ctrl_c; j++) {
 			pc->mscb.ttl = i;
 			m = packet(&pc->mscb);
@@ -1054,7 +1066,6 @@ redirect:
 				printf("out of memory\n");
 				return false;
 			}
-			dmp_packet(m, dmpflag);
 			
 			gettimeofday(&(tv), (void*)0);
 			enq(&pc->oq, m);
@@ -1069,18 +1080,17 @@ redirect:
 					ok = response(p, &pc->mscb);
 					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 + 
 					    p->ts.tv_usec - tv.tv_usec;
-					
-					if (ok)
-						dmp_packet(p, dmpflag);
 
 					del_pkt(p);
 					
 					if (pc->mscb.icmptype == ICMP_REDIRECT && 
 					    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
 						in.s_addr = pc->ip4.gw;	
-						printf("Redirect Network, gateway %s",  inet_ntoa(in));
+						buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
+						    "Redirect Network, gateway %s",  inet_ntoa(in));
 						in.s_addr = pc->mscb.rdip;
-						printf(" -> %s\n", inet_ntoa(in));
+						buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
+						    " -> %s\n", inet_ntoa(in));
 						    	
 						pc->ip4.gw = pc->mscb.rdip;
 						
@@ -1091,10 +1101,12 @@ redirect:
 					    (pc->mscb.dip == pc->mscb.rdip)) {
 						in.s_addr = pc->mscb.rdip;
 						if (prn_ip) {
-							printf("%s ", inet_ntoa(in));
+							buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
+							    "%s ", inet_ntoa(in));
 							prn_ip = 0;
 						}	
-						printf("  %.3f ms", usec / 1000.0);
+						buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
+						    "  %.3f ms", usec / 1000.0);
 						fflush(stdout);
 						tv.tv_sec = 0;
 
@@ -1103,7 +1115,8 @@ redirect:
 						in.s_addr = pc->mscb.rdip;
 						
 						if (prn_ip) {
-							printf("*%s   %.3f ms (ICMP type:%d, code:%d, %s)\n", 
+							buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
+							    "*%s   %.3f ms (ICMP type:%d, code:%d, %s)\n", 
 							    inet_ntoa(in), usec / 1000.0, pc->mscb.icmptype, 
 							    pc->mscb.icmpcode, 
 							    icmpTypeCode2String(4, pc->mscb.icmptype, 
@@ -1117,11 +1130,12 @@ redirect:
 				}
 			}
 			if (!ok && !ctrl_c) {
-				printf("  *");
+				buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, "  *");
 				fflush(stdout);
 			}
 		}
-		printf("\n");
+		printf("%s\n", outbuf);
+		buf_off = 0;
 
 		i++;
 		if (pc->mscb.icmptype == ICMP_UNREACH)
@@ -1134,28 +1148,71 @@ redirect:
 int run_set(char *cmdstr)
 {
 	int value;
-	char *argv[3];
+	char *argv[7];
 	int argc;
 	int fd;
 	int flags;
 	pcs *pc = &vpc[pcid];
 	u_int ip;
+	int i;
 
-	argc = mkargv(cmdstr, argv, 3);
+	argc = mkargv(cmdstr, argv, 7);
 
-	if (argc < 3 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
+	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
 		/*       12345678901234567890123456789012345678901234567890123456789012345678901234567890
 		 *       1         2         3         4         5         6         7         8
 		 */
-		printf( "\n\033[1mset [lport|rport|rhost|pcname|echo]\033[0m\n"
-			"    lport port     local port\n"
-			"    rport port     remote peer port\n"
-			"    rhost address  remote peer host\n"
-			"    pcname name    rename the current pc\n"
-			"    echo [on|off]  set echoing on or off\n");
+		printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump]\033[0m\n"
+			"    lport port      local port\n"
+			"    rport port      remote peer port\n"
+			"    rhost address   remote peer host\n"
+			"    pcname name     rename the current pc\n"
+			"    echo [on|off]   set echoing on or off\n"
+			"    dump [options]  set dump flag, options:\n"
+			"                      mac, print ether address\n"
+			"                      raw, print the first 40 bytes\n"
+			"                      detail, print protocol\n"
+			"                      all, all the packets including incoming\n"
+			"                      reset, clear the flag\n");
 		return 0;
 	}
+	
+	if (!strncmp("dump", argv[1], strlen(argv[1]))) {
+		i = 2;
+		while (i < argc) {
+			if (!strncmp(argv[i], "mac", strlen(argv[i])))
+				pc->dmpflag |= DMP_MAC;
+			else if (!strncmp(argv[i], "raw", strlen(argv[i])))
+				pc->dmpflag |= DMP_RAW;
+			else if (!strncmp(argv[i], "detail", strlen(argv[i])))
+				pc->dmpflag |= DMP_DETAIL;
+			else if (!strncmp(argv[i], "all", strlen(argv[i])))
+				pc->dmpflag |= DMP_ALL;
+			else if (!strncmp(argv[i], "reset", strlen(argv[i])))
+				pc->dmpflag = 0;
+			else
+				printf("Invalid options\n");
+			i++;
+		}
+		printf("Packet Dump:");
+		if (pc->dmpflag & DMP_MAC)
+			printf(" mac");
+		if (pc->dmpflag & DMP_RAW)
+			printf(" raw");
+		if (pc->dmpflag & DMP_DETAIL)
+			printf(" detail");
+		if (pc->dmpflag & DMP_ALL)
+			printf(" all");	
+		printf("\n");
+		
+		return 1;
+	}
+	
 	if (!strncmp("lport", argv[1], strlen(argv[1]))) {
+		if (argc != 3) {
+			printf("Incomplete command.\n");
+			return 1;
+		}
 		value = atoi(argv[2]);
 		if (value < 1024 || value > 65000) {
 			printf("Invalid port. 1024 > port < 65000.\n");
@@ -1175,30 +1232,46 @@ int run_set(char *cmdstr)
 			fcntl(pc->fd, F_SETFL, flags);
 		}
 	} else if (!strncmp("rport", argv[1], strlen(argv[1]))) {
+		if (argc != 3) {
+			printf("Incomplete command.\n");
+			return 1;
+		}
 		value = atoi(argv[2]);
 		if (value < 1024 || value > 65000) {
 			printf("Invalid port. 1024 > port < 65000.\n");
 		} else
 			pc->rport = value;
 	} else if (!strncmp("rhost", argv[1], strlen(argv[1]))) {
-			ip = inet_addr(argv[2]);
-			if (ip == -1) {
-				printf("Invalid address: %s\n", argv[2]);
-				return 0;
-			}
-			pc->rhost = ip;
+		if (argc != 3) {
+			printf("Incomplete command.\n");
+			return 1;
+		}
+		ip = inet_addr(argv[2]);
+		if (ip == -1) {
+			printf("Invalid address: %s\n", argv[2]);
+			return 0;
+		}
+		pc->rhost = ip;
 	} else if (!strncmp("pcname", argv[1], strlen(argv[1]))) {
+		if (argc != 3) {
+			printf("Incomplete command.\n");
+			return 1;
+		}
 		if (strlen(argv[2]) > MAX_NAMES_LEN)
 			printf("Hostname is too long. (should be less than %d)\n", MAX_NAMES_LEN);
 		else 
 			strcpy(vpc[pcid].xname, argv[2]);
 	} else  if (!strncmp("echo", argv[1], strlen(argv[1]))) {
+		if (argc != 3) {
+			printf("Incomplete command.\n");
+			return 1;
+		}
 		if (!strcasecmp(argv[2], "on")) {
 			canEcho = 1;
 		} else if (!strcasecmp(argv[2], "off")) {
 			canEcho = 0;
 		}
-	} else 
+	} else
 		printf("Invalid command.\n");
 	return 1;
 }
@@ -1270,6 +1343,22 @@ int run_echo(char *cmdstr)
 	printf("\n");
 	return 1;
 }	
+
+int run_remote(char *cmdstr)
+{
+	char *argv[3];
+	int argc;
+	
+	argc = mkargv(cmdstr, (char **)argv, 3);
+	
+	if (argc == 2)
+		open_remote("127.0.0.1", atoi(argv[1]));
+	else if (argc == 3)
+		open_remote(argv[1], atoi(argv[2]));	
+	
+	return 1;
+}
+
 const char *ip4Info(const int id)
 {
 	struct in_addr in;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -79,7 +79,6 @@ int tcp_ack(int ipv)
 		printf("out of memory\n");
 		return 0;
 	}
-	dmp_packet(m, dmpflag);
 	enq(&pc->oq, m);
 	
 	return 1;
@@ -117,7 +116,6 @@ int tcp_open(int ipv)
 			printf("out of memory\n");
 			return 0;
 		}
-		dmp_packet(m, dmpflag);
 		enq(&pc->oq, m);   
 		
 		//k = 0;
@@ -130,7 +128,6 @@ int tcp_open(int ipv)
 			    !timeout(tv, pc->mscb.waittime) && !ctrl_c) {	
 				
 				ok = fresponse(p, &pc->mscb);
-				dmp_packet(p, dmpflag);
 				del_pkt(p);
 				
 				if (!ok) 
@@ -152,7 +149,6 @@ int tcp_open(int ipv)
 						return 0;
 					}
 					
-					dmp_packet(m, dmpflag);
 					enq(&pc->oq, m);
 					
 					delay_ms(1);
@@ -202,7 +198,6 @@ int tcp_send(int ipv)
 	/* drop the response if any, but update the ack */
 	while ((p = deq(&pc->iq)) != NULL) {	
 		ok = fresponse(p, &pc->mscb);
-		dmp_packet(p, dmpflag);
 		del_pkt(p);
 		
 		if (!ok)
@@ -227,7 +222,6 @@ int tcp_send(int ipv)
 			printf("out of memory\n");
 			return 0;
 		}
-		dmp_packet(m, dmpflag);
 		enq(&pc->oq, m);   
 		
 		//k = 0;
@@ -237,7 +231,6 @@ int tcp_send(int ipv)
 			delay_ms(1);
 			while ((p = deq(&pc->iq)) != NULL) {	
 				ok = fresponse(p, &pc->mscb);
-				dmp_packet(p, dmpflag);
 				del_pkt(p);
 
 				if (!ok)
@@ -313,7 +306,6 @@ int tcp_close(int ipv)
 	/* drop the response if any, but update the ack */
 	while ((p = deq(&pc->iq)) != NULL) {	
 		ok = fresponse(p, &pc->mscb);
-		dmp_packet(p, dmpflag);
 		del_pkt(p);
 		
 		if (!ok)
@@ -358,7 +350,6 @@ int tcp_close(int ipv)
 			printf("out of memory\n");
 			return 0;
 		}
-		dmp_packet(m, dmpflag);
 		enq(&pc->oq, m);   
 		
 		/* expect ACK */
@@ -368,7 +359,6 @@ int tcp_close(int ipv)
 			delay_ms(1);
 			while ((p = deq(&pc->iq)) != NULL) {	
 				ok = fresponse(p, &pc->mscb);
-				dmp_packet(p, dmpflag);
 				del_pkt(p);
 				
 				if (!ok)
@@ -402,7 +392,6 @@ int tcp_close(int ipv)
 				delay_ms(1);
 				while ((p = deq(&pc->iq)) != NULL) {	
 					ok = fresponse(p, &pc->mscb);
-					dmp_packet(p, dmpflag);
 					del_pkt(p);
 					if (!ok)
 						continue;

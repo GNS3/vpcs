@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -54,11 +54,12 @@
 #include <libutil.h>
 #endif
 
-
+extern int ctrl_c;
 static int cmd_quit = 0;
 
 static void daemon_proc(int sock, int fdtty);
 static void sig_cmd_quit(int sig);
+static void sig_int(int sig);
 static void set_telnet_mode(int s);
 
 int daemonize(int port)
@@ -80,7 +81,7 @@ int daemonize(int port)
 	setsid();
 	
 	signal (SIGTERM, SIG_IGN);
-	signal (SIGINT, SIG_IGN);
+	signal(SIGINT, &sig_int);
 	signal (SIGHUP, SIG_IGN);
    	signal(SIGUSR1, &sig_cmd_quit);
    	
@@ -179,6 +180,12 @@ void sig_cmd_quit(int sig)
 {
 	signal(SIGUSR1, sig_cmd_quit);
 	cmd_quit = 1;
+}
+
+void sig_int(int sig)
+{
+	ctrl_c = 1;
+	signal(SIGINT, &sig_int);
 }
 
 void set_telnet_mode(int s)

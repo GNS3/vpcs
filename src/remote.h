@@ -24,44 +24,12 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
-#ifndef _READLINE_H_
-#define _READLINE_H_
+#ifndef _REMOTE_H_
+#define _REMOTE_H_
 
-#include <termios.h>
-#include "keydef.h"
-
-struct rls {
-	char kb[16];
-	char *kbuffer;	/* key buffer */
-	int pos; 	/* pointer of key buffer */
-	char **history;
-	int hist_total; /* current pointer of the history*/
-	char *prompt;
-	int maxbuflen;
-	int maxhistnum;
-	char** (*tab_callback)(const char *string, const char *part);
-};
-
-struct rls *readline_init(int histnum, int buflen);
-void readline_free(struct rls *rls);
-
-/* print the prompt, read a command string from the terminal and return it */
-char *readline(const char *prompt, struct rls *rls);
-
-/* register tab completion callback function
- *
- * char** (*cb)(const char *string, const char *part)
- *    args:   string, the current input string
- *            part, the partial word
- *    return: an array of strings which is a list of completions
- */
-int readline_tab(char** (*cb)(const char *string, const char *part), struct rls *rls);
-
-int savehistory(const char *filename, struct rls *rls);
-int loadhistory(const char *filename, struct rls *rls);
-
-void set_terminal(struct termios *stored_settings);
-void reset_terminal(struct termios *stored_settings);
+int open_remote(const char *ip, const unsigned short port);
 
 #endif
+
 /* end of file */
+

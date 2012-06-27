@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -42,6 +42,8 @@ u_long ip_masks[33] = {
 	0xFFFFFF80, 0xFFFFFFC0, 0xFFFFFFE0, 0xFFFFFFF0,
 	0xFFFFFFF8, 0xFFFFFFFC, 0xFFFFFFFE, 0xFFFFFFFF
 };
+static void dmp_ip(void *d);
+static void dmp_arp(void *d);
 
 void swap_ehead(char *mbuf)
 {
@@ -220,55 +222,160 @@ int dmp_packet(const struct packet *m, const int flag)
 	u_char *p = (u_char *)m->data;
 	int len = m->len;
 	int left;
-	
+	ethdr *eh = (ethdr *)m->data;
+	int cr = 0;
+
 	if (flag == 0)
 		return flag;
 
-	printf("\n");
-	
-	if (flag == 2) {
-		for (j = 6; j < 12; j++)
-			printf("%2.2x:", *(p + j));
-		
-		printf("\b -> ");
-		
-		for (j = 0; j < 6; j++)
-			printf("%2.2x:", *(p + j));
-			
-		printf("\b \n");
-	}
-	
+	if (flag & DMP_MAC) {
+		printf("\n");
+		printf("\033[33m");
+		cr = 1;
+		PRINT_MAC(p + 6);
+		printf(" -> ");
+		PRINT_MAC(p);
+		printf("\n");
+	}	
 	len -= 14;
 	p += 14;
-		
-	i = 0;
-	while (i < len) {
-		pos0 = pos1 = 0;
-		left = 40;
-		for (j = i; (j < i + 16 && j < len); j += 2) {
-			
-			pos0 += sprintf(x0 + pos0, "%2.2x", *(p + j));
-			left -= 2;
-			if (isprint(*(p + j)))
-				pos1 += sprintf(x1 + pos1, "%c", *(p + j));
-			else
-				pos1 += sprintf(x1 + pos1, ".");
-			
-			pos0 += sprintf(x0 + pos0, "%2.2x ", *(p + j + 1));
-			left -= 3;
-			if (isprint(*(p + j + 1)))
-				pos1 += sprintf(x1 + pos1, "%c", *(p + j + 1));
-			else
-				pos1 += sprintf(x1 + pos1, ".");
+	
+	if (flag & DMP_RAW) {	
+		i = 0;
+		if (!cr) {
+			printf("\n");
+			printf("\033[33m");
+			cr = 1;
 		}
+		while (i < len) {
+			pos0 = pos1 = 0;
+			left = 40;
+			for (j = i; (j < i + 16 && j < len); j += 2) {
+				
+				pos0 += sprintf(x0 + pos0, "%2.2x", *(p + j));
+				left -= 2;
+				if (isprint(*(p + j)))
+					pos1 += sprintf(x1 + pos1, "%c", *(p + j));
+				else
+					pos1 += sprintf(x1 + pos1, ".");
+				
+				pos0 += sprintf(x0 + pos0, "%2.2x ", *(p + j + 1));
+				left -= 3;
+				if (isprint(*(p + j + 1)))
+					pos1 += sprintf(x1 + pos1, "%c", *(p + j + 1));
+				else
+					pos1 += sprintf(x1 + pos1, ".");
+			}
+	
+			for (pos1 = 0; pos1 < left; pos1++)
+				pos0 += sprintf(x0 + pos0, " ");
+			printf("%s   %s\n", x0, x1);
+			i += (j - i);
+		}
+		printf("\n");
+	}
+	if (flag & DMP_DETAIL) {
+		if (!cr) {
+			printf("\n");
+			printf("\033[33m");
+			cr = 1;
+		}
+		if (eh->type == htons(ETHERTYPE_IP))
+			dmp_ip(eh + 1);
+		else if (eh->type == htons(ETHERTYPE_ARP))
+			dmp_arp(eh + 1);
+	}
+	if (cr)
+		printf("\033[0m");
+	
+	return 1;
+}
 
-		for (pos1 = 0; pos1 < left; pos1++)
-			pos0 += sprintf(x0 + pos0, " ");
-		printf("%s   %s\n", x0, x1);
-		i += (j - i);
+static void dmp_arp(void *d)
+{
+	arphdr *ah = (arphdr *)d;	
+	struct in_addr in;
+	u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+	
+	printf("ARP, OpCode: %d (%s)", ntohs(ah->op), 
+	    ((ntohs(ah->op) == ARPOP_REQUEST) ? "Request" : "Reply"));
+	if (((u_int *)ah->sip)[0] == ((u_int *)ah->dip)[0] && ((u_int *)ah->dip)[0] != 0)
+		printf("    Gratuitous ARP");    	
+	printf("\nEther Address: ");
+	PRINT_MAC(ah->sea);
+	printf(" -> ");
+	if (memcmp(ah->dea, broadcast, ETH_ALEN) == 0)
+		printf("Broadcast");
+	else
+		PRINT_MAC(ah->dea);
+	printf("\n");
+	
+	if ((ntohs(ah->op) == ARPOP_REQUEST)) { 
+		in.s_addr = ((u_int *)ah->dip)[0];
+		printf("Who has %s? Tell ", inet_ntoa(in));
+		in.s_addr = ((u_int *)ah->sip)[0];
+		printf("%s", inet_ntoa(in));
+	} else if ((ntohs(ah->op) == ARPOP_REPLY)) {
+		in.s_addr = ((u_int *)ah->sip)[0];
+		printf("%s is at ", inet_ntoa(in));
+		PRINT_MAC(ah->sea);
 	}
 	printf("\n");
-	return flag;
+}
+
+static void dmp_ip(void *d)
+{
+	iphdr *iph = (iphdr *)d;
+	icmphdr *icmp = (icmphdr *)(iph + 1);
+	udphdr *uh = (udphdr *)(iph + 1);
+	tcphdr *th = (tcphdr *)(iph + 1);
+	struct in_addr in;
+	
+	printf("IPv%d, id: %x, length: %d, ttl: %d, sum: %4.4x", iph->ver, 
+	    ntohs(iph->id), ntohs(iph->len), iph->ttl, ntohs(iph->cksum));
+	
+	if (ntohs(iph->frag) == IPDF)
+		printf(", DF");
+	if (ntohs(iph->frag) == IPMF)
+		printf(", MF");
+		
+	in.s_addr = iph->sip;
+	printf("\nAddress: %s -> ", inet_ntoa(in));
+	in.s_addr = iph->dip;
+	printf("%s\n", inet_ntoa(in));
+	
+	if (iph->proto == IPPROTO_ICMP) {
+		printf("Proto: icmp, ");
+		printf("type: %d, ", icmp->type);
+		printf("code: %d\n", icmp->code);
+		printf("Desc: %s\n", icmpTypeCode2String(iph->ver, icmp->type, icmp->code));
+	} else if (iph->proto == IPPROTO_UDP) {
+		printf("Proto: udp, len: %d, sum: %4.4x\n", ntohs(uh->len), ntohs(uh->cksum));
+		printf("Port: %d -> %d\n", ntohs(uh->sport), ntohs(uh->dport));
+	} else if (iph->proto == IPPROTO_TCP) {
+		printf("Proto: tcp, sum: %4.4x, ack: %8.8x, seq: %8.8x, ", 
+		    ntohs(th->th_sum), ntohl(th->th_ack), ntohl(th->th_seq));
+		printf("flags: ");
+		if (th->th_flags & TH_FIN)
+			printf("F");
+		if (th->th_flags & TH_SYN)
+			printf("S");
+		if (th->th_flags & TH_RST)
+			printf("R");
+		if (th->th_flags & TH_PUSH)
+			printf("P");
+		if (th->th_flags & TH_ACK)
+			printf("A");
+		if (th->th_flags & TH_URG)
+			printf("U");
+		if (th->th_flags & TH_ECE)
+			printf("E");
+		if (th->th_flags & TH_CWR)
+			printf("C");	
+		printf("\n");
+
+		printf("Port: %d -> %d\n", ntohs(th->th_sport), ntohs(th->th_dport));
+	}
 }
 
 const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
@@ -315,6 +422,10 @@ const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 	
 	if (ipv == 4) {
 		switch (type) {
+			case 0:
+				return "Echo reply";
+			case 8:
+				return "Echo";
 			case 3:
 				if (code <= 13)
 					return DestUnreach[code];

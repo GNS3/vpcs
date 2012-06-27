@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -50,29 +50,12 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 	struct timeval tv;
 	int ok;
 	int namelen;
+	int i;
+	u_char mac[ETH_ALEN];
 	
-	if (pc->ip4.dns[0] == 0 && pc->ip4.dns[1] == 0) {
-		printf("No DNS server was found\n");
-		return 0;
-	}
 	dlen = dnsrequest(name, data, &namelen);
 	if (dlen == 0) 
 		return 0;
-		
-  	memset(&cb, 0, sizeof(sesscb));
-  	cb.data = data;
-  	cb.dsize = dlen;
-  	cb.proto = IPPROTO_UDP;
-  	cb.mtu = pc->ip4.mtu;
-  	cb.ipid =  time(0) & 0xffff;
-  	cb.ttl = TTL;
-  	cb.sip = pc->ip4.ip;
-  	cb.dip = pc->ip4.dns[0];
-  	if (cb.dip == 0)
-  		cb.dip = pc->ip4.dns[1];
-  	cb.sport = (random() % (65000 - 1024)) + 1024;
-	cb.dport = 53;
-	memcpy(cb.smac, pc->ip4.mac, 6);
 	
 	if (sameNet(cb.dip, pc->ip4.ip, pc->ip4.cidr))
 		gip = cb.dip;
@@ -85,30 +68,50 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 		gip = pc->ip4.gw;
 	}
 
-  	if (!arpResolve(pc, gip, cb.dmac)) {
+  	if (!arpResolve(pc, gip, mac)) {
 		in.s_addr = gip;
 		printf("host (%s) not reachable\n", inet_ntoa(in));
 		return 0;
 	}
-	
-	m = packet(&cb);
-	if (m == NULL) {
-		printf("out of memory\n");
-		return 0;
-	}
-	gettimeofday(&(tv), (void*)0);
-	enq(&pc->oq, m);
 
-	while (!timeout(tv, 1000) && !ctrl_c) {
-		delay_ms(1);
-		ok = 0;		
-		while ((m = deq(&pc->iq)) != NULL && !ok) {
-			ok = dnsparse(m, data + sizeof(dnshdr), namelen, ip);
-			free(m);
+	for (i = 0; i < 2; i++) {
+		if (pc->ip4.dns[i] == 0)
+			continue;
+	
+	  	memset(&cb, 0, sizeof(sesscb));
+	  	cb.data = data;
+	  	cb.dsize = dlen;
+	  	cb.proto = IPPROTO_UDP;
+	  	cb.mtu = pc->ip4.mtu;
+	  	cb.ipid =  time(0) & 0xffff;
+	  	cb.ttl = TTL;
+	  	cb.sip = pc->ip4.ip;
+	  	cb.dip = pc->ip4.dns[i];
+	  	cb.sport = (random() % (65000 - 1024)) + 1024;
+		cb.dport = 53;
+		memcpy(cb.smac, pc->ip4.mac, ETH_ALEN);
+		memcpy(cb.dmac, mac, ETH_ALEN);
+	
+		m = packet(&cb);
+		if (m == NULL) {
+			printf("out of memory\n");
+			return 0;
 		}
-		if (ok)
-			return 1;
+		gettimeofday(&(tv), (void*)0);
+		enq(&pc->oq, m);
+	
+		while (!timeout(tv, 1000) && !ctrl_c) {
+			delay_ms(1);
+			ok = 0;		
+			while ((m = deq(&pc->iq)) != NULL && !ok) {
+				ok = dnsparse(m, data + sizeof(dnshdr), namelen, ip);
+				free(m);
+			}
+			if (ok)
+				return 1;
+		}
 	}
+	
 	return 0;
 }
 
@@ -190,6 +193,15 @@ static int dnsparse(struct packet *m, const char *data, int dlen, u_int *cip)
 	u_short *sp;
 	int rlen;
 	int iplen;
+	int c;
+	const char *rcode[6] = {
+		"No error",
+		"Format error",
+		"Server failure",
+		"Name error",
+		"Not implement",
+		"Refused"};
+		
 
 	eh = (ethdr *)(m->data);
 	ip = (iphdr *)(eh + 1);
@@ -201,8 +213,18 @@ static int dnsparse(struct packet *m, const char *data, int dlen, u_int *cip)
 		return 0;
 
 	/* invalid name or answer */
-	if ((dh->flags & 0x8081) != 0x8081)
+	if ((dh->flags & 0x8081) != 0x8081) {
+		c = (dh->flags >> 8) & 0xf;
+		if (c == 0)
+			return 0;
+		printf("DNS server return: ");
+		if (c < 6)
+			printf("%s\n", rcode[c]);
+		else
+			printf("error: %d\n", c);
+			 
 		return 0;
+	}
 		
 	if (dh->query == 0 || dh->answer == 0)
 		return 0;	

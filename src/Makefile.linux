@@ -2,10 +2,10 @@ RM=rm -f
 CC=gcc -m32
 OSTYPE=Linux
 CPUTYPE=i386
-OPT=-O3
+OPT=-O2
 
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) -Wall -I. -DTAP -Wno-strict-aliasing
-LDFLAGS=-lpthread -lutil -s
+LDFLAGS=-lpthread -lutil -s -static
 OBJS=vpcs.o \
 	daemon.o \
 	readline.o \
@@ -21,7 +21,8 @@ OBJS=vpcs.o \
 	ip.o \
 	tcp.o \
 	inet6.o \
-	dns.o
+	dns.o \
+	remote.o
 	
 all: vpcs
 

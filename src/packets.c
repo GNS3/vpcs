@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -68,7 +68,7 @@ int upv4(pcs *pc, struct packet *m)
 	if (etherIsMulticast(eh->src)) 
 		return PKT_DROP;
 
-	if (memcmp(eh->dst, pc->ip4.mac, 6) == 0 &&
+	if (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 &&
 		((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
 		iphdr *ip = (iphdr *)(eh + 1);
 		
@@ -104,7 +104,7 @@ int upv4(pcs *pc, struct packet *m)
 			data = ((char*)(ui + 1));
 			
 			/* udp echo reply */	
-			if (memcmp(data, eh->dst, 6) == 0)
+			if (memcmp(data, eh->dst, ETH_ALEN) == 0)
 				return PKT_UP;
 			else {
 				struct packet *p;
@@ -140,8 +140,8 @@ int upv4(pcs *pc, struct packet *m)
 	
 				return PKT_ENQ;
 			}			
-		} else if (ah->op == htons(ARPOP_REPLY) && 
-			sameNet(((u_int *)ah->dip)[0], pc->ip4.ip, pc->ip4.cidr)) {
+		} else if (ah->op == htons(ARPOP_REPLY) && 	
+		    sameNet(((u_int *)ah->dip)[0], pc->ip4.ip, pc->ip4.cidr)) {
 			/* save the source ip/mac */	
 			i = 0;
 			while (i < ARP_SIZE) {
@@ -153,17 +153,16 @@ int upv4(pcs *pc, struct packet *m)
 				if (pc->ipmac4[i].timeout == 0 || 
 				    time_tick - pc->ipmac4[i].timeout > 120) {
 					pc->ipmac4[i].ip = ((u_int *)ah->sip)[0];
-					memcpy(pc->ipmac4[i].mac, eh->src, 6);
+					memcpy(pc->ipmac4[i].mac, eh->src, ETH_ALEN);
 					pc->ipmac4[i].timeout = time_tick;
 					break;
 				}
 				i++;
 			}
-
 		}
 		
 		return PKT_DROP;
-	} else if (strncmp((const char *)eh->dst, (const char *)pc->ip4.mac, 6) != 0)
+	} else if (strncmp((const char *)eh->dst, (const char *)pc->ip4.mac, ETH_ALEN) != 0)
 		return PKT_DROP;
 	
 	return PKT_UP;
@@ -274,8 +273,9 @@ int arpResolve(pcs *pc, u_int ip, u_char *dmac)
 
 	for (i = 0; i < ARP_SIZE; i++) {
 		if (pc->ipmac4[i].ip == ip && 
-		    (time_tick - pc->ipmac4[i].timeout) <= 120) {
-			memcpy(dmac, pc->ipmac4[i].mac, 6);
+		    (time_tick - pc->ipmac4[i].timeout) <= 120 &&
+		    !etherIsZero(pc->ipmac4[i].mac)) {
+			memcpy(dmac, pc->ipmac4[i].mac, ETH_ALEN);
 			return 1;
 		}
 	}
@@ -292,8 +292,9 @@ int arpResolve(pcs *pc, u_int ip, u_char *dmac)
 			delay_ms(1);
 			for (i = 0; i < ARP_SIZE; i++) {
 				if (pc->ipmac4[i].ip == ip && 
-				    (time_tick - pc->ipmac4[i].timeout) <= 120) {
-					memcpy(dmac, pc->ipmac4[i].mac, 6);
+				    (time_tick - pc->ipmac4[i].timeout) <= 120 &&
+				    !etherIsZero(pc->ipmac4[i].mac)) {
+					memcpy(dmac, pc->ipmac4[i].mac, ETH_ALEN);
 					return 1;
 				}
 			}	

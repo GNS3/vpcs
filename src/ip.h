@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2011, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -76,6 +76,9 @@ struct iphdr {
 	u_int   dip;		/* source and dest address */
 };
 typedef struct iphdr iphdr;
+
+#define IPDF 0x4000
+#define IPMF 0x2000
 
 #ifndef IPPROTO_ICMP
 #define IPPROTO_ICMP 1
@@ -399,6 +402,11 @@ typedef struct {
 #define ND_RA_FLAG_MANAGED	0x80
 #define ND_RA_FLAG_OTHER	0x40
 #define ND_RA_FLAG_HA		0x20
+
+#define DMP_MAC    1
+#define DMP_RAW    2
+#define DMP_DETAIL 4
+#define DMP_ALL    0x80
 
 struct packet; /* defined in queue.h */
 
