@@ -24,27 +24,24 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
-#ifndef _CMD_H_
-#define _CMD_H_
+#ifndef _HELP_H_
+#define _HELP_H_
 
-int run_dhcp(int argc, char **argv);
-int run_show(int argc, char **argv);
-int run_ping(int argc, char **argv);
-int run_ipset(int argc, char **argv);
-int run_tracert(int argc, char **argv);
-int run_set(int argc, char **argv);
-int run_zzz(int argc, char **argv);
-int run_clear(int argc, char **argv);
-int run_echo(int argc, char **argv);
-int run_ver(int argc, char **argv);
-int run_hist(int argc, char **argv);
-int run_remote(int argc, char **argv);
+int run_help(int argc, char **argv);
 
-int run_load(int argc, char **argv);
-int run_save(int argc, char **argv);
-
-const char *ip4Info(const int id);
-
+int help_clear(int argc, char **argv);
+int help_echo(int argc, char **argv);
+int help_hist(int argc, char **argv);
+int help_ip(int argc, char **argv);
+int help_load(int argc, char **argv);
+int help_neighbor(int argc, char **argv);
+int help_ping(int argc, char **argv);
+int help_trace(int argc, char **argv);
+int help_rlogin(int argc, char **argv);
+int help_save(int argc, char **argv);
+int help_set(int argc, char **argv);
+int help_show(int argc, char **argv);
+int help_version(int argc, char **argv);
+	
 #endif
-
 /* end of file */

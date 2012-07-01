@@ -41,6 +41,7 @@
 #include "packets6.h"
 #include "queue.h"
 #include "tcp.h"
+#include "help.h"
 
 extern int pcid;
 extern int devtype;
@@ -53,27 +54,26 @@ int run_net6(char *cmdstr);
 extern int vinet_pton6(int af, const char * __restrict src, void * __restrict dst);
 extern const char *vinet_ntop6(int af, const void *src, char *dst, socklen_t cnt);
 
-/* ping host */
-int run_ping6(int count, int waittime, char *cmdstr)
+/* ping host , char *cmdstr*/
+int run_ping6(int argc, char **argv)
 {
-	char *argv[2];
-	int argc;
 	pcs *pc = &vpc[pcid];
 	struct in6_addr ipaddr;
 	struct packet *m = NULL;
 	int i;
 	char *p;
 	char proto_seq[16];
-	
+	int count = 64;
+
 	printf("\n");
 	
-	/* destination ip is well enough */
-	argc = mkargv(cmdstr, (char **)argv, 2);
-
-	/* should not occur */
-	if (argc < 2) {
-		printf("incompleted command.\n");
-		return 0;
+	i = 2;
+	for (i = 2; i < argc; i++) {
+		if (strcmp(argv[i], "-c")) {
+			if ((i + 1) < argc && digitstring(argv[i + 1]))
+				count = atoi(argv[i + 1]);
+			break;
+		}
 	}
 	
 	if (vinet_pton6(AF_INET6, argv[1], &ipaddr) != 1) {
@@ -125,7 +125,7 @@ int run_ping6(int count, int waittime, char *cmdstr)
 			int traveltime = 1;
 			
 			if (i > 1)
-				delay_ms(waittime);
+				delay_ms(pc->mscb.waittime);
 				
 			/* clear the input queue */
 			while ((m = deq(&pc->iq)) != NULL);
@@ -217,12 +217,12 @@ int run_ping6(int count, int waittime, char *cmdstr)
 			gettimeofday(&(tv), (void*)0);
 			enq(&pc->oq, m);
 		
-			while (!timeout(tv, waittime) && !ctrl_c) {
+			while (!timeout(tv, pc->mscb.waittime) && !ctrl_c) {
 				delay_ms(1);
 				respok = 0;	
 				
 				while ((p = deq(&pc->iq)) != NULL && !respok && 
-				    !timeout(tv, waittime) && !ctrl_c) {
+				    !timeout(tv, pc->mscb.waittime) && !ctrl_c) {
 					
 					pc->mscb.icmptype = pc->mscb.icmpcode = 0; 
 					respok = response6(p, &pc->mscb);
@@ -270,18 +270,15 @@ int run_ping6(int count, int waittime, char *cmdstr)
 	return 1;
 }
 
-int run_ipset6(char *cmdstr)
+int run_ipset6(int argc, char **argv)
 {
 	char buf[INET6_ADDRSTRLEN + 1];
-	char *argv[4];
-	int argc;
 	pcs *pc = &vpc[pcid];
 	struct in6_addr ipaddr;
 	int hasMask = 0;
 	struct packet *m;
 	int eui64 = 0;
 	
-	argc = mkargv(cmdstr, (char **)argv, 4);
 	switch (argc) {
 		case 1:
 			run_show6(pc);
@@ -344,11 +341,9 @@ int run_ipset6(char *cmdstr)
 	return 1;
 }
 
-int run_tracert6(int count, char *cmdstr)
+int run_tracert6(int argc, char **argv)
 {
 	int i, j;
-	char *argv[3];
-	int argc;
 	struct packet *m;
 	pcs *pc = &vpc[pcid];
 	u_char *dmac;
@@ -356,14 +351,39 @@ int run_tracert6(int count, char *cmdstr)
 	struct in6_addr ipaddr;
 	ip6 ip;
 	int pktnum = 3;
-	printf("\n");
+	int count = 64;
 	
-	argc = mkargv(cmdstr, (char**)argv, 2);
+	printf("\n");
+
 	if (argc < 2) {
 		printf("incompleted command.\n");
 		return 0;
 	}
+	while (1) {
+		int c = getopt(argc, argv, "-m:P:");
+		if (c == -1)
+			break;
+		switch(c) {
+			case 'm':
+				if (!digitstring(optarg))
+					return help_trace(argc, argv);
+				
+				count = atoi(optarg);
+				break;
+			case 'P':
+				break;
+			default:
+				return help_trace(argc, argv);
+		}
+	}	
+				
+	if (optind < argc && digitstring(argv[optind]))
+		count = atoi(argv[optind]);
+		
+	if (count < 1 || count > 64)
+		count = 64;
 	
+			
 	if (vinet_pton6(AF_INET6, argv[1], &ipaddr) != 1) {
 		printf("Invalid address: %s\n", argv[1]);
 		return 0;
@@ -381,7 +401,7 @@ int run_tracert6(int count, char *cmdstr)
 		return 0;
 	}
 	memcpy(pc->mscb.dmac, dmac, 6);
-	printf("traceroute to %s, %d hops max\n", argv[1], count);
+	printf("trace to %s, %d hops max\n", argv[1], count);
 	
 	/* send the udp packets */
 	i = 1;
@@ -492,7 +512,59 @@ int run_show6(pcs *pc)
 	return 1;
 }
 
-int run_nb6(char *dummy)
+int show_ipv6(int argc, char **argv)
+{
+	int i, j, k;
+	char buf[128];
+	char buf6[INET6_ADDRSTRLEN + 1];
+	struct in6_addr ipaddr;
+	
+	printf("\n");
+	memset(buf, 0, sizeof(buf));
+	memset(buf, ' ', sizeof(buf) - 1);
+	j = sprintf(buf, "NAME");
+	buf[j] = ' ';
+	j = sprintf(buf + 7, "MAC");
+	buf[j + 7] = ' ';
+	j = sprintf(buf + 28, "IP/MASK");
+	buf[j + 28] = ' ';
+	printf("%s\n", buf);
+
+	for (i = 0; i < NUM_PTHS; i++) {
+		memset(buf, 0, sizeof(buf));
+		memset(buf, ' ', sizeof(buf) - 1);
+		if (strcmp(vpc[i].xname, "VPCS")== 0)
+			j = sprintf(buf, "%s%d", vpc[i].xname, i + 1);
+		else
+			j = sprintf(buf, "%s", vpc[i].xname);
+		buf[j] = ' ';
+		
+		for (k = 0; k < 6; k++)
+			sprintf(buf + 7 + k * 3, "%2.2x:", vpc[i].ip4.mac[k]);
+		buf[j + 19] = ' ';
+		buf[j + 20] = ' ';
+		
+		memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+		memcpy(ipaddr.s6_addr, vpc[i].link6.ip.addr8, 16);
+		vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+		j = sprintf(buf + 28, "%s/%d", buf6, vpc[i].link6.cidr); 
+			
+		if (vpc[i].ip6.ip.addr32[0] != 0 || vpc[i].ip6.ip.addr32[1] != 0 || 
+		    vpc[i].ip6.ip.addr32[2] != 0 || vpc[i].ip6.ip.addr32[3] != 0) {	
+			memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+			
+			memcpy(ipaddr.s6_addr, vpc[i].ip6.ip.addr8, 16);
+			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+	
+			sprintf(buf + j + 28, " %s/%d %s", buf6, vpc[i].ip6.cidr, 
+			    (vpc[i].ip6.type == IP6TYPE_EUI64) ? "eui-64" : "");
+		}
+		printf("%s\n", buf);
+	}
+	return 1;
+}
+
+int run_nb6(int argc, char **argv)
 {
 	pcs *pc = &vpc[pcid];
 	char buf[INET6_ADDRSTRLEN + 1];

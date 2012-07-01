@@ -30,16 +30,21 @@
 #include "ip.h"
 #include "vpcs.h"
 
-int run_ping6(int count, int waittime, char *cmdstr);
+int run_ping6(int argc, char **argv);
 
-int run_ipset6(char *);
-int run_tracert6(int count, char *);
+int run_ipset6(int argc, char **argv);
+int run_tracert6(int argc, char **argv);
+
+int run_nb6(int argc, char **argv);
 
 int run_show6(pcs *);
+int show_ipv6(int argc, char **argv);
 
 const char *ip6Info(const int id);
 
 void autoconf6(void);
+
+void locallink6(pcs *pc);
 
 #endif
 

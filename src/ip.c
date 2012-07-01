@@ -30,6 +30,7 @@
 #include <ctype.h>
 #include "ip.h"
 #include "queue.h"
+#include "inet6.h"
 
 u_long ip_masks[33] = {
 	0x0, 
@@ -42,7 +43,9 @@ u_long ip_masks[33] = {
 	0xFFFFFF80, 0xFFFFFFC0, 0xFFFFFFE0, 0xFFFFFFF0,
 	0xFFFFFFF8, 0xFFFFFFFC, 0xFFFFFFFE, 0xFFFFFFFF
 };
+
 static void dmp_ip(void *d);
+static void dmp_ip6(void *d);
 static void dmp_arp(void *d);
 
 void swap_ehead(char *mbuf)
@@ -280,8 +283,11 @@ int dmp_packet(const struct packet *m, const int flag)
 			printf("\033[33m");
 			cr = 1;
 		}
+		
 		if (eh->type == htons(ETHERTYPE_IP))
 			dmp_ip(eh + 1);
+		else if (eh->type == htons(ETHERTYPE_IPV6))
+			dmp_ip6(eh + 1);
 		else if (eh->type == htons(ETHERTYPE_ARP))
 			dmp_arp(eh + 1);
 	}
@@ -378,6 +384,55 @@ static void dmp_ip(void *d)
 	}
 }
 
+static void dmp_ip6(void *d)
+{
+	ip6hdr *iph = (ip6hdr *)d;
+	icmp6hdr *icmp = (icmp6hdr *)(iph + 1);
+	udphdr *uh = (udphdr *)(iph + 1);
+	tcphdr *th = (tcphdr *)(iph + 1);
+	char *p;
+	
+	printf("IPv6, flowid: %x, length: %d, ttl: %d\n", 
+	    ntohl(iph->ip6_flow), ntohs(iph->ip6_plen), iph->ip6_hlim);
+	
+	p = ip6tostr(iph->src.addr8);
+	printf("\nAddress: %s -> ", p);
+	p = ip6tostr(iph->dst.addr8);
+	printf("%s\n", p);
+	
+	if (iph->ip6_nxt == IPPROTO_ICMP) {
+		printf("Proto: icmp, ");
+		printf("type: %d, ", icmp->type);
+		printf("code: %d\n", icmp->code);
+		printf("Desc: %s\n", icmpTypeCode2String(6, icmp->type, icmp->code));
+	} else if (iph->ip6_nxt == IPPROTO_UDP) {
+		printf("Proto: udp, len: %d, sum: %4.4x\n", ntohs(uh->len), ntohs(uh->cksum));
+		printf("Port: %d -> %d\n", ntohs(uh->sport), ntohs(uh->dport));
+	} else if (iph->ip6_nxt == IPPROTO_TCP) {
+		printf("Proto: tcp, sum: %4.4x, ack: %8.8x, seq: %8.8x, ", 
+		    ntohs(th->th_sum), ntohl(th->th_ack), ntohl(th->th_seq));
+		printf("flags: ");
+		if (th->th_flags & TH_FIN)
+			printf("F");
+		if (th->th_flags & TH_SYN)
+			printf("S");
+		if (th->th_flags & TH_RST)
+			printf("R");
+		if (th->th_flags & TH_PUSH)
+			printf("P");
+		if (th->th_flags & TH_ACK)
+			printf("A");
+		if (th->th_flags & TH_URG)
+			printf("U");
+		if (th->th_flags & TH_ECE)
+			printf("E");
+		if (th->th_flags & TH_CWR)
+			printf("C");	
+		printf("\n");
+
+		printf("Port: %d -> %d\n", ntohs(th->th_sport), ntohs(th->th_dport));
+	}
+}
 const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 {
 	const char *DestUnreach[] = {
@@ -457,5 +512,17 @@ const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 	}
 
 	return empty;
+}
+
+char *ip6tostr(const u_char *ip6)
+{
+	struct in6_addr ipaddr;
+	static char buf[INET6_ADDRSTRLEN + 1];
+	
+	memset(buf, 0, INET6_ADDRSTRLEN + 1);
+	memcpy(ipaddr.s6_addr, ip6, 16);
+	vinet_ntop6(AF_INET6, &ipaddr, buf, INET6_ADDRSTRLEN + 1);
+	
+	return buf;
 }
 /* end of file */

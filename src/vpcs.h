@@ -51,6 +51,7 @@ typedef struct {
 	u_int gw;
 	u_int xid;
 	u_int dns[2];
+	char domain[64];
 } dhcp;
 
 typedef struct {
@@ -113,7 +114,8 @@ pcs vpc[NUM_PTHS];
 
 #define delay_ms(s) usleep(s * 1000)
 
-extern int dmpflag;
+void parse_cmd(char *cmdstr);
+
 #endif
 
 /* end of file */

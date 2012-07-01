@@ -195,10 +195,11 @@ struct packet * dhcp4_request(pcs *pc)
 	dh->options[i++] = pc->id + '1';
 	
 	dh->options[i++] = DHO_DHCP_PARAMETER_REQUEST_LIST;
-	dh->options[i++] = 3;
+	dh->options[i++] = 4;
 	dh->options[i++] = DHO_SUBNET_MASK;
 	dh->options[i++] = DHO_ROUTERS;
 	dh->options[i++] = DHO_DNS;
+	dh->options[i++] = DHO_DOMAIN;
 
 	dh->options[i] = DHO_END;
 		
@@ -430,19 +431,20 @@ int isDhcp4_packer(pcs *pc, struct packet *m)
 				} else if (*p == DHO_DNS) {
 					if (*(p + 1) == 4) {
 						pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
-						if (pc->ip4.dns[0] == 0)
-							pc->ip4.dns[0] = pc->ip4.dhcp.dns[0];
+						pc->ip4.dns[0] = pc->ip4.dhcp.dns[0];
 						p += 6;
 					} else if (*(p + 1) >= 8) {
 						pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
 						pc->ip4.dhcp.dns[1] = ((int*)(p + 2))[1];
-						if (pc->ip4.dns[0] == 0)
-							pc->ip4.dns[0] = pc->ip4.dhcp.dns[0];
-						if (pc->ip4.dns[1] == 0)
-							pc->ip4.dns[1] = pc->ip4.dhcp.dns[1];	
+						pc->ip4.dns[0] = pc->ip4.dhcp.dns[0];
+						pc->ip4.dns[1] = pc->ip4.dhcp.dns[1];	
 						p += *(p + 1) + 2;
 					}
 					continue;
+				} else if (*p == DHO_DOMAIN) {
+					memset(pc->ip4.dhcp.domain, 0, sizeof(pc->ip4.dhcp.domain));
+					memcpy(pc->ip4.dhcp.domain, p + 2, *(p + 1));
+					p += *(p + 1) + 2;
 				} else {
 					p++;		/* skip op code */
 					p += *(p) + 1;	/* add op offset(length) */

@@ -42,12 +42,13 @@
 #include "command.h"
 #include "command6.h"
 #include "daemon.h"
+#include "help.h"
 
 #ifndef Darwin
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a5";
+const char *ver = "0.4a8";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
@@ -56,7 +57,7 @@ int sport = 20000;
 int rport = 30000;
 int rport_flag = 0;
 u_int rhost = 0; /* remote host */
-//int dmpflag = 0;
+
 int canEcho = 0; /* echoing on if 1, off if 0 */
 int runLoad = 0; /* work with canEcho */
 
@@ -83,56 +84,38 @@ void welcome(void);
 void usage();
 void startup(void);
 
-int run_quit(char*);
-int run_help(char*);
-int run_ver(char*);
-int run_load(char*);
-int run_save(char*);
-
-/* command */
-extern int run_show(char *);
-extern int run_hist(char *dummy);
-extern int run_ping(char *);
-extern int run_ipset(char *);
-extern int run_tracert(char *);
-extern int run_set(char *cmdstr);
-extern int run_arp(char *);
-extern int run_dhcp(char *);
-extern int run_nb6(char *dummy);
-extern int run_zzz(char *time);
-extern int run_echo(char *);
-extern int run_remote(char *);
-
-extern char *get_pc_cfg(int i);
-extern char *get_pc_cfg6(int i);
-extern void locallink6(pcs *pc);
+int run_quit(int argc, char **argv);
 
 struct stub
 {
 	char *name;
-	int (*f)(char *);
+	char *grpname;
+	int (*f)(int argc, char **argv);
+	int (*help)(int argc, char **argv);
+	
 };
 typedef struct stub cmdStub;
 
 cmdStub cmd_entry[] = {
-	{"?",		run_help},
-	{"quit",	run_quit},
-	{"show",	run_show},
-	{"arp",		run_arp},
-	{"set",		run_set},
-	{"hist",	run_hist},
-	{"ip",		run_ipset},
-	{"ping",	run_ping},
-	{"tracert",	run_tracert},
-	{"dhcp",	run_dhcp},
-	{"neighbor",	run_nb6},
-	{"zzz",		run_zzz},
-	{"ver",		run_ver},
-	{"save",	run_save},
-	{"load",	run_load},
-	{"clear",	run_clear},
-	{"echo",	run_echo},
-	{"rlogin",      run_remote},
+	{"?",		NULL,	run_help,	NULL},
+	{"arp",		"show",	run_show,	help_show},
+	{"clear",	NULL,	run_clear,	NULL},
+	{"dhcp",	"ip",	run_ipset,	help_ip},
+	{"echo",	NULL,	run_echo,	NULL},
+	{"help",	NULL,	run_help,	NULL},
+	{"hist",	NULL,	run_hist,	NULL},
+	{"ip",		NULL,	run_ipset,	help_ip},
+	{"load",	NULL,	run_load,	help_load},
+	{"neighbor",	NULL,	run_nb6,	NULL},
+	{"ping",	NULL,	run_ping,	help_ping},
+	{"quit",	NULL,	run_quit,	NULL},
+	{"tracer",	NULL,	run_tracert,	help_trace},
+	{"rlogin",      NULL,	run_remote,	help_rlogin},
+	{"save",	NULL,	run_save,	help_save},
+	{"set",		NULL,	run_set,	help_set},
+	{"show",	NULL,	run_show,	help_show},
+	{"version",	NULL,	run_ver,	NULL},
+	{"zzz",		NULL,	run_zzz,	NULL},
 	{NULL, NULL}
 };
 
@@ -240,11 +223,11 @@ int main(int argc, char **argv)
 void parse_cmd(char *cmdstr)
 {
 	cmdStub *ep = NULL, *cmd = NULL;
-	char *argv[5];
+	char *argv[20];
 	int argc = 0;
 	int rc = 0;
 	
-	argc = mkargv(cmdstr, (char **)argv, 5);
+	argc = mkargv(cmdstr, (char **)argv, 20);
 	
 	if (argc == 1 && strlen(argv[0]) == 1 &&
 	    (argv[0][0] - '0') > 0 && (argv[0][0] - '0') <= 9) {
@@ -286,13 +269,30 @@ void parse_cmd(char *cmdstr)
 	}
 	
 	if(cmd && cmd->name != NULL) {
+		if (cmd->grpname != NULL) {
+			argc = insert_argv(argc, argv, cmd->grpname);	
+			for (ep = cmd_entry; ep->name != NULL; ep++) {
+				if(!strcmp(argv[0], ep->name)) {
+					cmd = ep;
+					break;
+				}
+			}
+		}
+		
 		if (canEcho && runLoad)
 			printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
+		
+		if (((!strcmp(argv[argc - 1], "?") || !strcmp(argv[argc - 1], "help"))) &&
+		    cmd->help != NULL) {
+			cmd->help(argc, argv);
+			return;
+		}
+						
 		/* the session control block */
 		memset(&vpc[pcid].mscb, 0, sizeof(vpc[pcid].mscb));
 		vpc[pcid].mscb.sock = 1;
 		
-		rc = cmd->f(cmdstr);
+		rc = cmd->f(argc, argv);
 
 		memset(&vpc[pcid].mscb, 0, sizeof(vpc[pcid].mscb));
 
@@ -354,7 +354,7 @@ void *pth_proc(void *devid)
 	pc->oq.type = 1 + id * 100;
 	
 	locallink6(pc);
-	
+
 	while (1) {
 		while (1) {
 			struct packet *pkt = NULL;
@@ -410,15 +410,19 @@ void *pth_timer_tick(void *dummy)
 void startup(void)
 {
 	FILE *fp;
-	char cmd[1024];
-
+	int argc;
+	char *argv[3];
+	
 	if (startupfile == NULL) {
 		fp = fopen(default_startupfile, "r");
 		if (fp != NULL) {
 			fclose(fp);
-			snprintf(cmd, sizeof(cmd), "load %s", default_startupfile);
+			argv[0] = "load";
+			argv[1] = (char *)default_startupfile;
+			argv[2] = NULL;
+			argc = 2;
 			runStartup = 1;
-			run_load(cmd);
+			run_load(argc, argv);
 			runStartup = 0;
 		}
 		return;
@@ -426,9 +430,14 @@ void startup(void)
 		fp = fopen(startupfile, "r");
 		if (fp != NULL) {
 			fclose(fp);
-			snprintf(cmd, sizeof(cmd), "load %s", startupfile);
 			runStartup = 1;
-			run_load(cmd);
+			
+			argv[0] = "load";
+			argv[1] = (char *)startupfile;
+			argv[2] = NULL;
+			argc = 2;
+			run_load(argc, argv);
+			
 			runStartup = 0;
 		} else
 			printf("Can't open %s\n", startupfile);
@@ -436,113 +445,7 @@ void startup(void)
 	}
 }
 
-int run_load(char *cmdstr)
-{
-	FILE *fp;
-	char buf[MAX_LEN];
-	char *argv[2];
-	int argc;
-	
-	argc = mkargv(cmdstr, argv, 2);
-	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
-		/*       12345678901234567890123456789012345678901234567890123456789012345678901234567890
-		 *       1         2         3         4         5         6         7         8
-		 */
-		printf( "\n\033[1mload filename\033[0m, Load the configuration/script from the file 'filename'.\n");
-		return 0;
-	}
-		
-	fp = fopen(argv[1], "r");
-	if (fp == NULL) {
-		printf("Can't open %s\n", argv[1]);
-		return -1;
-	}
-
-	if (runStartup)
-		printf("\nExecuting the startup file\n");
-	else
-		printf("\nExecuting the file %s\n", argv[1]);
-
-	while (!feof(fp) && !ctrl_c) {
-		runLoad = 1;
-		if (fgets(buf, MAX_LEN, fp) == NULL)
-			break;
-		if (buf[strlen(buf) - 1] == '\n') {
-			buf[strlen(buf) - 1] = '\0';
-			if (buf[strlen(buf) - 1] == '\r')
-				buf[strlen(buf) - 1] = '\0';
-		}		
-		if (buf[0] == '#' ||
-			buf[0] == '!' ||
-			buf[0] == ';')
-			continue;
-		if (strlen(buf) > 0)	
-			parse_cmd(buf);
-	}
-	runLoad = 0;
-	fclose(fp);
-	return 1;
-}
-
-int run_save(char *cmdstr)
-{
-	FILE *fp;
-	int i;
-	char *p;
-	char *argv[2];
-	int argc;
-	char buf[64];
-	u_int local_ip;
-	struct in_addr in;
-	
-	argc = mkargv(cmdstr, argv, 2);
-	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
-		/*       12345678901234567890123456789012345678901234567890123456789012345678901234567890
-		 *       1         2         3         4         5         6         7         8
-		 */
-		printf( "\n\033[1msave filename\033[0m, Save the configuration to the file 'filename'.\n");
-		return 0;
-	}	
-	fp = fopen(argv[1], "w");
-	if (fp != NULL) {
-		local_ip = inet_addr("127.0.0.1");
-		for (i = 0; i < NUM_PTHS; i++) {
-			fprintf(fp, "%d\n", i + 1);
-			
-			sprintf(buf, "VPCS[%d]", i + 1);
-			if (strncmp(vpc[i].xname, buf, 3)) 
-				fprintf(fp, "set pcname %s\n", vpc[i].xname);
-			
-			if (vpc[i].sport != (20000 + i)) 
-				fprintf(fp, "set lport %d\n", vpc[i].sport);
-				
-			if (vpc[i].rport != (30000 + i)) 
-				fprintf(fp, "set rport %d\n", vpc[i].rport);
-			if (vpc[i].rhost != local_ip) {
-				in.s_addr = vpc[i].rhost;
-				fprintf(fp, "set rhost %s\n", inet_ntoa(in));
-			}
-			if (vpc[i].ip4.dynip == 1) 
-				fputs("dhcp\n", fp);
-			else {
-				p = (char *)ip4Info(i);
-				if (p != NULL) 
-					fprintf(fp, "%s\n", p); 
-				p = (char *)ip6Info(i);
-				if (p != NULL) 
-					fprintf(fp, "%s\n", p);
-			}
-			printf(".");
-		}
-		fprintf(fp, "1\n");
-		fclose(fp);
-		printf("  done\n");
-	} else
-		printf("Can not write %s\n", argv[1]);
-	return 1;
-}
-
-int run_quit(char *dummy)
+int run_quit(int argc, char **argv)
 {
 	int i;
 	pid_t pid;
@@ -563,31 +466,6 @@ int run_quit(char *dummy)
 	exit(1);
 }
 
-int run_hist(char *cmdstr)
-{
-	char *argv[2];
-	int argc;
-	int i;
-	
-	argc = mkargv(cmdstr, (char **)argv, 2);
-	
-	if (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?') {
-		/*       12345678901234567890123456789012345678901234567890123456789012345678901234567890
-		 *       1         2         3         4         5         6         7         8
-		 */
-		printf( "\n\033[1mhist\033[0m, List the history command.\n"
-			"    use up/down arrow keys to get recently-executed commands.\n");
-		return 0;
-	}
-	
-	printf("\n");
-	
-	for (i = 0; i < rls->hist_total; i++)
-		printf("%s\n", rls->history[i]);
-		
-	return 1;
-}
-
 void clear_hist(void)
 {
 	rls->hist_total = 0;	
@@ -595,20 +473,16 @@ void clear_hist(void)
 
 void welcome(void)
 {
-	printf ("\n"
-		"Welcome to Virtual PC Simulator for dynamips, v%s\n"
-		"Dedicated to Daling.\n"
-		"Build time: %s %s\n"
-		"All rights reserved.\n\n"
-		"Please contact me at mirnshi@gmail.com if you have any questions. \n\n"
-		"Press '?' to get help.\n\n",
-		ver, __DATE__, __TIME__ );	
+	run_ver(0, NULL);
+	
+	printf("\nPress '?' to get help.\n");
 	return;			
 }
 
 void usage()
 {
-	printf ("usage: vpcs [options]\n"
+	run_ver(0, NULL);
+	printf ("\nusage: vpcs [options]\n"
 		"           -p port   daemon port\n"
 		"           -u        udp mode, default\n"
 		"           -e        tap mode, using /dev/tapx (only linux)\n"
@@ -620,32 +494,6 @@ void usage()
 		"\n");
 }
 
-int run_ver(char *dummy)
-{
-	printf("\nVersion: %s, build time: %s %s\n", ver, __DATE__, __TIME__ );
-	return 1;	
-}
 
-int run_help(char *dummy) 
-{
-	printf ("\n"
-		"show [options]             Print the net configuration of PCs\n"
-		"d                          Switch to the PC[d], d is digit, range 1 to 9\n"
-		"history                    List the command history\n"
-		"ip [arguments]             Configure PC's IP settings\n"
-		"dhcp [options]             Configure host/gateway address using DHCP\n"
-		"arp                        Show arp table\n"
-		"ping address [options]     Ping the network host\n"
-		"tracert address [maxhops]  Print the route packets take to network host\n"
-		"rlogin [ip] port           Telnet remote host, connect 127.0.0.1 if no ip\n"
-		"echo [text]                Display text in output\n"
-		"clear [arguments]          Clear ip/ipv6, arp/neighbor cache\n"
-		"set [arguments]            Set hostname, connection port and echo on or off\n"
-		"load filename              Load the configuration/script from the file 'filename'\n"
-		"save filename              Save the configuration to the file 'filename'\n"
-		"ver                        Show version\n"
-		"?                          Print help\n"
-		"quit                       Quit program\n");
-	return 1;			
-}
+
 /* end of file */

@@ -468,6 +468,8 @@ int getCIDR(u_long mask);
 
 const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code);
 
+char *ip6tostr(const u_char *ip6);
+
 #define PRINT_MAC(x) \
     printf("%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x", (x)[0], (x)[1], (x)[2], (x)[3], (x)[4], (x)[5]);
 #endif

@@ -64,7 +64,23 @@ int mkargv(char *str, char **argv, int max)
 			p = strtok(NULL, "=/ \t");
 		}
 	}
+	args[n] = NULL;
 	return n;
+}
+
+int insert_argv(int argc, char **argv, char *str)
+{
+	char *av[20];
+	int i;
+	
+	for (i = 0; i < argc; i++)
+		av[i] = argv[i];
+	
+	argv[0] = str;
+	for (i = 0; i < argc; i++)
+		argv[i + 1] = av[i];
+	
+	return (argc + 1);
 }
 
 int timeout(struct timeval tv, int mseconds)
@@ -76,6 +92,19 @@ int timeout(struct timeval tv, int mseconds)
 	usec = (tvx.tv_sec - tv.tv_sec) * 1000000 + tvx.tv_usec - tv.tv_usec;
 
 	return ((usec / 1000) >=  mseconds);
+}
+
+int digitstring(const char *s)
+{
+	if (s == NULL)
+		return 0;
+
+	while (*s >= '0' && *s <= '9') {
+		s++;
+		if (*s == '\0')
+			return 1;
+	}
+	return 0;
 }
 
 #if 0

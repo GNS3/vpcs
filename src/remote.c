@@ -41,6 +41,7 @@
 #include "globle.h"
 #include "remote.h"
 #include "readline.h"
+#include "utils.h"
 
 int open_remote(const char *destip, const u_short destport)
 {
@@ -53,6 +54,14 @@ int open_remote(const char *destip, const u_short destport)
 	/* char *neg = "\xFF\xFB\x18\xFF\xFD\x01\xFF\xFD\x03"; */
 	int i;
 	int flags;
+	struct timeval tv;
+	fd_set fset;
+	
+	i = inet_addr(destip);
+	if (i == -1) {
+		printf("Invalid IP address\n");
+		return 0;
+	}
 	
 	s = socket(AF_INET, SOCK_STREAM, 0);	
 	
@@ -64,17 +73,43 @@ int open_remote(const char *destip, const u_short destport)
 	addr_in.sin_addr.s_addr = inet_addr(destip);
 	addr_in.sin_port = htons(destport);
 	
-	if (connect(s, (struct sockaddr *)&addr_in, sizeof(addr_in)) == -1) {
-		printf("Connect %s:%d error: %s\n", destip, destport, strerror(errno));	
-		close(s);
-		return errno;
-	}
+	flags = fcntl(s, F_GETFL, NULL);
+	fcntl(s, F_SETFL, O_NONBLOCK);
+	
+	tv.tv_sec = 5;
+	tv.tv_usec = 0;
 	
 	printf("Connect %s:%d, press Ctrl+X to quit\n", destip, destport);
-	
+			
+	rc = connect(s, (struct sockaddr*)&addr_in, sizeof(struct sockaddr));
+	if (rc < 0) {
+		if (errno == EINPROGRESS) {
+			FD_ZERO(&fset);
+			FD_SET(s, &fset);
+			rc = select(s + 1, &fset, NULL, NULL, &tv);
+			do {
+				if (rc > 0 && FD_ISSET(s, &fset)) {
+					i = sizeof(rc);
+					getsockopt(s, SOL_SOCKET, SO_ERROR, &rc, (socklen_t *)&i);
+					if (rc == 0)
+						break;
+					if (errno == EINPROGRESS)
+						printf("Connect timeout\n");
+					else
+						printf("Connect failed: %s\n", strerror(errno));
+				} else if (rc == 0) 
+					printf("Connect timeout\n");
+				else
+					printf("Connect error: %s\n", strerror(errno));
+					
+				close(s);
+				return 1;
+			} while (0);
+		}
+	}
+
 	flags = fcntl(0, F_GETFL);
 	fcntl(0, F_SETFL, O_NONBLOCK);
-	fcntl(s, F_SETFL, O_NONBLOCK);
 	
 	set_terminal(&termios);
 	

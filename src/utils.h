@@ -31,8 +31,11 @@
 
 char *getkv(char *str);
 int mkargv(char *str, char **argv, int max);
+int insert_argv(int argc, char **argv, char *str);
 
 int timeout(struct timeval tv, int mseconds);
+
+int digitstring(const char *s);
 
 #endif
 
