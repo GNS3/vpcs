@@ -229,6 +229,9 @@ void parse_cmd(char *cmdstr)
 	
 	argc = mkargv(cmdstr, (char **)argv, 20);
 	
+	if (argc == 0)
+		return;
+
 	if (argc == 1 && strlen(argv[0]) == 1 &&
 	    (argv[0][0] - '0') > 0 && (argv[0][0] - '0') <= 9) {
 		if (canEcho && runLoad)
@@ -401,9 +404,15 @@ void *pth_proc(void *devid)
 
 void *pth_timer_tick(void *dummy)
 {
+	time_t t0, t1;
+	t0 = time(0);
 	while (1) {
-		time_tick ++;
-		sleep(1);
+		t1 = time(0);
+		if (t1 - t0 > 0) {
+			time_tick += t1 - t0;
+			t0 = t1;
+		}
+		usleep(100);
 	}
 }
 
@@ -459,7 +468,7 @@ int run_quit(int argc, char **argv)
 	for (i = 0; i < NUM_PTHS; i++)
 		close(vpc[i].fd);
 
-	if (histfile != NULL) 
+	if (rls != NULL && histfile != NULL) 
 		savehistory(histfile, rls);
 
 	printf("\n");
