@@ -63,13 +63,13 @@ int run_ping6(int argc, char **argv)
 	int i;
 	char *p;
 	char proto_seq[16];
-	int count = 64;
+	int count = 5;
 
 	printf("\n");
 	
 	i = 2;
 	for (i = 2; i < argc; i++) {
-		if (strcmp(argv[i], "-c")) {
+		if (!strcmp(argv[i], "-c")) {
 			if ((i + 1) < argc && digitstring(argv[i + 1]))
 				count = atoi(argv[i + 1]);
 			break;
@@ -351,7 +351,7 @@ int run_tracert6(int argc, char **argv)
 	struct in6_addr ipaddr;
 	ip6 ip;
 	int pktnum = 3;
-	int count = 64;
+	int count = 99;
 	
 	printf("\n");
 
@@ -359,23 +359,17 @@ int run_tracert6(int argc, char **argv)
 		printf("incompleted command.\n");
 		return 0;
 	}
-	while (1) {
-		int c = getopt(argc, argv, "-m:P:");
-		if (c == -1)
+	
+	i = 2;
+	for (i = 2; i < argc; i++) {
+		if (!strcmp(argv[i], "-c")) {
+			if ((i + 1) < argc && digitstring(argv[i + 1]))
+				count = atoi(argv[i + 1]);
 			break;
-		switch(c) {
-			case 'm':
-				if (!digitstring(optarg))
-					return help_trace(argc, argv);
-				
-				count = atoi(optarg);
-				break;
-			case 'P':
-				break;
-			default:
-				return help_trace(argc, argv);
 		}
-	}	
+	}
+	if (count == 99 && digitstring(argv[argc - 1]))
+		count = atoi(argv[argc - 1]);
 				
 	if (optind < argc && digitstring(argv[optind]))
 		count = atoi(argv[optind]);

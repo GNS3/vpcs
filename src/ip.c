@@ -146,16 +146,7 @@ u_short cksum6(ip6hdr *ip, u_char nxt, int len)
 
 int sameNet(u_long ip1, u_long ip2, int cidr)
 {
-#if 0
-	printf("%lx--%lx\n%lx--%lx\n", ip1, ip2, 
-		ip_masks[cidr] & ntohl(ip1),
-		ip_masks[cidr] & ntohl(ip2));
-#endif
-
-	if ((ip_masks[cidr] & ntohl(ip1)) == (ip_masks[cidr] & ntohl(ip2)))
-		return 1;
-	else
-		return 0;
+	return ((ip_masks[cidr] & ntohl(ip1)) == (ip_masks[cidr] & ntohl(ip2)));
 }
 
 int sameNet6(char *s, char *d, int cidr)
@@ -202,20 +193,16 @@ void swap_ip6head(struct packet *m)
 
 int etherIsZero(u_char *mac) 
 {
-	u_char zero[ETH_ALEN] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};	
-	if (!strncmp((const char *)mac, (const char *)zero, 6))
-		return 1;
-	else
-		return 0;
+	u_char zero[ETH_ALEN] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};
+
+	return (!memcmp((const char *)mac, (const char *)zero, ETH_ALEN));
 }
 
 int etherIsMulticast(u_char *mac) 
 {
 	u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};	
-	if (!strncmp((const char *)mac, (const char *)broadcast, 6))
-		return 1;
-	else
-		return 0;
+	
+	return (!memcmp((const char *)mac, (const char *)broadcast, ETH_ALEN));
 }
 
 int dmp_packet(const struct packet *m, const int flag)
@@ -335,6 +322,7 @@ static void dmp_ip(void *d)
 	icmphdr *icmp = (icmphdr *)(iph + 1);
 	udphdr *uh = (udphdr *)(iph + 1);
 	tcphdr *th = (tcphdr *)(iph + 1);
+	u_char *data;
 	struct in_addr in;
 	
 	printf("IPv%d, id: %x, length: %d, ttl: %d, sum: %4.4x", iph->ver, 
@@ -358,6 +346,12 @@ static void dmp_ip(void *d)
 	} else if (iph->proto == IPPROTO_UDP) {
 		printf("Proto: udp, len: %d, sum: %4.4x\n", ntohs(uh->len), ntohs(uh->cksum));
 		printf("Port: %d -> %d\n", ntohs(uh->sport), ntohs(uh->dport));
+		if (ntohs(uh->sport) == ntohs(uh->dport) && 
+		    ntohs(uh->sport) == 520 && iph->dip == 0x90000e0) {
+		    	data = (u_char *)(uh + 1);
+			printf("Desc: RIP%d %s message\n", *(data + 1),
+			    (*data == 1) ? "request" : "response");
+		}
 	} else if (iph->proto == IPPROTO_TCP) {
 		printf("Proto: tcp, sum: %4.4x, ack: %8.8x, seq: %8.8x, ", 
 		    ntohs(th->th_sum), ntohl(th->th_ack), ntohl(th->th_seq));
@@ -390,17 +384,18 @@ static void dmp_ip6(void *d)
 	icmp6hdr *icmp = (icmp6hdr *)(iph + 1);
 	udphdr *uh = (udphdr *)(iph + 1);
 	tcphdr *th = (tcphdr *)(iph + 1);
+	u_char *data;
 	char *p;
 	
 	printf("IPv6, flowid: %x, length: %d, ttl: %d\n", 
-	    ntohl(iph->ip6_flow), ntohs(iph->ip6_plen), iph->ip6_hlim);
+	    ntohl(iph->ip6_flow & IPV6_FLOWLABEL_MASK), ntohs(iph->ip6_plen), iph->ip6_hlim);
 	
 	p = ip6tostr(iph->src.addr8);
-	printf("\nAddress: %s -> ", p);
+	printf("Address: %s -> ", p);
 	p = ip6tostr(iph->dst.addr8);
 	printf("%s\n", p);
 	
-	if (iph->ip6_nxt == IPPROTO_ICMP) {
+	if (iph->ip6_nxt == IPPROTO_ICMPV6) {
 		printf("Proto: icmp, ");
 		printf("type: %d, ", icmp->type);
 		printf("code: %d\n", icmp->code);
@@ -408,6 +403,14 @@ static void dmp_ip6(void *d)
 	} else if (iph->ip6_nxt == IPPROTO_UDP) {
 		printf("Proto: udp, len: %d, sum: %4.4x\n", ntohs(uh->len), ntohs(uh->cksum));
 		printf("Port: %d -> %d\n", ntohs(uh->sport), ntohs(uh->dport));
+		if (ntohs(uh->sport) == ntohs(uh->dport) && ntohs(uh->sport) == 521 &&
+		    iph->dst.addr32[0] == IPV6_ADDR_INT32_MLL &&
+		    iph->dst.addr32[1] == 0 && iph->dst.addr32[2] == 0 &&
+		    iph->dst.addr32[3] == 0x09000000) {
+		    	data = (u_char *)(uh + 1);
+			printf("Desc: RIP%d %s message\n", *(data + 1),
+			    (*data == 1) ? "request" : "response");
+		}
 	} else if (iph->ip6_nxt == IPPROTO_TCP) {
 		printf("Proto: tcp, sum: %4.4x, ack: %8.8x, seq: %8.8x, ", 
 		    ntohs(th->th_sum), ntohl(th->th_ack), ntohl(th->th_seq));
@@ -473,6 +476,14 @@ const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 		"Hop limit exceeded in transit",
 		"Fragment reassembly time exceeded"};
 	
+	const char *ND_messesg[] = { /* start from 133 to 137 */
+		"ICMPv6 router solicitation",
+		"ICMPv6 router advertisement",
+		"ICMPv6 neighbor solicitation",
+		"ICMPv6 neighbor advertisement",
+		"ICMPv6 redirect"};
+	
+
 	const char *empty = "";	
 	
 	if (ipv == 4) {
@@ -506,6 +517,16 @@ const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 				if (code <= 1)
 					return Time6Exceed[code];
 				break;
+			case 128:
+				return "ICMPv6 echo request";
+			case 129:
+				return "ICMPv6 echo reply";
+			case 133:
+			case 134:
+			case 135:
+			case 136:
+			case 137:
+				return ND_messesg[type - 133];
 			default:
 				break;
 		}

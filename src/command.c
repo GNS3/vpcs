@@ -1473,6 +1473,8 @@ static int set_dump(int argc, char **argv)
 			printf(" detail");
 		if (pc->dmpflag & DMP_ALL)
 			printf(" all");
+		if (pc->dmpflag == 0)
+			printf(" (none)");
 		printf("\n");	
 		return 1;
 	}
@@ -1538,7 +1540,7 @@ int show_arp(int argc, char **argv)
 	for (i = 0; i < ARP_SIZE; i++) {
 		if (pc->ipmac4[i].ip == 0)
 			continue;
-		if (memcmp(pc->ipmac4[i].mac, zero, ETH_ALEN) == 0)
+		if (etherIsZero(pc->ipmac4[i].mac))
 			continue;
 		if (time_tick - pc->ipmac4[i].timeout < 120) {
 			for (j = 0; j < 6; j++)
@@ -1721,8 +1723,9 @@ int run_ver(int argc, char **argv)
 		"Welcome to Virtual PC Simulator, version %s\n"
 		"Dedicated to Daling.\n"
 		"Build time: %s %s\n"
-		"Copyright (c) 2007-2012 Paul Meng, all rights reserved.\n\n"
-		"VPCS is free software, released under BSD License.\n"
+		"Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)\n"
+		"All rights reserved.\n\n"
+		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\n"
 		"Source code and license can be found at vpcs.sf.net.\n"
 		"For more information, please visit wiki.freecode.com.cn.\n", 
 		ver, __DATE__, __TIME__ );	

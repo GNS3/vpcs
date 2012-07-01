@@ -286,7 +286,7 @@ typedef struct {
 
 #define IPV6_VERSION		0x60
 #define IPV6_VERSION_MASK	0xf0
-
+#define IPV6_FLOWLABEL_MASK     0xffff0f00
 #define IPV6_ADDR_INT32_ONE     0x01000000
 #define IPV6_ADDR_INT32_TWO     0x02000000
 #define IPV6_ADDR_INT32_MNL     0x000001ff
