@@ -98,7 +98,7 @@ int run_show(int argc, char **argv)
 		if (!strcmp("ip", argv[1]))
 			return show_ip(argc, argv);
 		
-		if (!strcmp("ipv6", argv[1]))
+		if (!strncmp("ipv6", argv[1], strlen(argv[1])))
 			return show_ipv6(argc, argv);
 		
 		if (!strncmp("echo", argv[1], strlen(argv[1])))
@@ -748,13 +748,13 @@ static int run_dhcp_release(int dump)
 	return 0;
 }
 
-int run_ipset(int argc, char **argv)
+int run_ipconfig(int argc, char **argv)
 {
 	char buf[MAX_LEN];
 	struct in_addr in;
 	int icidr = 24;
 	u_int rip, gip, tip;
-	int i;
+	int i, j;
 	int hasgip = 1;
 	pcs *pc = &vpc[pcid];
 	u_char mac[6];
@@ -813,12 +813,9 @@ int run_ipset(int argc, char **argv)
 		return 1;
 	}
 	
-	if (!strncmp("auto", argv[1], strlen(argv[1]))) {
-		struct packet *m = nbr_sol(&vpc[pcid]);	
-		if (m != NULL)
-			enq(&vpc[pcid].oq, m);
-		return 1;
-	}
+	if (!strncmp("auto", argv[1], strlen(argv[1])))
+		return ipauto6();
+
 	if (!strncmp("mtu", argv[1], strlen(argv[1]))) {
 		if (argc == 2 || argc > 3 || 
 		    (argc == 3 && !digitstring(argv[2]))) {
@@ -875,6 +872,7 @@ int run_ipset(int argc, char **argv)
 		}
 		return 1;
 	}
+	
 	if (!strncmp("show", argv[1], strlen(argv[1]))) {
 		char *p;
 		
@@ -899,35 +897,36 @@ int run_ipset(int argc, char **argv)
 		return 1;	
 	}
 	
-	switch (argc) {
-		case 4:
-			rip = inet_addr(argv[1]);
-			if (strchr(argv[2], '.') != NULL) {
-				gip = inet_addr(argv[2]);
-				icidr = atoi(argv[3]);
-			} else {
-				icidr = atoi(argv[2]);
-				gip = inet_addr(argv[3]);
-			}
-			break;
-		case 3:
-			rip = inet_addr(argv[1]);
-			if (strchr(argv[2], '.') != NULL) {
-				gip = inet_addr(argv[2]);
-				icidr = 24;
-			} else {
-				hasgip = gip = 0;
-				icidr = atoi(argv[2]);
-			}
-			break;
-		case 2:
-			rip = inet_addr(argv[1]);
-			hasgip = gip = 0;
-			icidr = 24;
-			break;
-		default:
-			printf("incompleted command.\n");
+	rip = inet_addr(argv[1]);
+	hasgip = gip = 0;
+	icidr = 24;
+	
+	i = 1;
+	while (++i < argc) {
+		/* netmask */
+		if (digitstring(argv[i]) && strlen(argv[i]) < 3) {
+			icidr = atoi(argv[i]);
+			continue;				
+		}
+		
+		if ((strlen(argv[i]) > 8) && (!strncmp(argv[i], "255.", 4))) {
+		    	gip = inet_addr(argv[i]);
+		    	for (j = 0; i < 33; j++) {
+		    		if (ip_masks[j] == ntohl(gip)) {
+		    			icidr = j;
+		    			break;
+		    		}
+		    	}		
+			continue;
+		}
+		j = strlen(argv[i]);
+		if (j > 7 && j < 16) {
+			gip = inet_addr(argv[i]);
+			continue;
+		} else {
+			printf("Invalid options\n");
 			return 0;
+		}
 	}
 	
 	if (icidr < 1 || icidr > 30)
@@ -1353,7 +1352,7 @@ int run_set(int argc, char **argv)
 	return 1;
 }
 
-int run_zzz(int argc, char **argv)
+int run_sleep(int argc, char **argv)
 {
 	int t;
 	
@@ -1373,26 +1372,24 @@ int run_clear(int argc, char **argv)
 	u_char mac[6];
 	
 	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
-		/*       12345678901234567890123456789012345678901234567890123456789012345678901234567890
-		 *       1         2         3         4         5         6         7         8
-		 */
-		printf( "\n\033[1mclear [ip|ipv6|arp|neighbor|hist]\033[0m\n"
-			"    clear ip/ipv6 address, arp/neighbor table, command history\n");
-
-		return 0;
+		return help_clear(argc, argv);
 	}
 	if (!strcmp("ip", argv[1])) {
 		memcpy(mac, vpc[pcid].ip4.mac, 6);
 		memset(&vpc[pcid].ip4, 0, sizeof(vpc[pcid].ip4));
 		memcpy(&vpc[pcid].ip4.mac, mac, 6);
-	} else if (!strcmp("ipv6", argv[1]))
+		printf("IPv4 address/mask, gateway, DNS, and DHCP cleared\n");
+	} else if (!strncmp("ipv6", argv[1], strlen(argv[1]))) {
 		memset(&vpc[pcid].ip6, 0, sizeof(vpc[pcid].ip6));
-	else if (!strcmp("arp", argv[1]))
+		printf("IPv6 address/mask and router link-layer address cleared\n");
+	} else if (!strncmp("arp", argv[1], strlen(argv[1])))
 		memset(&vpc[pcid].ipmac4, 0, sizeof(vpc[pcid].ipmac4));
-	else if (!strcmp("neighbor", argv[1]))
+	else if (!strncmp("neighbor", argv[1], strlen(argv[1])))
 		memset(&vpc[pcid].ipmac6, 0, sizeof(vpc[pcid].ipmac6));
-	else if (!strcmp("hist", argv[1]))
+	else if (!strncmp("hist", argv[1], strlen(argv[1])))
 		clear_hist();
+	else
+		printf("Invalid options\n");
 		
 	return 1;
 }								
@@ -1418,13 +1415,13 @@ int run_remote(int argc, char **argv)
 			printf("Invalid port\n");
 			return help_rlogin(argc, argv);
 		}
-		open_remote("127.0.0.1", atoi(argv[1]));
+		return open_remote("127.0.0.1", atoi(argv[1]));
 	} else if (argc == 3) {
 		if (!digitstring(argv[2])) {
 			printf("Invalid port\n");
 			return help_rlogin(argc, argv);
 		}
-		open_remote(argv[1], atoi(argv[2]));
+		return open_remote(argv[1], atoi(argv[2]));
 	}
 	
 	return help_rlogin(argc, argv);
@@ -1581,8 +1578,13 @@ static int show_dump(int argc, char **argv)
 			}
 			return 1;
 		}
-		printf( "\033[1mshow dump [all]\033[0m\n"
-			"    all     all vpc's dump flags\n");
+		if (strlen(argv[2]) == 1 && digitstring(argv[2])) {
+			i = atoi(argv[2]) - 1;
+			pc = &vpc[i];
+		} else {
+			printf( "\033[1mshow dump [all]\033[0m\n"
+				"    all     all vpc's dump flags\n");
+		}
 			
 		return 1;	
 	} 
