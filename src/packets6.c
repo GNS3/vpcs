@@ -65,7 +65,8 @@ int upv6(pcs *pc, struct packet *m)
 	ip6hdr *ip;
 	icmp6hdr *icmp;
 	ip6 *tip6 = NULL;
-
+	u_int32_t mtu = 0;
+	
 	eh = (ethdr *)(m->data);
 	
 	if (etherIsMulticast(eh->src)) 
@@ -203,6 +204,7 @@ int upv6(pcs *pc, struct packet *m)
 			}
 			/* mtu, skip it*/
 			if (*p == 5 && *(p + 1) == 1) {
+				mtu = ntohl(*(u_int32_t *)(p + 4));
 				p += 8;
 			}
 			/* prefix */
@@ -224,9 +226,13 @@ int upv6(pcs *pc, struct packet *m)
 					    pc->ip4.mac[0] & 0xef : (pc->ip4.mac[0] | 0x20);
 
 					pc->ip6.type = IP6TYPE_EUI64;
+					if (mtu != 0)
+						pc->ip6.mtu = mtu;
+					mtu = 0;
 				} 
 				if (sameNet6((char *)pc->ip6.ip.addr8, p + 16, pc->ip6.cidr)) {
-					memcpy(pc->ip6.gmac, mac, 6);						
+					memcpy(pc->ip6.gmac, mac, 6);
+									
 				}
 			}
 			return PKT_DROP;

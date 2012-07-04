@@ -270,6 +270,15 @@ int run_ping6(int argc, char **argv)
 	return 1;
 }
 
+int ipauto6(void)
+{
+	struct packet *m = nbr_sol(&vpc[pcid]);	
+	if (m != NULL)
+		enq(&vpc[pcid].oq, m);
+	
+	return 1;
+}
+
 int run_ipset6(int argc, char **argv)
 {
 	char buf[INET6_ADDRSTRLEN + 1];
@@ -512,16 +521,22 @@ int show_ipv6(int argc, char **argv)
 	char buf[128];
 	char buf6[INET6_ADDRSTRLEN + 1];
 	struct in6_addr ipaddr;
+	int off1, off2, off3;
 	
 	printf("\n");
 	memset(buf, 0, sizeof(buf));
 	memset(buf, ' ', sizeof(buf) - 1);
+	off1 = 7;
+	off2 = 41;
+	off3 = 60;
+	
 	j = sprintf(buf, "NAME");
 	buf[j] = ' ';
-	j = sprintf(buf + 7, "MAC");
-	buf[j + 7] = ' ';
-	j = sprintf(buf + 28, "IP/MASK");
-	buf[j + 28] = ' ';
+	j = sprintf(buf + off1, "IP/MASK");
+	buf[j + off1] = ' ';
+	j = sprintf(buf + off2, "MAC");
+	buf[j + off2] = ' ';
+	j = sprintf(buf + off3, "MTU");
 	printf("%s\n", buf);
 
 	for (i = 0; i < NUM_PTHS; i++) {
@@ -532,17 +547,12 @@ int show_ipv6(int argc, char **argv)
 		else
 			j = sprintf(buf, "%s", vpc[i].xname);
 		buf[j] = ' ';
-		
-		for (k = 0; k < 6; k++)
-			sprintf(buf + 7 + k * 3, "%2.2x:", vpc[i].ip4.mac[k]);
-		buf[j + 19] = ' ';
-		buf[j + 20] = ' ';
-		
 		memset(buf6, 0, INET6_ADDRSTRLEN + 1);
 		memcpy(ipaddr.s6_addr, vpc[i].link6.ip.addr8, 16);
 		vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
-		j = sprintf(buf + 28, "%s/%d", buf6, vpc[i].link6.cidr); 
-			
+		sprintf(buf + off1, "%s/%d", buf6, vpc[i].link6.cidr); 
+		j = printf("%s", buf);
+		
 		if (vpc[i].ip6.ip.addr32[0] != 0 || vpc[i].ip6.ip.addr32[1] != 0 || 
 		    vpc[i].ip6.ip.addr32[2] != 0 || vpc[i].ip6.ip.addr32[3] != 0) {	
 			memset(buf6, 0, INET6_ADDRSTRLEN + 1);
@@ -550,10 +560,18 @@ int show_ipv6(int argc, char **argv)
 			memcpy(ipaddr.s6_addr, vpc[i].ip6.ip.addr8, 16);
 			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
 	
-			sprintf(buf + j + 28, " %s/%d %s", buf6, vpc[i].ip6.cidr, 
-			    (vpc[i].ip6.type == IP6TYPE_EUI64) ? "eui-64" : "");
+			printf("\n");
+			for (k = 0; k < off1; k++)
+				printf(" ");
+			j = printf("%s/%d", buf6, vpc[i].ip6.cidr);
+			j += off1;
 		}
-		printf("%s\n", buf);
+		for (k = j; k < off2; k++)
+			printf(" ");
+		for (k = 0; k < 6; k++)
+			sprintf(buf + k * 3, "%2.2x:", vpc[i].ip4.mac[k]);
+		buf[17] = '\0';
+		printf("%s  %d\n", buf, vpc[i].ip6.mtu);
 	}
 	return 1;
 }

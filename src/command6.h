@@ -44,6 +44,8 @@ const char *ip6Info(const int id);
 
 void autoconf6(void);
 
+int ipauto6(void);
+
 void locallink6(pcs *pc);
 
 #endif
