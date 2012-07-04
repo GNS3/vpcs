@@ -48,7 +48,7 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a8";
+const char *ver = "0.4a9";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
@@ -99,12 +99,12 @@ typedef struct stub cmdStub;
 cmdStub cmd_entry[] = {
 	{"?",		NULL,	run_help,	NULL},
 	{"arp",		"show",	run_show,	help_show},
-	{"clear",	NULL,	run_clear,	NULL},
-	{"dhcp",	"ip",	run_ipset,	help_ip},
+	{"clear",	NULL,	run_clear,	help_clear},
+	{"dhcp",	"ip",	run_ipconfig,	help_ip},
 	{"echo",	NULL,	run_echo,	NULL},
 	{"help",	NULL,	run_help,	NULL},
 	{"hist",	NULL,	run_hist,	NULL},
-	{"ip",		NULL,	run_ipset,	help_ip},
+	{"ip",		NULL,	run_ipconfig,	help_ip},
 	{"load",	NULL,	run_load,	help_load},
 	{"neighbor",	NULL,	run_nb6,	NULL},
 	{"ping",	NULL,	run_ping,	help_ping},
@@ -115,7 +115,8 @@ cmdStub cmd_entry[] = {
 	{"set",		NULL,	run_set,	help_set},
 	{"show",	NULL,	run_show,	help_show},
 	{"version",	NULL,	run_ver,	NULL},
-	{"zzz",		NULL,	run_zzz,	NULL},
+	{"sleep",	NULL,	run_sleep,	help_sleep},
+	{"zzz",		NULL,	run_sleep,	help_sleep},
 	{NULL, NULL}
 };
 
@@ -162,7 +163,7 @@ int main(int argc, char **argv)
 					rhost = inet_addr(optarg);
 				break;
 			case 'p':
-				daemon_port = arg_to_int(optarg, 1024, 65000, 10000);
+				daemon_port = arg_to_int(optarg, 1024, 65000, 5000);
 				break;
 			case 'h':
 			case '?':

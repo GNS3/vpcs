@@ -96,13 +96,16 @@ int timeout(struct timeval tv, int mseconds)
 
 int digitstring(const char *s)
 {
+	int i = 0;
+	
 	if (s == NULL)
 		return 0;
 
 	while (*s >= '0' && *s <= '9') {
 		s++;
+		i++;
 		if (*s == '\0')
-			return 1;
+			return i;
 	}
 	return 0;
 }

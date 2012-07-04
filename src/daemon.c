@@ -82,8 +82,7 @@ int daemonize(int port)
 	
 	signal (SIGTERM, SIG_IGN);
 	signal(SIGINT, &sig_int);
-	signal (SIGHUP, SIG_IGN);
-   	signal(SIGUSR1, &sig_cmd_quit);
+	signal (SIGHUP, &sig_cmd_quit);
    	
    	/* open an tty as standard I/O for vpcs */
    	pid = forkpty(&fdtty, NULL, NULL, NULL);
@@ -178,7 +177,7 @@ static void daemon_proc(int sock, int fdtty)
 
 void sig_cmd_quit(int sig)
 {
-	signal(SIGUSR1, sig_cmd_quit);
+	signal(SIGHUP, sig_cmd_quit);
 	cmd_quit = 1;
 }
 
