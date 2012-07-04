@@ -30,6 +30,9 @@
 
 int help_clear(int argc, char **argv)
 {
+	printf( "\n\033[1mclear [ip|ipv6|arp|neighbor|hist]\033[0m\n"
+		"            clear ip/ipv6 address, arp/neighbor table, command history\n");
+			
 	return 1;
 }
 
@@ -75,7 +78,7 @@ int help_ip(int argc, char **argv)
 		"                     set the VPC's ip, default gateway ip and network mask\n"
 		"                     Default IPv4 mask is /24, IPv6 is /64. In the ether mode, \n"
 		"                     the ip of the tapx is the maximum host ID of the subnet.\n"
-		"                     ip 10.1.1.70 10.1.1.65 26  set the VPC¡¯s ip to 10.1.1.70, \n"
+		"                     \033[1mip 10.1.1.70 10.1.1.65 26\033[0m  set the VPC's ip to 10.1.1.70, \n"
 		"                     the gateway ip to 10.1.1.65, the netmask to 255.255.255.192, \n"
 		"                     the tapx ip to 10.1.1.126 in the ether mode.\n"
 		"    auto             Attempt to obtain IPv6 address, mask and gateway using SLAAC\n"
@@ -145,8 +148,11 @@ int help_trace(int argc, char **argv)
 
 int help_rlogin(int argc, char **argv)
 {
-	printf( "\n\033[1mrlogin [<ip>] <port>\033[0m,   Telnet to <port> at <ip> (def 127.0.0.1) relative to HOST PC\n");
-
+	printf( "\n\033[1mrlogin [<ip>] <port>\033[0m,   Telnet to <port> at <ip> (def 127.0.0.1) relative to HOST PC\n"
+		"                                        To attach to the console of a virtual router running on\n"
+		"                                        port 2000 of this host PC, use rlogin 2000. To attach to\n"
+		"                                        the console of a virtual router running on port 2004 of a\n"
+		"                                        remote host 10.1.1.1, use rlogin 10.1.1.1 2004\n");
 	return 1;
 }
 
@@ -161,12 +167,13 @@ int help_set(int argc, char **argv)
 {
 	if (argc == 3 && !strncmp(argv[1], "dump", strlen(argv[1])) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
-	    	printf( "\n\033[1mdump [mac|raw|all|off]\033[0m set the packet dump flag for this VPC\n"
+	    	printf( "\n\033[1mdump [detail|mac|raw|all|off]\033[0m set the packet dump flag for this VPC\n"
+	    		"                           detail  print protocol\n"
 	    		"                           mac     print ether address\n"
 			"                           raw     print the first 40 bytes\n"
-			"                           detail  print protocol\n"
 			"                           all     all the packets including incoming\n"
-			"                           off     clear all the flag\n");   
+			"                                   must use [detail|mac|raw] as well as 'all'\n"
+			"                           off     clear all the flags\n");   
 		
 		return 1;
 	}
@@ -174,7 +181,7 @@ int help_set(int argc, char **argv)
 	if (argc == 3 && !strncmp(argv[1], "echo", strlen(argv[1])) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
 		printf( "\n\033[1mset echo [on|off]\033[0m, Sets the state of the echo flag used when loading script files.\n"
-			"                   See load <filename>.\n");
+			"                   See \033[1mload <filename>\033[0m.\n");
 	    	return 1;
 	}
 	
@@ -248,6 +255,12 @@ int help_version(int argc, char **argv)
 	return 1;
 }
 
+int help_sleep(int argc, char **argv)
+{
+	printf("\n\033[1msleep <seconds>\033[0m, Pause execution of script for <seconds>. See \033[1mload <filename>\033[0m\n");
+	
+	return 1;
+}
 int run_help(int argc, char **argv) 
 {
 	printf ("\n"
@@ -265,8 +278,9 @@ int run_help(int argc, char **argv)
 		"quit                       Quit program\n"
 		"rlogin [<ip>] <port>       Telnet to <port> at <ip> (def 127.0.0.1) relative to HOST PC\n"
 		"save <filename>            Save the configuration to the file <filename>\n"
-		"set [arguments]            Set hostname, connection port and echo on or off\n"
+		"set [arguments]            Set hostname, connection port, dump options and echo on or off\n"
 		"show [arguments]           Print the net configuration of VPCs (default). Try \033[1mshow ?\033[0m\n"
+		"sleep <seconds>            Pause execution of script for <seconds>. See \033[1mload <filename>\033[0m\n"
 		"tracer <host> [-options]   Print the path take to network <host>\n"
 		"version                    Shortcut for: \033[1mshow version\033[0m\n");
 	return 1;			
