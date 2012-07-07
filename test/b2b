@@ -1,0 +1,13 @@
+echo "TEST Back2Back"
+1
+ip 192.168.1.1 24
+set rport 20001
+2
+ip 192.168.1.2 24
+set rport 20000
+echo ping from 192.168.1.2 to 192.168.1.1, should be ok
+ping 192.168.1.1 -c 1
+ping 192.168.1.1 -c 1 -P 6
+ping 192.168.1.1 -c 1 -P 17
+quit
+
