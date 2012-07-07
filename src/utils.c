@@ -27,6 +27,7 @@
  
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "utils.h"
 
@@ -108,6 +109,22 @@ int digitstring(const char *s)
 			return i;
 	}
 	return 0;
+}
+
+char *ttrim(char *s)
+{
+	int len;
+	
+	if (s == NULL)
+		return NULL;
+	len = strlen(s);
+	len--;
+	while (len >= 0 && isspace(s[len]))
+		len--;
+	
+	s[len + 1] = '\0';	
+	
+	return s;
 }
 
 #if 0

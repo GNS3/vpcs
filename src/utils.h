@@ -36,6 +36,7 @@ int insert_argv(int argc, char **argv, char *str);
 int timeout(struct timeval tv, int mseconds);
 
 int digitstring(const char *s);
+char *ttrim(char *s);
 
 #endif
 

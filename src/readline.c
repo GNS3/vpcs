@@ -44,6 +44,24 @@ int findhistory(struct rls *rls, int start);
 void trimspace(char *buf);
 void vprint(char *s, int len);
 
+void kbhit(void)
+{
+	struct termios termios;
+	char kb[32];
+	int rc;
+	
+	set_terminal(&termios);
+	do {
+		rc = read(0, kb, sizeof(kb));
+		if (rc > 0)
+			break;
+
+		usleep(100);
+	} while (1);
+	
+	reset_terminal(&termios);
+}
+
 char *readline(const char *prompt, struct rls *rls)
 {	
 	if (prompt == NULL || rls == NULL)

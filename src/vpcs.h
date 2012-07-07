@@ -106,6 +106,7 @@ typedef struct {
 	ipmac ipmac4[ARP_SIZE];		/* arp pool */
 	ip6mac ipmac6[NB_SIZE];		/* neighbor pool */
 	hipv4 ip4;
+	int ip6auto;
 	hipv6 ip6;
 	hipv6 link6;
 } pcs;

@@ -273,6 +273,8 @@ int run_ping6(int argc, char **argv)
 int ipauto6(void)
 {
 	struct packet *m = nbr_sol(&vpc[pcid]);	
+	
+	vpc[pcid].ip6auto = 1;
 	if (m != NULL)
 		enq(&vpc[pcid].oq, m);
 	
@@ -521,58 +523,138 @@ int show_ipv6(int argc, char **argv)
 	char buf[128];
 	char buf6[INET6_ADDRSTRLEN + 1];
 	struct in6_addr ipaddr;
+	struct in_addr in;
 	int off1, off2, off3;
+	int max6 = 0;
+	int id = -1;
 	
 	printf("\n");
-	memset(buf, 0, sizeof(buf));
-	memset(buf, ' ', sizeof(buf) - 1);
-	off1 = 7;
-	off2 = 41;
-	off3 = 60;
-	
-	j = sprintf(buf, "NAME");
-	buf[j] = ' ';
-	j = sprintf(buf + off1, "IP/MASK");
-	buf[j + off1] = ' ';
-	j = sprintf(buf + off2, "MAC");
-	buf[j + off2] = ' ';
-	j = sprintf(buf + off3, "MTU");
-	printf("%s\n", buf);
-
-	for (i = 0; i < NUM_PTHS; i++) {
-		memset(buf, 0, sizeof(buf));
-		memset(buf, ' ', sizeof(buf) - 1);
-		if (strcmp(vpc[i].xname, "VPCS")== 0)
-			j = sprintf(buf, "%s%d", vpc[i].xname, i + 1);
-		else
-			j = sprintf(buf, "%s", vpc[i].xname);
-		buf[j] = ' ';
-		memset(buf6, 0, INET6_ADDRSTRLEN + 1);
-		memcpy(ipaddr.s6_addr, vpc[i].link6.ip.addr8, 16);
-		vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
-		sprintf(buf + off1, "%s/%d", buf6, vpc[i].link6.cidr); 
-		j = printf("%s", buf);
+	if (argc == 3) {
+		if (!strncmp(argv[2], "all", strlen(argv[2]))) {
+			for (i = 0; i < NUM_PTHS; i++) {
+				if (vpc[i].ip6.ip.addr32[0] != 0 || vpc[i].ip6.ip.addr32[1] != 0 || 
+				    vpc[i].ip6.ip.addr32[2] != 0 || vpc[i].ip6.ip.addr32[3] != 0) {
+					memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+					
+					memcpy(ipaddr.s6_addr, vpc[i].ip6.ip.addr8, 16);
+					vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
 		
-		if (vpc[i].ip6.ip.addr32[0] != 0 || vpc[i].ip6.ip.addr32[1] != 0 || 
-		    vpc[i].ip6.ip.addr32[2] != 0 || vpc[i].ip6.ip.addr32[3] != 0) {	
-			memset(buf6, 0, INET6_ADDRSTRLEN + 1);
-			
-			memcpy(ipaddr.s6_addr, vpc[i].ip6.ip.addr8, 16);
-			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+					j = sprintf(buf, "%s/%d", buf6, vpc[i].ip6.cidr);
+					if (j > max6)
+						max6 = j;
+				}
+			}
 	
-			printf("\n");
-			for (k = 0; k < off1; k++)
-				printf(" ");
-			j = printf("%s/%d", buf6, vpc[i].ip6.cidr);
-			j += off1;
+			memset(buf, 0, sizeof(buf));
+			memset(buf, ' ', sizeof(buf) - 1);
+			off1 = 7;
+			off2 = off1 + max6 + 2;
+			off3 = off2 + 17 + 2;
+			
+			j = sprintf(buf, "NAME");
+			buf[j] = ' ';
+			j = sprintf(buf + off1, "IP/MASK");
+			buf[j + off1] = ' ';
+			j = sprintf(buf + off2, "ROUTER LINK-LAYER");
+			buf[j + off2] = ' ';
+			j = sprintf(buf + off3, "MTU");
+			printf("%s\n", buf);
+
+			for (i = 0; i < NUM_PTHS; i++) {
+				memset(buf, 0, sizeof(buf));
+				memset(buf, ' ', sizeof(buf) - 1);
+				if (strcmp(vpc[i].xname, "VPCS")== 0)
+					j = sprintf(buf, "%s%d", vpc[i].xname, i + 1);
+				else
+					j = sprintf(buf, "%s", vpc[i].xname);
+				buf[j] = ' ';
+						
+				memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+				memcpy(ipaddr.s6_addr, vpc[i].link6.ip.addr8, 16);
+				vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+				sprintf(buf + 7, "%s/%d", buf6, vpc[i].link6.cidr); 
+				j = printf("%s", buf);
+				
+				if (vpc[i].ip6.ip.addr32[0] != 0 || vpc[i].ip6.ip.addr32[1] != 0 || 
+				    vpc[i].ip6.ip.addr32[2] != 0 || vpc[i].ip6.ip.addr32[3] != 0) {	
+					memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+					
+					memcpy(ipaddr.s6_addr, vpc[i].ip6.ip.addr8, 16);
+					vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+			
+					printf("\n");
+					for (k = 0; k < off1; k++)
+						printf(" ");
+					j = printf("%s/%d", buf6, vpc[i].ip6.cidr);
+					j += off1;
+					
+				}
+				for (k = j; k < off2; k++)
+					printf(" ");
+				
+				if (etherIsZero(vpc[i].ip6.gmac)) {
+					j = sprintf(buf, "                 ");
+				} else {
+					j = 0;
+					for (k = 0; k < 6; k++)
+						j += sprintf(buf + k * 3, "%2.2x:", vpc[i].ip6.gmac[k]);
+					
+				}
+				buf[j - 1] = ' ';
+				if (vpc[i].ip6.mtu)
+					j += sprintf(buf + j, " %4.4d", vpc[i].ip6.mtu);
+				else
+					j += sprintf(buf + j, "     ");
+				//buf[j] = ' ';
+				printf("%s\n", buf);
+			}
+			return 1;
 		}
-		for (k = j; k < off2; k++)
-			printf(" ");
-		for (k = 0; k < 6; k++)
-			sprintf(buf + k * 3, "%2.2x:", vpc[i].ip4.mac[k]);
-		buf[17] = '\0';
-		printf("%s  %d\n", buf, vpc[i].ip6.mtu);
+		if (strlen(argv[2]) == 1 && digitstring(argv[2])){
+			id = argv[2][0] - '1';
+		}	
+	} else if (argc == 2)
+		id = pcid;
+	
+	if (id != -1) {
+		printf("NAME              : %s[%d]\n", vpc[id].xname, id + 1);
+		
+		printf("LINK-LOCAL SCOPE  : ");
+		memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+		memcpy(ipaddr.s6_addr, vpc[id].link6.ip.addr8, 16);
+		vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+		printf("%s/%d\n", buf6, vpc[id].link6.cidr); 
+		
+		printf("GLOBAL SCOPE      : ");
+		
+		if (vpc[id].ip6.ip.addr32[0] != 0 || vpc[id].ip6.ip.addr32[1] != 0 || 
+		    vpc[id].ip6.ip.addr32[2] != 0 || vpc[id].ip6.ip.addr32[3] != 0) {	
+			memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+			memcpy(ipaddr.s6_addr, vpc[id].ip6.ip.addr8, 16);
+			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+			printf("%s/%d", buf6, vpc[id].ip6.cidr);
+		}
+		printf("\n");		
+		printf("ROUTER LINK-LAYER : ");
+		if (!etherIsZero(vpc[id].ip6.gmac)) 
+			PRINT_MAC(vpc[id].ip6.gmac);
+		printf("\n");
+		printf("MAC               : ");
+		PRINT_MAC(vpc[id].ip4.mac);
+		printf("\n");
+		printf("LPORT             : %d\n", vpc[id].sport);
+		in.s_addr = vpc[id].rhost;
+		printf("RHOST:PORT        : %s:%d\n", inet_ntoa(in), vpc[id].rport);
+		printf("MTU:              : ");
+		if (vpc[id].ip6.mtu)
+			printf("%d", vpc[id].ip6.mtu);
+		printf("\n");
+		return 1;
 	}
+
+	argv[argc - 1 ] = "?";
+	help_show(argc, argv);
+
 	return 1;
 }
 
@@ -647,7 +729,7 @@ const char *ip6Info(const int id)
 		memset(buf, 0, INET6_ADDRSTRLEN + 1);
 		memcpy(ipaddr.s6_addr, vpc[id].ip6.ip.addr8, 16);
 		vinet_ntop6(AF_INET6, &ipaddr, tmp, INET6_ADDRSTRLEN + 1);
-		sprintf(buf, "ip %s/%d\n", tmp, vpc[id].ip6.cidr); 
+		sprintf(buf, "ip %s/%d", tmp, vpc[id].ip6.cidr); 
 	} else 
 		return NULL;
 		

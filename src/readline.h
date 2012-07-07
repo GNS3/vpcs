@@ -63,5 +63,7 @@ int loadhistory(const char *filename, struct rls *rls);
 void set_terminal(struct termios *stored_settings);
 void reset_terminal(struct termios *stored_settings);
 
+void kbhit(void);
+
 #endif
 /* end of file */

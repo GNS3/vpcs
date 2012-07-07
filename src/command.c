@@ -920,7 +920,8 @@ int run_ipconfig(int argc, char **argv)
 			continue;
 		}
 		j = strlen(argv[i]);
-		if (j > 7 && j < 16) {
+		if (j > 6 && j < 16) {
+			hasgip = 1;
 			gip = inet_addr(argv[i]);
 			continue;
 		} else {
@@ -994,9 +995,9 @@ int run_ipconfig(int argc, char **argv)
 	
 	if (hasgip) {
 		in.s_addr = pc->ip4.gw;
-		printf(" gateway %s\n", inet_ntoa(in));
+		printf(" gateway %s", inet_ntoa(in));
 	}
-	
+	printf("\n");
 	return 1;
 }
 
@@ -1355,15 +1356,28 @@ int run_set(int argc, char **argv)
 int run_sleep(int argc, char **argv)
 {
 	int t;
+	int ac = 0;
+	int i;
 	
+	t = 0;
+	if (argc == 2 && digitstring(argv[1]))
+		t = atoi(argv[1]);
+	else if (argc > 2) {
+		ac = 1;
+		if (digitstring(argv[1])) {
+			t = atoi(argv[1]);
+			ac = 2;
+		}
+	}
+	for (i = ac; i < argc; i++)
+		printf("%s ", argv[i]);
 	printf("\n");
-
-	if (argc < 2)
-		t = 1;
-
-	t = atoi(argv[1]);
-	sleep(t);
 	
+	if (t == 0) {
+		kbhit();
+	} else
+		sleep(t);
+
 	return 1;
 }
 
@@ -1400,7 +1414,7 @@ int run_echo(int argc, char **argv)
 	
 	for (i = 1; i < argc; i++)
 		printf("%s ", argv[i]);
-	printf("\n");
+//	printf("\n");
 
 	return 1;
 }	
@@ -1769,11 +1783,13 @@ int run_load(int argc, char **argv)
 		runLoad = 1;
 		if (fgets(buf, MAX_LEN, fp) == NULL)
 			break;
+		ttrim(buf);
+		/*
 		if (buf[strlen(buf) - 1] == '\n') {
 			buf[strlen(buf) - 1] = '\0';
 			if (buf[strlen(buf) - 1] == '\r')
 				buf[strlen(buf) - 1] = '\0';
-		}		
+		}*/		
 		if (buf[0] == '#' ||
 			buf[0] == '!' ||
 			buf[0] == ';')
@@ -1827,6 +1843,8 @@ int run_save(int argc, char **argv)
 				if (p != NULL) 
 					fprintf(fp, "%s\n", p);
 			}
+			if (vpc[i].ip6auto == 1)
+				fputs("ip auto\n", fp);
 			printf(".");
 		}
 		fprintf(fp, "1\n");

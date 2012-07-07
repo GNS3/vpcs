@@ -48,7 +48,7 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a9";
+const char *ver = "0.4a10";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
@@ -250,11 +250,11 @@ void parse_cmd(char *cmdstr)
 		p = strchr(cmdstr, ' ');
 		
 		if (p != NULL)
-			printf("%s\n", p + 1);	
+			printf("%s", p + 1);	
 		else {
 			p = strchr(cmdstr, '\t');
 			if (p != NULL)
-				printf("%s\n", p + 1);
+				printf("%s", p + 1);
 		}
 		return;
 	}

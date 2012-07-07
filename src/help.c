@@ -74,13 +74,14 @@ int help_ip(int argc, char **argv)
 
 
 	printf( "\n\033[1mip [arguments]\033[0m, Configure VPC's IP settings\n"
-		"    <address> [<gateway>] [/<mask>]\n"
+		"    <address> [/<mask>] [<gateway>]\n"
 		"                     set the VPC's ip, default gateway ip and network mask\n"
 		"                     Default IPv4 mask is /24, IPv6 is /64. In the ether mode, \n"
 		"                     the ip of the tapx is the maximum host ID of the subnet.\n"
-		"                     \033[1mip 10.1.1.70 10.1.1.65 26\033[0m  set the VPC's ip to 10.1.1.70, \n"
+		"                     \033[1mip 10.1.1.70 /26 10.1.1.65\033[0m  set the VPC's ip to 10.1.1.70, \n"
 		"                     the gateway ip to 10.1.1.65, the netmask to 255.255.255.192, \n"
 		"                     the tapx ip to 10.1.1.126 in the ether mode.\n"
+		"                     </mask> may be written as /26, 26 or 255.255.255.192\n"
 		"    auto             Attempt to obtain IPv6 address, mask and gateway using SLAAC\n"
 		"    dhcp [-options]  Attempt to obtain IPv4 address, mask, gateway and DNS via DHCP\n"
 		"          -d         Show DHCP packet decode\n"
@@ -186,17 +187,17 @@ int help_set(int argc, char **argv)
 	}
 	
 	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump]\033[0m\n"
-		"    lport <port>           local port\n"
-		"    rport <port>           remote peer port\n"
-		"    rhost <ip>             remote peer host IPv4 address\n"
-		"    pcname <name>          rename the current VPC\n"
-		"    echo [on|off]          set echoing on or off during script execution\n"
-		"    dump [mac|raw|all|off] set the packet dump flag for this VPC\n"
-		"                           mac, print ether address\n"
-		"                           raw, print the first 40 bytes\n"
-		"                           detail, print protocol\n"
-		"                           all, all the packets including incoming\n"
-		"                           off, clear all the flag\n");
+		"    lport <port>                  local port\n"
+		"    rport <port>                  remote peer port\n"
+		"    rhost <ip>                    remote peer host IPv4 address\n"
+		"    pcname <name>                 rename the current VPC\n"
+		"    echo [on|off]                 set echoing on or off during script execution\n"
+		"    dump [detailmac|raw|all|off]  set the packet dump flag for this VPC\n"
+		"                                  mac, print ether address\n"
+		"                                  raw, print the first 40 bytes\n"
+		"                                  detail, print protocol\n"
+		"                                  all, all the packets including incoming\n"
+		"                                  off, clear all the flag\n");
         
 	return 1;
 }
@@ -257,10 +258,12 @@ int help_version(int argc, char **argv)
 
 int help_sleep(int argc, char **argv)
 {
-	printf("\n\033[1msleep <seconds>\033[0m, Pause execution of script for <seconds>. See \033[1mload <filename>\033[0m\n");
-	
+	printf( "\n\033[1msleep [<seconds>] [<text>]\033[0m, Display <text> and pause execution of script for <seconds>.\n"
+		"                             If <seconds>=0 or missing, pause until a key is pressed.\n"
+		"                             See \033[1mload <filename>\033[0m\n");
 	return 1;
 }
+
 int run_help(int argc, char **argv) 
 {
 	printf ("\n"
