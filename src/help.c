@@ -75,6 +75,7 @@ int help_ip(int argc, char **argv)
 
 	printf( "\n\033[1mip [arguments]\033[0m, Configure VPC's IP settings\n"
 		"    <address> [/<mask>] [<gateway>]\n"
+		"    <address> [<gateway>] [/<mask>]\n"
 		"                     set the VPC's ip, default gateway ip and network mask\n"
 		"                     Default IPv4 mask is /24, IPv6 is /64. In the ether mode, \n"
 		"                     the ip of the tapx is the maximum host ID of the subnet.\n"
@@ -88,8 +89,8 @@ int help_ip(int argc, char **argv)
 		"          -r         Renew DHCP lease\n"
 		"          -x         Release DHCP lease\n"
 		"    dns <ip>         set DNS server <ip>, delete if <ip> is '0'\n"
-		"    mtu <value>      set IPv4 MTU to <value>, at least 576. IPv6 has a minimum MTU of 1280\n"
-		"    show             Show IPv4 details. Same as show ip\n");
+		"    mtu <value>      set IPv4 MTU to <value>, at least 576. \n"
+		"    show             Show IPv4 details. Same as \033[1mshow ip\033[0m\n");
 
 	return 1;
 }
@@ -136,24 +137,24 @@ int help_ping(int argc, char **argv)
 int help_trace(int argc, char **argv)
 {
 	printf( "\n\033[1mtrace <host> [-options]\033[0m, Print the path take to network <host>.\n"
-		"                    <host> can be an ip address or name\n"
-		"                    Using names requires DNS to be set.\n"
-		"                    Use Ctrl+C to stop the command.\n"
-		"     -P <protocol>  Use IP <protocol> in trace packets\n"
-		"                    1 - icmp, 17 ¨C udp (default), 6 - tcp  \n"                                       
-		"     -m <ttl>       maximum TTL, default 8\n"
-		"     <ttl>          Same as -m option, compatible with the old version\n");
+		"                         <host> can be an ip address or name\n"
+		"                         Using names requires DNS to be set.\n"
+		"                         Use Ctrl+C to stop the command.\n"
+		"          -P <protocol>  Use IP <protocol> in trace packets\n"
+		"                         1 - icmp, 17 ¨C udp (default), 6 - tcp  \n"                                       
+		"          -m <ttl>       maximum TTL, default 8\n"
+		"          <ttl>          Same as -m option, compatible with the old version\n");
                  
 	return 1;
 }
 
 int help_rlogin(int argc, char **argv)
 {
-	printf( "\n\033[1mrlogin [<ip>] <port>\033[0m,   Telnet to <port> at <ip> (def 127.0.0.1) relative to HOST PC\n"
-		"                                        To attach to the console of a virtual router running on\n"
-		"                                        port 2000 of this host PC, use rlogin 2000. To attach to\n"
-		"                                        the console of a virtual router running on port 2004 of a\n"
-		"                                        remote host 10.1.1.1, use rlogin 10.1.1.1 2004\n");
+	printf( "\n\033[1mrlogin [<ip>] <port>\033[0m, Telnet to <port> at <ip> (def 127.0.0.1) relative to HOST PC\n"
+		"                                      To attach to the console of a virtual router running on\n"
+		"                                      port 2000 of this host PC, use rlogin 2000. To attach to\n"
+		"                                      the console of a virtual router running on port 2004 of a\n"
+		"                                      remote host 10.1.1.1, use rlogin 10.1.1.1 2004\n");
 	return 1;
 }
 
@@ -187,17 +188,18 @@ int help_set(int argc, char **argv)
 	}
 	
 	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump]\033[0m\n"
-		"    lport <port>                  local port\n"
-		"    rport <port>                  remote peer port\n"
-		"    rhost <ip>                    remote peer host IPv4 address\n"
-		"    pcname <name>                 rename the current VPC\n"
-		"    echo [on|off]                 set echoing on or off during script execution\n"
-		"    dump [detailmac|raw|all|off]  set the packet dump flag for this VPC\n"
-		"                                  mac, print ether address\n"
-		"                                  raw, print the first 40 bytes\n"
-		"                                  detail, print protocol\n"
-		"                                  all, all the packets including incoming\n"
-		"                                  off, clear all the flag\n");
+		"    lport <port>                   local port\n"
+		"    rport <port>                   remote peer port\n"
+		"    rhost <ip>                     remote peer host IPv4 address\n"
+		"    pcname <name>                  rename the current VPC\n"
+		"    echo [on|off]                  set echoing on or off during script execution\n"
+		"    dump [detail|mac|raw|all|off]  set the packet dump flag for this VPC\n"
+		"                                   detail, print protocol\n"
+		"                                   mac, print ether address\n"
+		"                                   raw, print the first 40 bytes\n"
+		"                                   all, all the packets including incoming\n"
+		"                                        must use [detail|mac|raw] as well as 'all'\n"
+		"                                   off, clear all the flag\n");
         
 	return 1;
 }
@@ -234,17 +236,17 @@ int help_show(int argc, char **argv)
 	if (argc > 1 && 
 	    (!strcmp(argv[argc - 1], "?") || !strncmp(argv[argc - 1], "help", strlen(argv[argc - 1])))) {
 		printf( "\n\033[1mshow [arp [<digit>|all]|dump|echo|history|ip [<digit>|all]|ipv6 [<digit>|all]]\033[0m\n"
-			"     arp [<digit>|all]   Show arp table for VPC <digit> (default this VPC) or all VPCs\n"
-			"     dump [<digit>|all]  Show dump flags for VPC <digit> (default this VPC) or all VPCs\n"
-			"     echo                Show the status of the echo flag (see set echo)\n"
-			"     history             List the command history\n"
-			"     ip [<digit>|all]    Show IPv4 details for VPC <digit> (default this VPC) or all VPCs\n"
-			"                         Shows VPC Name, IP address, mask, gateway, DNS, MAC, lport, \n"
-			"                         rhost:rport and MTU\n"
-			"     ipv6 [<digit>|all]  Show IPv6 details for VPC <digit> (default this VPC) or all VPCs\n"
-			"                         Shows VPC Name, IPv6 addresses/mask, gateway, MAC, lport,\n"
-			"                         rhost:rport and MTU\n"
-			"     version             Show the version information\n");
+			"   arp [<digit>|all]   Show arp table for VPC <digit> (default this VPC) or all VPCs\n"
+			"   dump [<digit>|all]  Show dump flags for VPC <digit> (default this VPC) or all VPCs\n"
+			"   echo                Show the status of the echo flag (see set echo)\n"
+			"   history             List the command history\n"
+			"   ip [<digit>|all]    Show IPv4 details for VPC <digit> (default this VPC) or all VPCs\n"
+			"                       Shows VPC Name, IP address, mask, gateway, DNS, MAC, lport, \n"
+			"                       rhost:rport and MTU\n"
+			"   ipv6 [<digit>|all]  Show IPv6 details for VPC <digit> (default this VPC) or all VPCs\n"
+			"                       Shows VPC Name, IPv6 addresses/mask, gateway, MAC, lport,\n"
+			"                       rhost:rport and MTU\n"
+			"   version             Show the version information\n");
 		return 1;
 	}
 	
@@ -258,34 +260,41 @@ int help_version(int argc, char **argv)
 
 int help_sleep(int argc, char **argv)
 {
-	printf( "\n\033[1msleep [<seconds>] [<text>]\033[0m, Display <text> and pause execution of script for <seconds>.\n"
-		"                             If <seconds>=0 or missing, pause until a key is pressed.\n"
-		"                             See \033[1mload <filename>\033[0m\n");
+	printf( "\n\033[1msleep [<seconds>] [<text>]\033[0m, Print <text> and pause execution of script for <seconds>.\n"
+		"                            If <seconds>=0 or missing, pause until a key is pressed.\n"
+		"                            See \033[1mload <filename>\033[0m\n");
+	return 1;
+}
+
+int help_help(int argc, char **argv)
+{
+	printf( "\n\033[1m%s\033[0m, Print help. Use command \033[1m?\033[0m for more help\n", argv[0]);
+
 	return 1;
 }
 
 int run_help(int argc, char **argv) 
 {
 	printf ("\n"
-		"?                          Print help. Use command \033[1m?\033[0m for more help\n"
-		"<digit>                    Switch to the VPC<digit>. <digit> range 1 to 9\n"
-		"arp                        Shortcut for: \033[1mshow arp\033[0m. Show arp table\n"
-		"clear [arguments]          Clear IPv4/IPv6, arp/neighbor cache, command history\n"
-		"dhcp [-options]            Shortcut for: \033[1mip dhcp [-options]\033[0m. Get IPv4 address via DHCP\n"
-		"echo <text>                Display <text> in output\n"
-		"help                       Print help. Use command \033[1m?\033[0m for more help\n"
-		"history                    Shortcut for: \033[1mshow history\033[0m. List the command history\n"
-		"ip [arguments]             Configure VPC's IP settings\n"
-		"load <filename>            Load the configuration/script from the file <filename>\n"
-		"ping <host> [-options]     Ping the network <host> with ICMP (default) or TCP/UDP\n"
-		"quit                       Quit program\n"
-		"rlogin [<ip>] <port>       Telnet to <port> at <ip> (def 127.0.0.1) relative to HOST PC\n"
-		"save <filename>            Save the configuration to the file <filename>\n"
-		"set [arguments]            Set hostname, connection port, dump options and echo on or off\n"
-		"show [arguments]           Print the net configuration of VPCs (default). Try \033[1mshow ?\033[0m\n"
-		"sleep <seconds>            Pause execution of script for <seconds>. See \033[1mload <filename>\033[0m\n"
-		"tracer <host> [-options]   Print the path take to network <host>\n"
-		"version                    Shortcut for: \033[1mshow version\033[0m\n");
+		"?                        Print help. Use command \033[1m?\033[0m for more help\n"
+		"<digit>                  Switch to the VPC<digit>. <digit> range 1 to 9\n"
+		"arp                      Shortcut for: \033[1mshow arp\033[0m. Show arp table\n"
+		"clear [arguments]        Clear IPv4/IPv6, arp/neighbor cache, command history\n"
+		"dhcp [-options]          Shortcut for: \033[1mip dhcp [-options]\033[0m. Get IPv4 address via DHCP\n"
+		"echo <text>              Display <text> in output\n"
+		"help                     Print help. Use command \033[1m?\033[0m for more help\n"
+		"history                  Shortcut for: \033[1mshow history\033[0m. List the command history\n"
+		"ip [arguments]           Configure VPC's IP settings\n"
+		"load <filename>          Load the configuration/script from the file <filename>\n"
+		"ping <host> [-options]   Ping the network <host> with ICMP (default) or TCP/UDP\n"
+		"quit                     Quit program\n"
+		"rlogin [<ip>] <port>     Telnet to <port> at <ip> (def 127.0.0.1) relative to HOST PC\n"
+		"save <filename>          Save the configuration to the file <filename>\n"
+		"set [arguments]          Set hostname, connection port, dump options and echo on or off\n"
+		"show [arguments]         Print the net configuration of VPCs (default). Try \033[1mshow ?\033[0m\n"
+		"sleep <seconds>          Pause execution of script for <seconds>. See \033[1mload <filename>\033[0m\n"
+		"trace <host> [-options]  Print the path take to network <host>\n"
+		"version                  Shortcut for: \033[1mshow version\033[0m\n");
 	return 1;			
 }
 

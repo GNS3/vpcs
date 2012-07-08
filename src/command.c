@@ -185,7 +185,7 @@ int run_show(int argc, char **argv)
 					sprintf(buf + 46 + k * 3, "%2.2x:", vpc[i].ip4.mac[k]);
 				buf[63] = ' ';
 				buf[64] = ' ';
-				j = sprintf(buf + 65, "%d", vpc[i].sport);
+				j = sprintf(buf + 65, "%d", vpc[i].lport);
 				buf[j + 65] = ' ';
 				in.s_addr = vpc[i].rhost;
 				j = sprintf(buf + 72, "%s:%d", inet_ntoa(in), vpc[i].rport);
@@ -872,7 +872,7 @@ int run_ipconfig(int argc, char **argv)
 		}
 		return 1;
 	}
-	
+
 	if (!strncmp("show", argv[1], strlen(argv[1]))) {
 		char *p;
 		
@@ -880,23 +880,9 @@ int run_ipconfig(int argc, char **argv)
 		argv[0] = argv[1];
 		argv[1] = p;
 		
-		return run_show(argc, argv);
-		
-		printf("\n");
-		printf("MTU = %d\n",  pc->ip4.mtu);
-	
-		if (pc->ip4.dns[0] != 0) {
-			in.s_addr = pc->ip4.dns[0];
-			printf("DNS Primary Server: %s\n", inet_ntoa(in));
-		}
-		if (pc->ip4.dns[1] != 0) {
-			in.s_addr = pc->ip4.dns[1];
-			printf("DNS Secondary Server: %s\n", inet_ntoa(in));
-		}
-
-		return 1;	
+		return run_show(argc, argv);		
 	}
-	
+
 	rip = inet_addr(argv[1]);
 	hasgip = gip = 0;
 	icidr = 24;
@@ -958,10 +944,12 @@ int run_ipconfig(int argc, char **argv)
 	}
 	/* check ip address via gratuitous ARP */
 	pc->ip4.ip = rip;
+	printf("Checking for duplicate address...\n");
 	if (arpResolve(pc, rip, mac) == 1) {
 		in.s_addr = rip;
+		printf("%s is being used by MAC ",  inet_ntoa(in));
 		PRINT_MAC(mac);
-		printf(" use my ip %s\n",  inet_ntoa(in));  	
+		printf("\nAddress not changed\n");	
 		memset(pc->ipmac4, 0, sizeof(pc->ipmac4));
 		/* clear ip address */
 		pc->ip4.ip = 0;
@@ -1299,7 +1287,7 @@ int run_set(int argc, char **argv)
 			}
 		
 			pc->fd = fd;
-			pc->sport = value;
+			pc->lport = value;
 		
 			flags = fcntl(pc->fd, F_GETFL, NULL);
 			flags |= O_NONBLOCK;
@@ -1356,24 +1344,33 @@ int run_set(int argc, char **argv)
 int run_sleep(int argc, char **argv)
 {
 	int t;
-	int ac = 0;
+	int ac = argc;
 	int i;
 	
 	t = 0;
-	if (argc == 2 && digitstring(argv[1]))
-		t = atoi(argv[1]);
-	else if (argc > 2) {
+	if (argc == 2) {
+		if (digitstring(argv[1])) {
+			t = atoi(argv[1]);
+			ac = 2;
+		} else
+			ac = 1;
+	} else if (argc > 2) {
 		ac = 1;
 		if (digitstring(argv[1])) {
 			t = atoi(argv[1]);
 			ac = 2;
 		}
 	}
-	for (i = ac; i < argc; i++)
-		printf("%s ", argv[i]);
-	printf("\n");
+	
+	if (argc != 1) {
+		for (i = ac; i < argc; i++)
+			printf("%s ", argv[i]);
+		printf("\n");
+	}
 	
 	if (t == 0) {
+		if (argc == 1)
+			printf("Press any key to continue\n");
 		kbhit();
 	} else
 		sleep(t);
@@ -1708,7 +1705,7 @@ static int show_ip(int argc, char **argv)
 		printf("MAC         : ");
 		PRINT_MAC(vpc[id].ip4.mac);
 		printf("\n");
-		printf("LPORT       : %d\n", vpc[id].sport);
+		printf("LPORT       : %d\n", vpc[id].lport);
 		in.s_addr = vpc[id].rhost;
 		printf("RHOST:PORT  : %s:%d\n", inet_ntoa(in), vpc[id].rport);
 		printf("MTU:        : %d\n", vpc[id].ip4.mtu);
@@ -1824,8 +1821,8 @@ int run_save(int argc, char **argv)
 			if (strncmp(vpc[i].xname, buf, 3)) 
 				fprintf(fp, "set pcname %s\n", vpc[i].xname);
 			
-			if (vpc[i].sport != (20000 + i)) 
-				fprintf(fp, "set lport %d\n", vpc[i].sport);
+			if (vpc[i].lport != (20000 + i)) 
+				fprintf(fp, "set lport %d\n", vpc[i].lport);
 				
 			if (vpc[i].rport != (30000 + i)) 
 				fprintf(fp, "set rport %d\n", vpc[i].rport);

@@ -107,7 +107,7 @@ int open_dev(int id)
 			break;
 #endif			
 		case DEV_UDP:
-			fd = open_udp(vpc[id].sport);
+			fd = open_udp(vpc[id].lport);
 			if (fd <= 0) {
 				fd = 0;
 				return 0;

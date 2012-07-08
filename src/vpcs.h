@@ -94,7 +94,7 @@ typedef struct {
 	//int sock;			/* a command is running (socket is opened) */
 	int fd;				/* device handle */
 	int rfd;			/* client handle if in the udp mode		 */	
-	int sport;			/* local udp port */
+	int lport;			/* local udp port */
 	int rport;			/* remote udp port */
 	u_int rhost;			/* remote host */
 	struct pq iq;			/* queue	 */

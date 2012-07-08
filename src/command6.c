@@ -272,12 +272,31 @@ int run_ping6(int argc, char **argv)
 
 int ipauto6(void)
 {
-	struct packet *m = nbr_sol(&vpc[pcid]);	
+	struct packet *m = NULL;
+	char buf6[INET6_ADDRSTRLEN + 1];
+	struct in6_addr ipaddr;
+	int n = 100;
 	
+	m = nbr_sol(&vpc[pcid]);
 	vpc[pcid].ip6auto = 1;
 	if (m != NULL)
 		enq(&vpc[pcid].oq, m);
+	do {
+		usleep(10000);
+		if (vpc[pcid].ip6.ip.addr32[0] != 0 || vpc[pcid].ip6.ip.addr32[1] != 0 || 
+		    vpc[pcid].ip6.ip.addr32[2] != 0 || vpc[pcid].ip6.ip.addr32[3] != 0) {	
+			memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+			memcpy(ipaddr.s6_addr, vpc[pcid].ip6.ip.addr8, 16);
+			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+			printf("GLOBAL SCOPE      : %s/%d\n", buf6, vpc[pcid].ip6.cidr);
+			printf("ROUTER LINK-LAYER : ");
+			PRINT_MAC(vpc[pcid].ip6.gmac);
+			printf("\n");
+			return 1;
+		}
+	} while (--n > 0);
 	
+	printf("No router answered ICMPv6 Router Solicitation\n");
 	return 1;
 }
 
@@ -642,7 +661,7 @@ int show_ipv6(int argc, char **argv)
 		printf("MAC               : ");
 		PRINT_MAC(vpc[id].ip4.mac);
 		printf("\n");
-		printf("LPORT             : %d\n", vpc[id].sport);
+		printf("LPORT             : %d\n", vpc[id].lport);
 		in.s_addr = vpc[id].rhost;
 		printf("RHOST:PORT        : %s:%d\n", inet_ntoa(in), vpc[id].rport);
 		printf("MTU:              : ");

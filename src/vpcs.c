@@ -48,12 +48,12 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a10";
+const char *ver = "0.4a11";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
 int devtype = 0;
-int sport = 20000;
+int lport = 20000;
 int rport = 30000;
 int rport_flag = 0;
 u_int rhost = 0; /* remote host */
@@ -97,12 +97,12 @@ struct stub
 typedef struct stub cmdStub;
 
 cmdStub cmd_entry[] = {
-	{"?",		NULL,	run_help,	NULL},
+	{"?",		NULL,	run_help,	help_help},
 	{"arp",		"show",	run_show,	help_show},
 	{"clear",	NULL,	run_clear,	help_clear},
 	{"dhcp",	"ip",	run_ipconfig,	help_ip},
 	{"echo",	NULL,	run_echo,	NULL},
-	{"help",	NULL,	run_help,	NULL},
+	{"help",	NULL,	run_help,	help_help},
 	{"hist",	NULL,	run_hist,	NULL},
 	{"ip",		NULL,	run_ipconfig,	help_ip},
 	{"load",	NULL,	run_load,	help_load},
@@ -146,7 +146,7 @@ int main(int argc, char **argv)
 				devtype = DEV_UDP;
 				break;
 			case 's':
-				sport = arg_to_int(optarg, 1024, 65000, 20000);
+				lport = arg_to_int(optarg, 1024, 65000, 20000);
 				break;
 			case 'c':
 				rport_flag = 1;
@@ -258,6 +258,7 @@ void parse_cmd(char *cmdstr)
 		}
 		return;
 	}
+	
 	for (ep = cmd_entry; ep->name != NULL; ep++) {
 		if(!strncmp(argv[0], ep->name, strlen(argv[0]))) {
         		if (cmd != NULL)
@@ -283,11 +284,16 @@ void parse_cmd(char *cmdstr)
 			}
 		}
 		
-		if (canEcho && runLoad)
-			printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
-		
-		if (((!strcmp(argv[argc - 1], "?") || !strcmp(argv[argc - 1], "help"))) &&
-		    cmd->help != NULL) {
+		if (canEcho && runLoad) {
+			if (!strcmp(cmd->name, "sleep") && 
+			    (argc != 2 || (argc == 2 && !digitstring(argv[1])))) {
+			    	;
+			} else
+				printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
+		}
+		if (argc > 1 && cmd->help != NULL && 
+		    ((!strcmp(argv[argc - 1], "?") || !strcmp(argv[argc - 1], "help")))) {
+		    	argv[0] = cmd->name;
 			cmd->help(argc, argv);
 			return;
 		}
@@ -328,9 +334,9 @@ void *pth_proc(void *devid)
 	local_ip = inet_addr("127.0.0.1");
 	
 	pc->rhost = rhost;
-	pc->sport = sport + id;
+	pc->lport = lport + id;
 	if (rhost != local_ip && !rport_flag)
-		pc->rport = sport + id;
+		pc->rport = lport + id;
 	else
 		pc->rport = rport + id;
 	pc->ip4.mac[0] = 0x00;
@@ -347,7 +353,7 @@ void *pth_proc(void *devid)
 		if (devtype == DEV_TAP)
 			printf("Create Tap%d error [%s]\n", id, strerror(errno));
 		else if (devtype == DEV_UDP)
-			printf("Open port %d error [%s]\n", vpc[id].sport, strerror(errno));
+			printf("Open port %d error [%s]\n", vpc[id].lport, strerror(errno));
 		return NULL;
 	}
 		
