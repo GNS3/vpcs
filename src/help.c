@@ -95,8 +95,7 @@ int help_ip(int argc, char **argv)
 		"          -r         Renew DHCP lease\n"
 		"          -x         Release DHCP lease\n"
 		"    dns <ip>       Set DNS server <ip>, delete if <ip> is '0'\n"
-		"    mtu <value>    Set IPv4 MTU to <value>, at least 576. \n"
-		"    show           Show IPv4 details. Same as \033[1mshow ip\033[0m\n");
+		"    mtu <value>    Set IPv4 MTU to <value>, at least 576. \n");
 
 	return 1;
 }
@@ -106,8 +105,9 @@ int help_load(int argc, char **argv)
 	printf( "\n\033[1mload <filename>\033[0m\n"
 		"  Load the configuration/script from the file <filename>.\n"
 		"  When the file is loaded, commands will be displayed before being executed \n"
-		"  if the state of the echo flag is on. But \033[1msleep\033[0m command ignores \033[1mset echo on\033[0m,\n"
-		"  ONLY if \033[1msleep\033[0m misses the <text> parameter. See \033[1mset echo\033[0m\n\n"
+		"  if the state of the echo flag is on. See \033[1mset echo\033[0m\n"
+		"  \033[1msleep\033[0m command will ignore \033[1mset echo on\033[0m, ONLY if \033[1msleep\033[0m misses the <text>\n"
+		"  parameter. \n\n"
 		"  Note: Press Ctrl+C to interrupt the running script\n");
 		
 	return 1;

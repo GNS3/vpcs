@@ -873,16 +873,6 @@ int run_ipconfig(int argc, char **argv)
 		return 1;
 	}
 
-	if (!strncmp("show", argv[1], strlen(argv[1]))) {
-		char *p;
-		
-		p = argv[0];
-		argv[0] = argv[1];
-		argv[1] = p;
-		
-		return run_show(argc, argv);		
-	}
-
 	rip = inet_addr(argv[1]);
 	hasgip = gip = 0;
 	icidr = 24;
