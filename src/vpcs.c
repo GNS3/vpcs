@@ -48,7 +48,7 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a11";
+const char *ver = "0.4a12";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */
