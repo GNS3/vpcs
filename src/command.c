@@ -831,6 +831,30 @@ int run_ipconfig(int argc, char **argv)
 		return 1;
 	}
 	
+	if (!strncmp("domain", argv[1], strlen(argv[1]))) {
+		if (argc != 3) {
+			printf("Incomplete command.\n");
+			return 1;
+		}
+		if (strlen(argv[2]) > 64 || strstr(argv[2], "..")) {
+			printf("Invalid domain name.\n");
+			return 1;
+		}
+		char *p = argv[2];
+		while (*p) {
+			if (*p == '.')
+				p++;
+			else {
+				strcpy(vpc[pcid].ip4.domain, p);
+				p = vpc[pcid].ip4.domain;
+				if (p[strlen(p) - 1] == '.')
+					p[strlen(p) - 1] = '\0';
+				return 1;
+			}
+		}
+		return 1;
+	}
+	
 	if (!strncmp("dns", argv[1], strlen(argv[1]))) {
 		if (!strcmp(argv[argc - 1] , "?"))
 			return help_ip(argc, argv);
@@ -1080,7 +1104,7 @@ int run_tracert(int argc, char **argv)
 
 	/* no TTL given */
 	if (count == 128)
-		count = 64;
+		count = 8;
 	
 	pc->mscb.dip = inet_addr(argv[1]);
 
@@ -1190,7 +1214,7 @@ redirect:
 						}	
 						buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
 						    "  %.3f ms", usec / 1000.0);
-						fflush(stdout);
+
 						tv.tv_sec = 0;
 
 						break;
@@ -1198,7 +1222,7 @@ redirect:
 						in.s_addr = pc->mscb.rdip;
 						if (prn_ip) {
 							buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
-							    "*%s   %.3f ms (ICMP type:%d, code:%d, %s)\n", 
+							    "*%s   %.3f ms (ICMP type:%d, code:%d, %s)", 
 							    inet_ntoa(in), usec / 1000.0, pc->mscb.icmptype, 
 							    pc->mscb.icmpcode, 
 							    icmpTypeCode2String(4, pc->mscb.icmptype, 
@@ -1206,8 +1230,8 @@ redirect:
 							prn_ip = 0;
 						}
 						tv.tv_sec = 0;
-
-						return 1;
+						ok = 99999;
+						break;
 					} else if (pc->mscb.dip == pc->mscb.rdip) {
 						in.s_addr = pc->mscb.rdip;
 						if (prn_ip) {
@@ -1217,12 +1241,12 @@ redirect:
 						}	
 						buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
 						    "  %.3f ms", usec / 1000.0);
-						fflush(stdout);
-						tv.tv_sec = 0;
 
-						return 1;
+						tv.tv_sec = 0;
+						ok = 99999;
+						break;
 					}
-					printf("IP %4.4x-%4.4x\n", pc->mscb.dip, pc->mscb.rdip);
+					//printf("IP %4.4x-%4.4x\n", pc->mscb.dip, pc->mscb.rdip);
 				}
 			}
 			if (!ok && !ctrl_c) {
@@ -1234,7 +1258,7 @@ redirect:
 		buf_off = 0;
 
 		i++;
-		if (pc->mscb.icmptype == ICMP_UNREACH)
+		if (ok == 99999)
 			break;
 	}
 	
@@ -1313,7 +1337,7 @@ int run_set(int argc, char **argv)
 			printf("Hostname is too long. (should be less than %d)\n", MAX_NAMES_LEN);
 		else 
 			strcpy(vpc[pcid].xname, argv[2]);
-	} else  if (!strncmp("echo", argv[1], strlen(argv[1]))) {
+	} else if (!strncmp("echo", argv[1], strlen(argv[1]))) {
 		if (!strcmp(argv[argc - 1], "?"))
 			return help_set(argc, argv);
 			
@@ -1647,6 +1671,7 @@ static int show_ip(int argc, char **argv)
 					sprintf(buf + 46 + k * 3, "%2.2x:", vpc[i].ip4.mac[k]);
 				buf[63] = ' ';
 				buf[64] = ' ';
+				buf[65] = '\0';
 				k = 65;
 				if (vpc[i].ip4.dns[0]) {
 					in.s_addr = vpc[i].ip4.dns[0];
@@ -1689,7 +1714,9 @@ static int show_ip(int argc, char **argv)
 			in.s_addr = vpc[id].ip4.dhcp.svr;
 			printf("DHCP SERVER : %s\n", inet_ntoa(in));
 		}
-		if (vpc[id].ip4.dhcp.domain[0]) {
+		if (vpc[id].ip4.domain[0]) {
+			printf("DOMAIN NAME : %s\n", vpc[id].ip4.domain);
+		} else if (vpc[id].ip4.dhcp.domain[0]) {
 			printf("DOMAIN NAME : %s\n", vpc[id].ip4.dhcp.domain);
 		}
 		printf("MAC         : ");

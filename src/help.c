@@ -75,7 +75,15 @@ int help_ip(int argc, char **argv)
 	    		"  Set DNS server <ip>, delete if <ip> is '0'\n");
 		return 1;    	
 	}
-
+	if (argc == 3 && !strncmp(argv[1], "domain", strlen(argv[1])) && 
+	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
+		printf( "\n\033[1mip domain <name>\033[0m\n"
+			"  Sets local domain name. \n"
+			"  If there's no '.' in the host name: the name is assumed within the local domain, \n"
+			"  it is a short name relative to the local domain. The resolver will append the local\n"
+			"  domain name to the hostname to resolve it\n");
+	    	return 1;
+	}
 
 	printf( "\n\033[1mip [arguments]\033[0m\n"
 		"  Configure the current VPC's IP settings\n"
@@ -95,6 +103,7 @@ int help_ip(int argc, char **argv)
 		"          -r         Renew DHCP lease\n"
 		"          -x         Release DHCP lease\n"
 		"    dns <ip>       Set DNS server <ip>, delete if <ip> is '0'\n"
+		"    domain <name>  set local domain name\n"
 		"    mtu <value>    Set IPv4 MTU to <value>, at least 576. \n");
 
 	return 1;
@@ -182,7 +191,7 @@ int help_set(int argc, char **argv)
 {
 	if (argc == 3 && !strncmp(argv[1], "dump", strlen(argv[1])) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
-	    	printf( "\n\033[1mdump [detail|mac|raw|all|off]\033[0m\n"
+	    	printf( "\n\033[1mset dump [detail|mac|raw|all|off]\033[0m\n"
 	    		"  Set the packet dump flag for this VPC\n"
 	    		"    detail  print protocol\n"
 	    		"    mac     print ether address\n"
@@ -201,8 +210,8 @@ int help_set(int argc, char **argv)
 			"  See \033[1mload <filename>\033[0m.\n");
 	    	return 1;
 	}
-	
-	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump]\033[0m\n"
+
+	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump|]\033[0m\n"
 		"  Set hostname, connection port, dump options and echo on or off\n"
 		"    lport <port>    local port\n"
 		"    rport <port>    remote peer port\n"
@@ -281,7 +290,7 @@ int help_version(int argc, char **argv)
 
 int help_sleep(int argc, char **argv)
 {
-	printf( "\n\033[1msleep [<seconds>] [<text>]\033[0m\n"
+	printf( "\n\033[1msleep [<seconds>] [text]\033[0m\n"
 		"  Print <text> and pause execution of script for <seconds>.\n"
 		"  If <seconds>=0 or missing, pause until a key is pressed. \n"
 		"  See \033[1mload <filename>\033[0m\n");
@@ -314,7 +323,7 @@ int run_help(int argc, char **argv)
 		"save <filename>          Save the configuration to the file <filename>\n"
 		"set [arguments]          Set VPC name, peer ports, dump options, echo on or off\n"
 		"show [arguments]         Print the information of VPCs (default). Try \033[1mshow ?\033[0m\n"
-		"sleep <seconds> [text]   Pause execution of script for <seconds>. \n"
+		"sleep <seconds> [text]   Print <text> and pause the running script for <seconds>\n"
 		"trace <host> [-options]  Print the path take to network <host>\n"
 		"version                  Shortcut for: \033[1mshow version\033[0m\n");
 	return 1;			

@@ -444,6 +444,7 @@ int isDhcp4_packer(pcs *pc, struct packet *m)
 				} else if (*p == DHO_DOMAIN) {
 					memset(pc->ip4.dhcp.domain, 0, sizeof(pc->ip4.dhcp.domain));
 					memcpy(pc->ip4.dhcp.domain, p + 2, *(p + 1));
+					strcpy(pc->ip4.domain, pc->ip4.dhcp.domain);
 					p += *(p + 1) + 2;
 				} else {
 					p++;		/* skip op code */

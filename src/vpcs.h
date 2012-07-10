@@ -82,6 +82,7 @@ typedef struct {
 	dhcp dhcp;				
 	u_int lease;		/* dhcp lease time */
 	u_int dns[2];		/* dns server */
+	char domain[64];	/* search domain name */
 	int mtu;
 } hipv4;
 

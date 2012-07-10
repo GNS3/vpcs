@@ -52,8 +52,17 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 	int namelen;
 	int i;
 	u_char mac[ETH_ALEN];
+	char dname[64];
 	
-	dlen = dnsrequest(name, data, &namelen);
+	if (!strchr(name, '.')) {
+		if (pc->ip4.domain[0] != '\0')
+			snprintf(dname, sizeof(dname), "%s.%s", name, pc->ip4.domain);
+		else if (pc->ip4.dhcp.domain[0] != '\0')
+			snprintf(dname, sizeof(dname), "%s.%s", name, pc->ip4.dhcp.domain);
+	} else
+		snprintf(dname, sizeof(dname), "%s", name);
+		
+	dlen = dnsrequest(dname, data, &namelen);
 	if (dlen == 0) 
 		return 0;
 	
@@ -117,7 +126,9 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 
 static int fmtstring(const char *name, char *buf)
 {
-	char *p, *s, *r;
+	char *s, *r;
+	int len = 0;
+	char c;
 	
 	if (name == NULL || name[0] == '.' || strstr(name, "..") || 
 	    !strchr(name, '.') || strlen(name) > MAX_DNS_NAME)
@@ -125,24 +136,25 @@ static int fmtstring(const char *name, char *buf)
 	
 	memset(buf, 0, MAX_DNS_NAME);
 	strcpy(buf + 1, name);
+	
+	s = buf + 1;
+	while (*s != '\0') {
+		if (*s == '.')
+			*s = '\0';
+		s++;
+	}
+	
 	s = buf;
 	r = buf + 1;
-	while (1) {
-		p = strchr(r, '.');
-		if (p) {
-			*p = '\0';
-			*s = strlen(r);
-			s = p;
-			r = p + 1;
-		} else {
-			if (s == buf)
-				return 0;
-			*s = strlen(r);
-			break;		
-		}
+	while (*r) {
+		c = strlen(r);
+		*s = c;
+		len += c + 1;
+		s = r + c;
+		r = s + 1;
 	}
 	/* prefix and '\0' at end of the string */
-        return strlen(name) + 2;
+        return len + 1;
 }
 
 static int dnsrequest(const char *name, char *data, int *namelen)
