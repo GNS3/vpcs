@@ -43,12 +43,13 @@
 #include "command6.h"
 #include "daemon.h"
 #include "help.h"
+#include "dump.h"
 
 #ifndef Darwin
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a13";
+const char *ver = "0.4a15";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
 
 int pcid = 0;  /* current vpc id */

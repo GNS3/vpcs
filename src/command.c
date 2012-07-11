@@ -205,6 +205,7 @@ int run_ping(int argc, char **argv)
 	struct in_addr in;
 	struct packet *m;
 	pcs *pc = &vpc[pcid];
+	char dname[256];
 
 	char proto_seq[16];
 	int count = 5;
@@ -365,12 +366,13 @@ int run_ping(int argc, char **argv)
 	pc->mscb.dip = inet_addr(argv[1]);
 	
 	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
-		if (hostresolv(pc, argv[1], &(pc->mscb.dip)) == 0) {
+		strcpy(dname, argv[1]);
+		if (hostresolv(pc, dname, &(pc->mscb.dip)) == 0) {
 			printf("Cannot resolve %s\n", argv[1]);
 			return 0;
 		} else {
 			in.s_addr = pc->mscb.dip;
-			printf("%s resolved to %s\n", argv[1], inet_ntoa(in)); 	
+			printf("%s resolved to %s\n", dname, inet_ntoa(in)); 	
 		}
 	}
 	
@@ -1016,6 +1018,7 @@ int run_tracert(int argc, char **argv)
 	int prn_ip = 1;
 	char outbuf[1024];
 	int buf_off = 0;
+	char dname[256];
 		
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_UDP;
@@ -1109,12 +1112,13 @@ int run_tracert(int argc, char **argv)
 	pc->mscb.dip = inet_addr(argv[1]);
 
 	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
-		if (hostresolv(pc, argv[1], &(pc->mscb.dip)) == 0) {
+		strcpy(dname, argv[1]);
+		if (hostresolv(pc, dname, &(pc->mscb.dip)) == 0) {
 			printf("Cannot resolve %s\n", argv[1]);
 			return 0;
 		} else {
 			in.s_addr = pc->mscb.dip;
-			printf("%s resolved to %s\n", argv[1], inet_ntoa(in)); 	
+			printf("%s resolved to %s\n", dname, inet_ntoa(in)); 	
 		}
 	}
 	
@@ -1676,11 +1680,11 @@ static int show_ip(int argc, char **argv)
 				if (vpc[i].ip4.dns[0]) {
 					in.s_addr = vpc[i].ip4.dns[0];
 					j = sprintf(buf + k, "%s", inet_ntoa(in));
-					buf[j + 65] = ' ';
-					k = j + 66;
 				}
 				if (vpc[i].ip4.dns[1]) {
 					in.s_addr = vpc[i].ip4.dns[1];
+					buf[j + 65] = ' ';
+					k = j + 66;
 					j = sprintf(buf + k, "%s", inet_ntoa(in));
 				}
 				printf("%s\n", buf);

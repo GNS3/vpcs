@@ -28,6 +28,7 @@
 #define _DNS_H_
 
 #include <sys/types.h>
+#include "vpcs.h"
 
 typedef struct {
 	u_short id;
@@ -38,10 +39,21 @@ typedef struct {
 	u_short addition;
 } dnshdr;
 
+typedef struct {
+	u_char rd:1;
+	u_char tc:1;
+	u_char aa:1;
+	u_char op:4;
+	u_char qr:1;
+	u_char rc:4;
+	u_char z:3;
+	u_char ra:1;
+} dnsflags;
+		
 #define MAX_DNS_NAME 64
-#define DNS_MAGIC 0x424c
 
-int hostresolv(pcs *pc, const char *name, u_int *ip);
+int hostresolv(pcs *pc, char *name, u_int *ip);
+int dmp_dns_rname(char *s, char *se, char *name);
 
 #endif
 /* end of file */

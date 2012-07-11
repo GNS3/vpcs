@@ -307,13 +307,13 @@ int help_help(int argc, char **argv)
 int run_help(int argc, char **argv) 
 {
 	printf ("\n"
-		"?                        Print help. Use command \033[1m?\033[0m for more help\n"
+		"?                        Print help\n"
 		"<digit>                  Switch to the VPC<digit>. <digit> range 1 to 9\n"
 		"arp                      Shortcut for: \033[1mshow arp\033[0m. Show arp table\n"
 		"clear [arguments]        Clear IPv4/IPv6, arp/neighbor cache, command history\n"
 		"dhcp [-options]          Shortcut for: \033[1mip dhcp\033[0m. Get IPv4 address via DHCP\n"
 		"echo <text>              Display <text> in output\n"
-		"help                     Print help. Use command \033[1m?\033[0m for more help\n"
+		"help                     Print help\n"
 		"history                  Shortcut for: \033[1mshow history\033[0m. List the command history\n"
 		"ip [arguments]           Configure VPC's IP settings\n"
 		"load <filename>          Load the configuration/script from the file <filename>\n"
@@ -325,7 +325,8 @@ int run_help(int argc, char **argv)
 		"show [arguments]         Print the information of VPCs (default). Try \033[1mshow ?\033[0m\n"
 		"sleep <seconds> [text]   Print <text> and pause the running script for <seconds>\n"
 		"trace <host> [-options]  Print the path take to network <host>\n"
-		"version                  Shortcut for: \033[1mshow version\033[0m\n");
+		"version                  Shortcut for: \033[1mshow version\033[0m\n\n"
+		"To get command syntax help, please enter '?' as an argument of the command.\n");
 	return 1;			
 }
 

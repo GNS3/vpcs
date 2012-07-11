@@ -36,14 +36,15 @@
 extern int ctrl_c;
 
 static int fmtstring(const char *name, char *buf);
-static int dnsrequest(const char *name, char *data, int *namelen);
-static int dnsparse(struct packet *m, const char *data, int dlen, u_int *ip);
+static int dnsrequest(u_short id, const char *name, char *data, int *namelen);
+static int dnsparse(struct packet *m, u_short id, char *data, int dlen, u_int *ip);
 
-int hostresolv(pcs *pc, const char *name, u_int *ip)
+int hostresolv(pcs *pc, char *name, u_int *ip)
 {
 	sesscb cb;
 	struct packet *m;
 	char data[512];
+	char *pdn = NULL;
 	int dlen;
 	u_int gip;
 	struct in_addr in;
@@ -53,6 +54,8 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 	int i;
 	u_char mac[ETH_ALEN];
 	char dname[64];
+	u_short magicid;
+	int reqcnt = 0;
 	
 	if (!strchr(name, '.')) {
 		if (pc->ip4.domain[0] != '\0')
@@ -61,8 +64,12 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 			snprintf(dname, sizeof(dname), "%s.%s", name, pc->ip4.dhcp.domain);
 	} else
 		snprintf(dname, sizeof(dname), "%s", name);
+reqry:	
+	if (reqcnt > 2)
+		return 0;
 		
-	dlen = dnsrequest(dname, data, &namelen);
+	magicid = random();
+	dlen = dnsrequest(magicid, dname, data, &namelen);
 	if (dlen == 0) 
 		return 0;
 	
@@ -83,6 +90,7 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 		return 0;
 	}
 
+	pdn = data + sizeof(dnshdr);
 	for (i = 0; i < 2; i++) {
 		if (pc->ip4.dns[i] == 0)
 			continue;
@@ -113,11 +121,19 @@ int hostresolv(pcs *pc, const char *name, u_int *ip)
 			delay_ms(1);
 			ok = 0;		
 			while ((m = deq(&pc->iq)) != NULL && !ok) {
-				ok = dnsparse(m, data + sizeof(dnshdr), namelen, ip);
+				ok = dnsparse(m, magicid, pdn, namelen, ip);
 				free(m);
 			}
-			if (ok)
+			if (ok == 2) {
+				printf("%s ->> %s\n", dname, pdn);
+				strcpy(dname, pdn);
+				reqcnt++;
+				goto reqry;
+			}
+			if (ok) {
+				strcpy(name, pdn);
 				return 1;
+			}
 		}
 	}
 	
@@ -157,7 +173,7 @@ static int fmtstring(const char *name, char *buf)
         return len + 1;
 }
 
-static int dnsrequest(const char *name, char *data, int *namelen)
+static int dnsrequest(u_short id, const char *name, char *data, int *namelen)
 {
 	u_char buf[256];	
 	dnshdr dh;
@@ -165,7 +181,7 @@ static int dnsrequest(const char *name, char *data, int *namelen)
 	int i;
 	
 	memset(&dh, 0, sizeof(dnshdr));
-	dh.id = DNS_MAGIC;
+	dh.id = id;
 	dh.flags = 0x0001; /* QR|OC|AA|TC|RD -  RA|Z|RCODE  */
 	dh.query = htons(0x0001); /* one query */
 	  	
@@ -194,18 +210,19 @@ static int dnsrequest(const char *name, char *data, int *namelen)
  * only search A record if exist, get IP address 
  * return 1 if host name was resolved.
  */
-static int dnsparse(struct packet *m, const char *data, int dlen, u_int *cip)
+static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_int *cip)
 {
 	ethdr *eh;
 	iphdr *ip;
 	udpiphdr *ui;
 	u_char *p;
-
 	dnshdr *dh;
 	u_short *sp;
 	int rlen;
 	int iplen;
-	int c;
+	int i, j;
+	u_char c;
+	
 	const char *rcode[6] = {
 		"No error",
 		"Format error",
@@ -221,7 +238,7 @@ static int dnsparse(struct packet *m, const char *data, int dlen, u_int *cip)
 	iplen = ntohs(ip->len);
 
 	dh = (dnshdr *)(ui + 1);
-	if (dh->id != 0x424c)
+	if (dh->id != magicid)
 		return 0;
 
 	/* invalid name or answer */
@@ -242,13 +259,22 @@ static int dnsparse(struct packet *m, const char *data, int dlen, u_int *cip)
 		return 0;	
 		
 	p = (u_char *)(dh + 1);
-
-	/* not my query */
-	if (memcmp(p, data, dlen))
-		return 0;
-
+	
+	/* extract domain name */
+	c = 0;
+	i = 0;
+	data[0] = '\0';
+	while (p + c - (u_char *)ip < iplen) {
+		i = *(p + c);
+		strncat(data, (char *)(p + c + 1), i);
+		c += i + 1;
+		if (*(p + c) == '\0')
+			break;
+		strcat(data, ".");	
+	}
+	
 	/* skip type and class */
-	p += dlen + 4;
+	p += c + 5;
 	
 	/* skip offset pointer, 
 	 * normal is 0xc00c, 11 00000000001100, 11-pointer, 0c-offset from dnshdr 
@@ -264,6 +290,34 @@ static int dnsparse(struct packet *m, const char *data, int dlen, u_int *cip)
 				*cip = ((u_int *)(p + 2))[0];
 				return 1;
 			}
+		} else if (*sp == 0x0500) {
+			/* cname */
+			/* skip type2, class2, ttl4 */
+			p += 2 + 2 + 4;
+			rlen = ntohs(*((u_short *)p));
+			p = p + 2;
+			c = *p;
+			i = 0;
+			data[i] = '\0';
+			
+			while (1) {
+				p++;
+				for (j = 0; j < c; j++)
+					i += sprintf(data + i, "%c", *(p + j));
+				p += c;
+				c = *p;
+				if (c == 0 || c > 64)
+					break;
+				i += sprintf(data + i, ".");
+			}
+			if (c > 64) {
+				sp = (u_short *)p;
+				i += sprintf(data + i, ".");
+				dmp_dns_rname((char *)(dh) + (ntohs(*sp) & 0x3fff), 
+				    (char *)ip + iplen, data + i);
+			}
+			/* tell caller retry again */
+			return 2;
 		} else {
 			/* skip type2, class2, ttl4, rlen2 */
 			p += 2 + 2 + 4;
@@ -275,5 +329,25 @@ static int dnsparse(struct packet *m, const char *data, int dlen, u_int *cip)
 		}
 	}
 	return 0;
+}
+
+int
+dmp_dns_rname(char *s, char *se, char *name)
+{
+	int i;
+	u_char c;
+
+	name[0] = '\0';	
+	c = *s;
+	i = 0;
+	while (s < se) {
+		strncat(name, (char *)(s + i + 1), c);
+		i += c + 1;
+		c = *(s + i);
+		if (*(s + i) == '\0' || c > 64)
+			break;
+		strcat(name, ".");	
+	}
+	return i;
 }
 /* end of file */

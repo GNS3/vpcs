@@ -454,8 +454,6 @@ u_short cksum(register unsigned short *buffer, register int size);
 u_short cksum_fixup(u_short cksum, u_short old, u_short new, u_short udp);
 u_short cksum6(ip6hdr *ip, u_char nxt, int len);
 
-int dmp_packet(const struct packet *m, const int flag);
-
 int etherIsZero(u_char *mac);
 int etherIsMulticast(u_char *mac);
 
