@@ -50,8 +50,8 @@
 #endif
 
 const char *ver = "0.4a17";
-const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
-const char *Ident = "$Id$"
+/* track the binary */
+static const char *ident = "$Id$";
 
 int pcid = 0;  /* current vpc id */
 int devtype = 0;
@@ -245,6 +245,11 @@ void parse_cmd(char *cmdstr)
 	
 	rc = 0;
 	printf("\n");
+	
+	if (!strcmp(argv[0], "srcid")) {
+		printf("Source code ID: %s\n", ident);
+		return;
+	}
 	
 	if (!strncmp(argv[0], "echo", strlen(argv[0]))) {
 		char *p = NULL;
@@ -491,8 +496,6 @@ void clear_hist(void)
 
 void welcome(void)
 {
-	if (Ident);
-
 	run_ver(0, NULL);
 	
 	printf("\nPress '?' to get help.\n");

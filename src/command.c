@@ -202,10 +202,12 @@ int run_ping(int argc, char **argv)
 {
 	int i, j;
 	int gip;
+	u_int gwip;
 	struct in_addr in;
 	struct packet *m;
 	pcs *pc = &vpc[pcid];
 	char dname[256];
+	u_char flags;
 
 	char proto_seq[16];
 	int count = 5;
@@ -387,17 +389,18 @@ int run_ping(int argc, char **argv)
 		}
 		return 1;
 	}
-
+	gwip = pc->ip4.gw;
+	flags = pc->mscb.flags;
 redirect:		
 	if (sameNet(pc->mscb.dip, pc->ip4.ip, pc->ip4.cidr))
 		gip = pc->mscb.dip;
 	else {
-		if (pc->ip4.gw == 0) {
+		if (gwip == 0) {
 			printf("No gateway found\n");
 			return 0;
 		} else
 		
-		gip = pc->ip4.gw;
+		gip = gwip;
 	}
 
 	in.s_addr = pc->mscb.dip;
@@ -409,6 +412,7 @@ redirect:
 		return 0;
 	}
 
+	pc->mscb.flags = flags;
 	if (pc->mscb.proto == IPPROTO_TCP && pc->mscb.flags == 0) {	
 		i = 0;
 
@@ -423,7 +427,8 @@ redirect:
 				delay_ms(pc->mscb.waittime);
 			
 			/* clear the input queue */
-			while ((m = deq(&pc->iq)) != NULL);
+			while ((m = deq(&pc->iq)) != NULL)
+				del_pkt(m);
 			/* connect the remote */
 			gettimeofday(&(ts), (void*)0);
 			k = tcp_open(4);
@@ -433,12 +438,24 @@ redirect:
 			
 			gettimeofday(&(ts0), (void*)0);
 			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+
 			if (k == 0) {
 				printf("Connect   %d@%s timeout\n", pc->mscb.dport, argv[1]);
 				continue;
 			} else if (k == 2) {
 				struct in_addr din;
 				din.s_addr = pc->mscb.rdip;
+				if (pc->mscb.icmptype == ICMP_REDIRECT && 
+				    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
+					din.s_addr = pc->ip4.gw;	
+					printf("Redirect Network, gateway %s",  inet_ntoa(din));
+					din.s_addr = pc->mscb.rdip;
+					printf(" -> %s\n", inet_ntoa(din));
+					
+					gwip = pc->mscb.rdip;
+					delay_ms(100);
+					goto redirect;
+				}
 				printf("*%s %s=%d ttl=%d time=%.3f ms", 
 				    inet_ntoa(din), proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
 						
@@ -500,10 +517,14 @@ redirect:
 				return 0;
 			}
 			
+			/* clean input queue */
+			while ((p = deq(&pc->iq)) != NULL)
+				del_pkt(p);
+				
 			gettimeofday(&(tv), (void*)0);
 			enq(&pc->oq, m);
 
-			while (!timeout(tv, pc->mscb.waittime) && !ctrl_c) {
+			while (!timeout(tv, pc->mscb.waittime) && !respok && !ctrl_c) {
 				delay_ms(1);
 				respok = 0;
 				
@@ -511,15 +532,16 @@ redirect:
 
 					pc->mscb.icmptype = pc->mscb.icmpcode = 0; 
 					respok = response(p, &pc->mscb);
+					
 					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 + 
 					    p->ts.tv_usec - tv.tv_usec;
-					
+
 					del_pkt(p);
 					
 					if (respok == 0)
 						continue;
 					
-					tv.tv_sec = 0;
+					//tv.tv_sec = 0;
 					
 					if ((pc->mscb.proto == IPPROTO_ICMP && pc->mscb.icmptype == ICMP_ECHOREPLY) ||
 					    (pc->mscb.proto == IPPROTO_UDP && respok == IPPROTO_UDP) ||
@@ -539,7 +561,8 @@ redirect:
 						    	din.s_addr = pc->mscb.rdip;
 						    	printf(" -> %s\n", inet_ntoa(din));
 						    	
-						    	pc->ip4.gw = pc->mscb.rdip;
+						    	gwip = pc->mscb.rdip;
+						    	delay_ms(100);
 						    	goto redirect;
 						}
 						din.s_addr = pc->mscb.rdip;
@@ -1008,7 +1031,7 @@ int run_ipconfig(int argc, char **argv)
 int run_tracert(int argc, char **argv)
 {
 	int i, j;
-	u_int gip;
+	u_int gip, gwip;
 	struct in_addr in;
 	int count = 128;
 	struct packet *m;
@@ -1129,17 +1152,25 @@ int run_tracert(int argc, char **argv)
 		printf(" 1 %s     0.001 ms\n", inet_ntoa(in));
 		return 1;
 	}
-
+	
+	printf("trace to %s, %d hops max", argv[1], count);
+	if (pc->mscb.proto == IPPROTO_ICMP)
+		printf("%s", " (ICMP)");
+	else if (pc->mscb.proto == IPPROTO_TCP)
+		printf("%s", " (TCP)");
+	printf(", press Ctrl+C to stop\n");
+	
+	gwip = pc->ip4.gw;
 redirect:
 	if (sameNet(pc->mscb.dip, pc->ip4.ip, pc->ip4.cidr))
 		gip = pc->mscb.dip;
 	else {
-		if (pc->ip4.gw == 0) {
+		if (gwip == 0) {
 			printf("No gateway found\n");
 			return 0;
 		} else
 		
-		gip = pc->ip4.gw;
+		gip = gwip;
 	}
 	
 	/* try to get the ether address of destination */
@@ -1148,12 +1179,8 @@ redirect:
 		printf("host (%s) not reachable\n", inet_ntoa(in));
 		return 0;
 	}
-	printf("trace to %s, %d hops max", argv[1], count);
-	if (pc->mscb.proto == IPPROTO_ICMP)
-		printf("%s", " (ICMP)");
-	else if (pc->mscb.proto == IPPROTO_TCP)
-		printf("%s", " (TCP)");
-	printf(", press Ctrl+C to stop\n");
+	
+
 
 	/* send the udp packets */
 	i = 1;
@@ -1204,8 +1231,8 @@ redirect:
 						buf_off += snprintf(outbuf + buf_off, sizeof(outbuf) - buf_off, 
 						    " -> %s\n", inet_ntoa(in));
 						    	
-						pc->ip4.gw = pc->mscb.rdip;
-						
+						gwip = pc->mscb.rdip;
+						delay_ms(100);
 						goto redirect;
 					}
 					

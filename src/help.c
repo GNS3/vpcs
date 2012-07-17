@@ -157,7 +157,7 @@ int help_ping(int argc, char **argv)
 int help_trace(int argc, char **argv)
 {
 	printf( "\n\033[1mtrace <host> [-options]\033[0m\n"
-		"  Print the path take to network <host>. <host> can be an ip address or name.\n"
+		"  Print the path packets take to network <host>. <host> can be an ip address or name.\n"
 		"    options:\n"
 		"      -P <protocol>  Use IP <protocol> in trace packets\n"
 		"                     1 - icmp, 17 - udp (default), 6 - tcp  \n"                                       
@@ -324,7 +324,7 @@ int run_help(int argc, char **argv)
 		"set [arguments]          Set VPC name, peer ports, dump options, echo on or off\n"
 		"show [arguments]         Print the information of VPCs (default). Try \033[1mshow ?\033[0m\n"
 		"sleep <seconds> [text]   Print <text> and pause the running script for <seconds>\n"
-		"trace <host> [-options]  Print the path take to network <host>\n"
+		"trace <host> [-options]  Print the path packets take to network <host>\n"
 		"version                  Shortcut for: \033[1mshow version\033[0m\n\n"
 		"To get command syntax help, please enter '?' as an argument of the command.\n");
 	return 1;			

@@ -40,7 +40,7 @@
 #include <string.h>
 #include "getopt.h"
 
-//static const char* ID = "$Id: getopt.c,v 1.2 2007-06-13 14:11:14 admin Exp $";
+//static const char* ID = "$Id$";
 
 char* optarg = NULL;
 int optind = 0;
