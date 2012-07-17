@@ -51,7 +51,7 @@
 
 const char *ver = "0.4a17";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
-const char *Ident = "$Id$";
+const char *Ident = "$Id$"
 
 int pcid = 0;  /* current vpc id */
 int devtype = 0;
