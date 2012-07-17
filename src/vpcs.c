@@ -49,8 +49,9 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a15";
+const char *ver = "0.4a17";
 const char *copy = "Copyright (c) mirnshi, $Revision: 1.13 $";
+const char *Ident = "$Id";
 
 int pcid = 0;  /* current vpc id */
 int devtype = 0;
@@ -490,6 +491,8 @@ void clear_hist(void)
 
 void welcome(void)
 {
+	if (Ident);
+
 	run_ver(0, NULL);
 	
 	printf("\nPress '?' to get help.\n");
@@ -510,7 +513,4 @@ void usage()
 		"           -r file   run startup file\n"
 		"\n");
 }
-
-
-
 /* end of file */
