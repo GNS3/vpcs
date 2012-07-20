@@ -20,8 +20,12 @@ OBJS=vpcs.o \
 	packets6.o \
 	ip.o \
 	tcp.o \
-	inet6.o
-	
+	inet6.o \
+	dns.o \
+	remote.o \
+	help.o \
+	dump.o
+		
 all: vpcs
 
 vpcs: $(OBJS)

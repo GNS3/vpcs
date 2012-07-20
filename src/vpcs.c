@@ -49,7 +49,7 @@
 #include "getopt.h"
 #endif
 
-const char *ver = "0.4a17";
+const char *ver = "0.4a19";
 /* track the binary */
 static const char *ident = "$Id$";
 

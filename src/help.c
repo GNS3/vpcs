@@ -266,7 +266,7 @@ int help_show(int argc, char **argv)
 		printf( "\n\033[1mshow [arp [<digit>|all]|dump|echo|history|ip [<digit>|all]|ipv6 [<digit>|all]]\033[0m\n"
 			"    arp [<digit>|all]   Show arp table for VPC <digit> or all VPCs\n"
 			"    dump [<digit>|all]  Show dump flags for VPC <digit> or all VPCs\n"
-			"    echo                Show the status of the echo flag (see set echo)\n"
+			"    echo                Show the status of the echo flag. see \033[1mset echo\033[0m\n"
 			"    history             List the command history\n"
 			"    ip [<digit>|all]    Show IPv4 details for VPC <digit> or all VPCs\n"
 			"                        Shows VPC Name, IP address, mask, gateway, DNS, MAC, \n"
