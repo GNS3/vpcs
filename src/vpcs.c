@@ -45,11 +45,7 @@
 #include "help.h"
 #include "dump.h"
 
-#ifndef Darwin
-#include "getopt.h"
-#endif
-
-const char *ver = "0.4a19";
+const char *ver = "0.4b2";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -75,6 +71,8 @@ int ctrl_c = 0; /* ctrl+c was pressed */
 struct rls *rls = NULL;
 
 int daemon_port = 0;
+
+int macaddr = 0; /* the last byte of ether address */
 
 void *pth_proc(void *devid);
 void *pth_timer_tick(void *);
@@ -130,7 +128,6 @@ int main(int argc, char **argv)
 	pthread_t timer_pid;
 	char *cmd;
 	
-	
 	if (!isatty(0)) {
 		printf("Please run in the tty\n");
 		exit(-1);
@@ -139,40 +136,52 @@ int main(int argc, char **argv)
 	rhost = inet_addr("127.0.0.1");
 	
 	devtype = DEV_UDP;
-	while (1) {
-		c = getopt(argc, argv, "-h?eus:c:r:t:p:");
-		if (-1 == c)
-			break;
+	while ((c = getopt(argc, argv, "?c:ehm:p:r:s:t:uv")) != -1) {
 		switch (c) {
-			case 'u':
-				devtype = DEV_UDP;
-				break;
-			case 's':
-				lport = arg_to_int(optarg, 1024, 65000, 20000);
-				break;
 			case 'c':
 				rport_flag = 1;
-				rport = arg_to_int(optarg, 1024, 65000, 30000);
+				rport = arg2int(optarg, 1024, 65000, 30000);
 				break;
-			case 'r':
-				startupfile = optarg;
-				break;				
 			case 'e':
 				devtype = DEV_TAP;
+				break;
+			case 'm':
+				macaddr = arg2int(optarg, 0, 240, 0);
+				break;
+			case 'p':
+				daemon_port = arg2int(optarg, 1024, 65000, 5000);
+				break;
+			case 'r':
+				startupfile = strdup(optarg);
+				break;	
+			case 's':
+				lport = arg2int(optarg, 1024, 65000, 20000);
 				break;
 			case 't':
 				if (inet_addr(optarg) != -1)
 					rhost = inet_addr(optarg);
 				break;
-			case 'p':
-				daemon_port = arg_to_int(optarg, 1024, 65000, 5000);
+			case 'u':
+				devtype = DEV_UDP;
 				break;
+			case 'v':
+				run_ver(argc, argv);
+				exit(0);
+				break;
+				
 			case 'h':
 			case '?':
-			default:
 				usage();
-				exit(1);
+				exit(0);
 				break;
+		}
+	}
+	if (optind != argc) {
+		if (optind + 1 == argc)
+			startupfile = strdup(argv[optind]);
+		else {
+			usage();
+			exit(0);
 		}
 	}
 
@@ -180,7 +189,7 @@ int main(int argc, char **argv)
 	signal(SIGINT, &sig_int);
 	
 	if (daemon_port && daemonize(daemon_port))
-		exit(1);
+		exit(0);
 		
 	welcome();
 	
@@ -220,7 +229,7 @@ int main(int argc, char **argv)
 		if (cmd != NULL)
 			parse_cmd(cmd);
 	}
-	return 1;
+	return 0;
 }
 
 void parse_cmd(char *cmdstr)
@@ -332,26 +341,21 @@ void *pth_proc(void *devid)
 	struct packet *m = NULL;
 	u_char buf[PKT_MAXSIZE];
 	int rc;
-	u_int local_ip;
 
 	id = *(int *)devid;
 	pc  = &vpc[id];
 	pc->id = id;
-
-	local_ip = inet_addr("127.0.0.1");
 	
 	pc->rhost = rhost;
 	pc->lport = lport + id;
-	if (rhost != local_ip && !rport_flag)
-		pc->rport = lport + id;
-	else
-		pc->rport = rport + id;
+	pc->rport = rport + id;
+	
 	pc->ip4.mac[0] = 0x00;
 	pc->ip4.mac[1] = 0x50;
 	pc->ip4.mac[2] = 0x79;
 	pc->ip4.mac[3] = 0x66;
 	pc->ip4.mac[4] = 0x68;
-	pc->ip4.mac[5] = id & 0xff;
+	pc->ip4.mac[5] = (id + macaddr) & 0xff;
 	
 	if (pc->fd == 0)
 		pc->fd = open_dev(id);
@@ -486,7 +490,7 @@ int run_quit(int argc, char **argv)
 		savehistory(histfile, rls);
 
 	printf("\n");
-	exit(1);
+	exit(0);
 }
 
 void clear_hist(void)
@@ -505,15 +509,25 @@ void welcome(void)
 void usage()
 {
 	run_ver(0, NULL);
-	printf ("\nusage: vpcs [options]\n"
-		"           -p port   daemon port\n"
-		"           -u        udp mode, default\n"
-		"           -e        tap mode, using /dev/tapx (only linux)\n"
-		"           -s port   local udp port, default from 20000\n"
-		"           -c port   remote udp port(dynamips udp ports)\n"
-		"                     default from 30000, or 20000 if rhost is set\n"
-		"           -t rhost  remote host\n"
-		"           -r file   run startup file\n"
+	printf ("\nusage: vpcs [options] [scriptfile]\n"
+		"Option:\n"
+		"    -h         print this help then exit\n"
+		"    -v         print version information then exit\n"
+		"\n"
+		"    -p port    run as a daemon listening on the tcp 'port'\n"
+		"    -m num     start byte of ether address, default from 0\n"
+		"    -r file    load and execute script file\n"
+		"               compatible with older versions, DEPRECATED.\n"
+		"\n"
+		"    -e         tap mode, using /dev/tapx (linux only)\n"
+		"    -u         udp mode, default\n"
+		"\nudp mode options:\n"
+		"    -s port    local udp base port, default from 20000\n"
+		"    -c port    remote udp base port (dynamips udp port), default from 30000\n"
+		"    -t ip      remote host IP, default 127.0.0.1\n"
+		"\n"
+		"  If no 'scriptfile' specified, vpcs will read and execute the file named\n"
+		"  'startup.vpc' if it exsits in the current directory.\n"
 		"\n");
 }
 /* end of file */

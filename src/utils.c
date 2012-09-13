@@ -24,7 +24,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
- 
+#include <stdio.h> 
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -126,7 +126,15 @@ char *ttrim(char *s)
 	
 	return s;
 }
+int arg2int(const char* arg, int min, int max, int defval)
+{
+	int r;
 
+	if (arg == NULL || sscanf(arg, "%d", &r) != 1)
+		return defval;
+	
+	return r;
+}
 #if 0
 void preh(u_char *e)
 {

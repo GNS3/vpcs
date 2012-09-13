@@ -38,6 +38,8 @@ int timeout(struct timeval tv, int mseconds);
 int digitstring(const char *s);
 char *ttrim(char *s);
 
+int arg2int(const char* arg, int min, int max, int defalt);
+
 #endif
 
 /* end of file */
