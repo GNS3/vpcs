@@ -10,7 +10,6 @@ OBJS=vpcs.o \
 	daemon.o \
 	readline.o \
 	packets.o \
-	getopt.o \
 	utils.o \
 	queue.o \
 	command.o \
@@ -20,8 +19,12 @@ OBJS=vpcs.o \
 	packets6.o \
 	ip.o \
 	tcp.o \
-	inet6.o
-	
+	inet6.o \
+	dns.o \
+	remote.o \
+	help.o \
+	dump.o
+
 all: vpcs
 
 vpcs: $(OBJS)

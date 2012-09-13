@@ -10,7 +10,6 @@ OBJS=vpcs.o \
 	daemon.o \
 	readline.o \
 	packets.o \
-	getopt.o \
 	utils.o \
 	queue.o \
 	command.o \
