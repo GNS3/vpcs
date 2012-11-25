@@ -1,6 +1,10 @@
 
-   Welcome to Virtual PC Simulator, Ver 0.4a.
+   Welcome to Virtual PC Simulator, Ver 0.4b2.
    
+   VPCS is free software, distributed under the terms of the "BSD" licence.
+   Source code and license can be found at vpcs.sf.net.
+   For more information, please visit wiki.freecode.com.cn.
+
    The VPCS can simulate up to 9 PCs. You can ping/traceroute them, or 
 ping/traceroute the other hosts/routers from the VPCS when you study the Cisco 
 routers in the dynamips. VPCS is not the traditional PC, it is just a program 
@@ -22,13 +26,26 @@ execute the commands in it if you are not set the startup file from the command
 line. All the commands in the startup file are the internal commands of the VPCS.
 The line started with '#' or '!' will be discarded.
 
-	vpcs [options]
-           -p port   daemon mode, listen port, default is 10000
-           -u        udp mode, default
-           -e        tap mode, using /dev/tapx
-           -s port   local udp port, default from 20000
-           -c port   remote udp port(dynamips udp ports), default from 30000
-           -r file   run startup file
+   usage: vpcs [options] [scriptfile]
+   Option:
+       -h         print this help then exit
+       -v         print version information then exit
+   
+       -p port    run as a daemon listening on the tcp 'port'
+       -m num     start byte of ether address, default from 0
+       -r file    load and execute script file
+                  compatible with older versions, DEPRECATED.
+   
+       -e         tap mode, using /dev/tapx (linux only)
+       -u         udp mode, default
+   
+   udp mode options:
+       -s port    local udp base port, default from 20000
+       -c port    remote udp base port (dynamips udp port), default from 30000
+       -t ip      remote host IP, default 127.0.0.1
+   
+     If no 'scriptfile' specified, vpcs will read and execute the file named
+     'startup.vpc' if it exsits in the current directory.
 
    NOTE: 
    1. The cygwin1.dll used by VPCS maybe conflicted with other version. Please 
@@ -39,6 +56,10 @@ The line started with '#' or '!' will be discarded.
 Website: http://wiki.freecode.com.cn or http://mirnshi.cublog.cn
    
 History:
+   0.4b2   support DNS
+           support 'dump' packets
+           add 'rlogin' command to connect the remote host
+           
    0.4a    support daemon mode
    0.3     under BSD license
    0.20a   support IPv6 linklocal, stateless autoconfiguration

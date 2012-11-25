@@ -1,6 +1,10 @@
 
-    欢迎使用 VPCS, 最新版本为 0.4a.
+    欢迎使用 VPCS, 最新版本为 0.4b2.
 
+    VPCS 是免费软件，遵从 BSD 许可的条款分发。
+    源代码和许可协议条款可以从 vpcs.sf.net 获取到。
+    更多信息，请访问 wiki.freecode.com.cn.
+   
     VPCS 可以模拟最多 9 个虚拟的 PC。你可以 ping/traceroute 这些 PC，或者
 在这些 PC 中 ping/traceroute 其他的主机或路由器。当然这些虚拟的 PC，并不
 完全意义上的 PC，它只是一个运行在 Linux 或 Windows 上的应用程序，仅可以
@@ -18,13 +22,27 @@
 startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 
    VPCS 的命令行选项
-   usage: vpcs [options]
-           -p port   daemon mode, listen port, default is 10000
-           -u        udp mode, default
-           -e        tap mode, using /dev/tapx
-           -s port   local udp port, default from 20000
-           -c port   remote udp port(dynamips udp ports), default from 30000
-           -r file   run startup file
+   usage: vpcs [options] [scriptfile]
+   Option:
+       -h         print this help then exit
+       -v         print version information then exit
+   
+       -p port    run as a daemon listening on the tcp 'port'
+       -m num     start byte of ether address, default from 0
+       -r file    load and execute script file
+                  compatible with older versions, DEPRECATED.
+   
+       -e         tap mode, using /dev/tapx (linux only)
+       -u         udp mode, default
+   
+   udp mode options:
+       -s port    local udp base port, default from 20000
+       -c port    remote udp base port (dynamips udp port), default from 30000
+       -t ip      remote host IP, default 127.0.0.1
+   
+     If no 'scriptfile' specified, vpcs will read and execute the file named
+     'startup.vpc' if it exsits in the current directory.
+
 
    注意：
    1. VPCS 使用的 cygwin1.dll 可能与其他 cygwin1.dll 不兼容。建议在一系统
@@ -35,6 +53,11 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 站点：http://wiki.freecode.com.cn 或 http://mirnshi.cublog.cn
 
 历史版本：
+   0.4b2   支持DNS
+           支持数据包协议输出显示
+           支持远程登录其他设备，热键返回
+           其他增强及修订
+           
    0.4a    增加后台服务模式
    0.3     BSD许可
    0.20a   进一步增强IPv6，支持LinkLocal，无状态自动配置，手工eui-64
