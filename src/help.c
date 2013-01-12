@@ -216,7 +216,7 @@ int help_set(int argc, char **argv)
 		"    lport <port>    local port\n"
 		"    rport <port>    remote peer port\n"
 		"    rhost <ip>      remote peer host IPv4 address\n"
-		"    pcname <name>   rename the current VPC\n"
+		"    pcname <name>   set the hostname of the current VPC\n"
 		"    echo [on|off]   set echoing on or off during script execution\n"
 		"    dump [options]  set the packet dump flag for this VPC. \n"
 		"                    Options:\n"

@@ -227,7 +227,7 @@ int _readline(struct rls *rls)
 						strcpy(rls->history[rls->maxhistnum], rls->kbuffer);
 					else
 						rls->history[rls->maxhistnum][0] = '\0';
-				};
+				}
 				if (ihist == 0)
 					continue;
 						
@@ -237,7 +237,13 @@ int _readline(struct rls *rls)
 					continue;
 				ihist = i;
 				
+				/*
 				while (rls->pos-- > 0)
+				*/
+				i = strlen(rls->kbuffer);
+				while (rls->pos++ < i)
+					vprint(" ", 1);
+				while (i-- > 0)
 					vprint("\b \b", 3);
 				
 				strcpy(rls->kbuffer, rls->history[ihist]);
@@ -251,15 +257,28 @@ int _readline(struct rls *rls)
 			if (fkey == KEY_DOWN){
 				if (flags == 0)
 					continue;
-				if (ihist >= rls->hist_total)
+				if ((ihist + 1) >= rls->hist_total) {
+					i = strlen(rls->kbuffer);
+					while (rls->pos++ < i)
+						vprint(" ", 1);
+					while (i-- > 0)
+						vprint("\b \b", 3);
+					rls->kbuffer[0] = '\0';
+					rls->pos = 0;
+					flags = 0;
 					continue;
-						
+				}
+				//printf("ihist = %d, rls->hist_total = %d\n",
+				//    ihist, rls->hist_total);	
 				i = findhistory(rls, ihist);
 				if (i == -1)
 					continue;
 				ihist = i;
 				
-				while (rls->pos-- > 0)
+				i = strlen(rls->kbuffer);
+				while (rls->pos++ < i)
+					vprint(" ", 1);
+				while (i-- > 0)
 					vprint("\b \b", 3);
 				
 				strcpy(rls->kbuffer, rls->history[ihist]);
@@ -395,7 +414,7 @@ int _readline(struct rls *rls)
 		i = 0;
 		while (i < rc) {
 			if (isprint((int)kb[i])) {
-				if (rls->pos < strlen(rls->kbuffer)) {
+				if (rls->pos < strlen(rls->kbuffer) - 1) {
 					j = strlen(rls->kbuffer);
 					/* avoid overflow */
 					if (j < rls->maxbuflen - 1) {
@@ -405,6 +424,7 @@ int _readline(struct rls *rls)
 						}
 						
 						rls->kbuffer[rls->pos] = kb[i];
+						rls->kbuffer[rls->pos + 1] = '\0';
 						vprint(&rls->kbuffer[rls->pos], 
 						    strlen(&rls->kbuffer[rls->pos]));
 						for (j = 0; j < strlen(rls->kbuffer) - rls->pos - 1; j++)

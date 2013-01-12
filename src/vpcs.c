@@ -45,7 +45,7 @@
 #include "help.h"
 #include "dump.h"
 
-const char *ver = "0.4b2";
+const char *ver = "0.5a0";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -103,7 +103,7 @@ cmdStub cmd_entry[] = {
 	{"dhcp",	"ip",	run_ipconfig,	help_ip},
 	{"echo",	NULL,	run_echo,	NULL},
 	{"help",	NULL,	run_help,	help_help},
-	{"hist",	NULL,	run_hist,	NULL},
+	{"history",	NULL,	run_hist,	NULL},
 	{"ip",		NULL,	run_ipconfig,	help_ip},
 	{"load",	NULL,	run_load,	help_load},
 	{"neighbor",	NULL,	run_nb6,	NULL},
