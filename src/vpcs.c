@@ -44,6 +44,7 @@
 #include "daemon.h"
 #include "help.h"
 #include "dump.h"
+#include "relay.h"
 
 const char *ver = "0.5a0";
 /* track the binary */
@@ -104,6 +105,7 @@ cmdStub cmd_entry[] = {
 	{"echo",	NULL,	run_echo,	NULL},
 	{"help",	NULL,	run_help,	help_help},
 	{"history",	NULL,	run_hist,	NULL},
+	{"relay",       NULL,   run_relay,      help_relay},
 	{"ip",		NULL,	run_ipconfig,	help_ip},
 	{"load",	NULL,	run_load,	help_load},
 	{"neighbor",	NULL,	run_nb6,	NULL},
@@ -125,7 +127,7 @@ int main(int argc, char **argv)
 	int i;
 	char prompt[MAX_LEN];
 	int c;
-	pthread_t timer_pid;
+	pthread_t timer_pid, relay_pid;
 	char *cmd;
 	
 	if (!isatty(0)) {
@@ -206,6 +208,8 @@ int main(int argc, char **argv)
 		delay_ms(50);
 	}
 	pthread_create(&timer_pid, NULL, pth_timer_tick, (void *)0);
+	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
+	
 	pcid = 0;
 	
 	delay_ms(50);

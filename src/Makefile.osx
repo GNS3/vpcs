@@ -23,7 +23,8 @@ OBJS=vpcs.o \
 	dns.o \
 	remote.o \
 	help.o \
-	dump.o
+	dump.o \
+	relay.o
 
 all: vpcs
 

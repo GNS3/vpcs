@@ -24,28 +24,14 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
-#ifndef _HELP_H_
-#define _HELP_H_
+#ifndef _RELAY_H_
+#define _RELAY_H_
 
-int run_help(int argc, char **argv);
+#include <sys/types.h>
+#include "vpcs.h"
 
-int help_clear(int argc, char **argv);
-int help_echo(int argc, char **argv);
-int help_help(int argc, char **argv);
-int help_hist(int argc, char **argv);
-int help_ip(int argc, char **argv);
-int help_load(int argc, char **argv);
-int help_neighbor(int argc, char **argv);
-int help_ping(int argc, char **argv);
-int help_trace(int argc, char **argv);
-int help_relay(int argc, char **argv);
-int help_rlogin(int argc, char **argv);
-int help_save(int argc, char **argv);
-int help_set(int argc, char **argv);
-int help_show(int argc, char **argv);
-int help_sleep(int argc, char **argv);
-int help_version(int argc, char **argv);
-
+int run_relay(int argc, char **argv);
+void *pth_relay(void *dummy);
 
 #endif
 /* end of file */

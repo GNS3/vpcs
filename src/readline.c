@@ -413,29 +413,32 @@ int _readline(struct rls *rls)
 		/* normal key */	
 		i = 0;
 		while (i < rc) {
-			if (isprint((int)kb[i])) {
-				if (rls->pos < strlen(rls->kbuffer) - 1) {
-					j = strlen(rls->kbuffer);
-					/* avoid overflow */
-					if (j < rls->maxbuflen - 1) {
-						while (j > rls->pos) {
-							rls->kbuffer[j] = rls->kbuffer[j-1];
-							j--;
-						}
-						
-						rls->kbuffer[rls->pos] = kb[i];
-						rls->kbuffer[rls->pos + 1] = '\0';
-						vprint(&rls->kbuffer[rls->pos], 
-						    strlen(&rls->kbuffer[rls->pos]));
-						for (j = 0; j < strlen(rls->kbuffer) - rls->pos - 1; j++)
-							vprint("\b", 1);
-					}
-				} else {
-					rls->kbuffer[rls->pos] = kb[i];
-					vprint(&kb[i], 1);
-				}
-				rls->pos++;
+			if (!isprint((int)kb[i])) {
+				i++;
+				continue;
 			}
+			if (rls->pos < strlen(rls->kbuffer) - 1) {
+				j = strlen(rls->kbuffer);
+				/* avoid overflow */
+				if (j < rls->maxbuflen - 1) {
+					while (j > rls->pos) {
+						rls->kbuffer[j] = rls->kbuffer[j-1];
+						j--;
+					}
+						
+					rls->kbuffer[rls->pos] = kb[i];
+					//rls->kbuffer[rls->pos + 1] = '\0';
+					vprint(&rls->kbuffer[rls->pos], 
+					    strlen(&rls->kbuffer[rls->pos]));
+					for (j = 0; j < strlen(rls->kbuffer) - rls->pos - 1; j++)
+						vprint("\b", 1);
+				}
+			} else {
+				rls->kbuffer[rls->pos] = kb[i];
+				rls->kbuffer[rls->pos + 1] = '\0';
+				vprint(&kb[i], 1);
+			}
+			rls->pos++;
 			i++;
 		}
 	} while (kb[0] != CTRLP);

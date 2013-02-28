@@ -47,6 +47,21 @@ int help_hist(int argc, char **argv)
 	return 1;
 }
 
+int help_relay(int argc, char **argv)
+{
+	printf( "\n\033[1mrelay [arguments]\033[0m\n"
+		"  Configure the hub\n"
+		"  arguments:\n"
+		"    port <port>                  set mirror port\n"                    
+		"    show                         show\n"
+		"    add [ip1:]port1 [ip2:]port2  relay the packets between port1 and port2\n"
+		"    del [ip1:]port1 [ip2:]port2  relay the packets between port1 and port2\n"
+		"    del <id>                     relay the packets between port1 and port2\n");
+
+	return 1;
+}
+
+
 int help_ip(int argc, char **argv)
 {
 	
@@ -319,6 +334,7 @@ int run_help(int argc, char **argv)
 		"load <filename>          Load the configuration/script from the file <filename>\n"
 		"ping <host> [-options]   Ping the network <host> with ICMP (default) or TCP/UDP\n"
 		"quit                     Quit program\n"
+		"relay                    relay function\n"
 		"rlogin [<ip>] <port>     Telnet to host relative to HOST PC\n"
 		"save <filename>          Save the configuration to the file <filename>\n"
 		"set [arguments]          Set VPC name, peer ports, dump options, echo on or off\n"
