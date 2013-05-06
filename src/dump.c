@@ -521,3 +521,4 @@ dmp_dns_timestr(u_int s)
 	
 	return buf;
 }
+

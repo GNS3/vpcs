@@ -25,14 +25,21 @@ OBJS=vpcs.o \
 	remote.o \
 	help.o \
 	dump.o \
-	relay.o	
-all: vpcs
+	relay.o
+
+HV_OBJS=hv.o \
+	utils.o
+
+all: vpcs hv
 
 vpcs: $(OBJS)
 	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
+
+hv: $(HV_OBJS)
+	$(CC) $(HV_OBJS) -o hv $(LDFLAGS) 
 	
 .c.o: keys.h vpcs.h packets.h dhcp.h
 	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
 
 clean:
-	$(RM) *.o vpcs vpcs.exe
+	$(RM) *.o vpcs vpcs.exe hv

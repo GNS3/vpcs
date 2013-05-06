@@ -319,6 +319,13 @@ int help_help(int argc, char **argv)
 	return 1;
 }
 
+int help_shut(int argc, char **argv)
+{
+	printf( "\n\033[1m%s\033[0m, shutdown the process (only in daemon mode)\n", argv[0]);
+
+	return 1;
+}
+
 int run_help(int argc, char **argv) 
 {
 	printf ("\n"
@@ -339,6 +346,7 @@ int run_help(int argc, char **argv)
 		"save <filename>          Save the configuration to the file <filename>\n"
 		"set [arguments]          Set VPC name, peer ports, dump options, echo on or off\n"
 		"show [arguments]         Print the information of VPCs (default). Try \033[1mshow ?\033[0m\n"
+		"shut                     shutdown the process (only in daemon mode)\n"
 		"sleep <seconds> [text]   Print <text> and pause the running script for <seconds>\n"
 		"trace <host> [-options]  Print the path packets take to network <host>\n"
 		"version                  Shortcut for: \033[1mshow version\033[0m\n\n"

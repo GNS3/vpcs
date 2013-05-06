@@ -86,6 +86,7 @@ void usage();
 void startup(void);
 
 int run_quit(int argc, char **argv);
+int run_shut(int argc, char **argv);
 
 struct stub
 {
@@ -116,6 +117,7 @@ cmdStub cmd_entry[] = {
 	{"save",	NULL,	run_save,	help_save},
 	{"set",		NULL,	run_set,	help_set},
 	{"show",	NULL,	run_show,	help_show},
+	{"shut",	NULL,	run_shut,	help_shut},
 	{"version",	NULL,	run_ver,	NULL},
 	{"sleep",	NULL,	run_sleep,	help_sleep},
 	{"zzz",		NULL,	run_sleep,	help_sleep},
@@ -495,6 +497,29 @@ int run_quit(int argc, char **argv)
 
 	printf("\n");
 	exit(0);
+}
+
+int run_shut(int argc, char **argv)
+{
+	int i;
+	pid_t pid;
+	
+	if (daemon_port) {
+		pid = getppid();
+		kill(pid, SIGUSR1);
+		usleep(10);
+		kill(pid, SIGKILL);
+
+		for (i = 0; i < NUM_PTHS; i++)
+			close(vpc[i].fd);
+
+		if (rls != NULL && histfile != NULL) 
+			savehistory(histfile, rls);
+
+		printf("\n");
+		exit(0);
+	}
+	return 0;		
 }
 
 void clear_hist(void)

@@ -56,19 +56,22 @@
 
 extern int ctrl_c;
 static int cmd_quit = 0;
+static pid_t fdtty_pid;
 
 static void daemon_proc(int sock, int fdtty);
 static void sig_cmd_quit(int sig);
+static void sig_cmd_shut(int sig);
 static void sig_int(int sig);
 static void set_telnet_mode(int s);
+static void write_pid(int port);
 
 int daemonize(int port)
 {
 	pid_t pid;
-	int fdtty;
-	int sock;
+	int sock = 0;
 	struct sockaddr_in serv;
 	int on = 1;
+	int fdtty;
 	
 	pid = fork();
 	if (pid < 0) {
@@ -84,24 +87,25 @@ int daemonize(int port)
 	signal(SIGINT, &sig_int);
 	signal (SIGHUP, SIG_IGN);
 	signal(SIGUSR1, &sig_cmd_quit);
+   	signal(SIGUSR2, &sig_cmd_shut);
    	
    	/* open an tty as standard I/O for vpcs */
-   	pid = forkpty(&fdtty, NULL, NULL, NULL);
+   	fdtty_pid = forkpty(&fdtty, NULL, NULL, NULL);
    	
-   	if (pid < 0) {
+   	if (fdtty_pid < 0) {
    		perror("Daemon fork tty\n");
    		return (-1);
 	}
 	
    	/* child process, the 'real' vpcs */
-   	if (pid == 0) 
+   	if (fdtty_pid == 0) 
    		return 0;
    	
    	/* daemon socket */
    	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock < 0) {
 		perror("Daemon socket");
-		return (-1);
+		goto err;
 	}
 	(void) setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
 	    (char *)&on, sizeof(on));
@@ -120,10 +124,14 @@ int daemonize(int port)
 		goto err;
 	}
 
+	write_pid(port);
 	daemon_proc(sock, fdtty);
 err:
+	if (sock >= 0)
+		close(sock);
+
 	close(fdtty);
-	kill(pid, 9);
+	kill(fdtty_pid, 9);
 	exit(-1);
 }
 
@@ -133,6 +141,7 @@ static void daemon_proc(int sock, int fdtty)
 	struct sockaddr_in cli;
 	int slen;
 	fd_set set;
+	struct timeval tv;
 	u_char buf[8192];
 	int i;
 
@@ -149,10 +158,20 @@ static void daemon_proc(int sock, int fdtty)
 			FD_ZERO(&set);
 			FD_SET(sock_cli, &set);
 			FD_SET(fdtty, &set);
-			if (select((fdtty > sock_cli) ? (fdtty+1) : (sock_cli+1),
-			    &set, NULL, NULL, NULL) < 0) {
+			
+			/* wait 100ms */
+			tv.tv_sec = 0;
+			tv.tv_usec = 10000; 
+			i = select((fdtty > sock_cli) ? (fdtty+1) : (sock_cli+1),
+			    &set, NULL, NULL, &tv);
+			
+			/* error */
+			if (i < 0)
 				break;
-			}
+			/* time out */
+			if (i == 0)
+				continue;
+				
 			if (FD_ISSET(fdtty, &set)) {
 				memset(buf, 0, sizeof(buf));
 				i = read(fdtty, buf, sizeof(buf));
@@ -182,6 +201,13 @@ void sig_cmd_quit(int sig)
 	signal(SIGUSR1, &sig_cmd_quit);
 }
 
+void sig_cmd_shut(int sig)
+{
+	kill(fdtty_pid, SIGKILL);
+	kill(getpid(), SIGKILL);
+	signal(SIGUSR2, &sig_cmd_shut);
+}
+
 void sig_int(int sig)
 {
 	ctrl_c = 1;
@@ -202,4 +228,19 @@ void set_telnet_mode(int s)
 	if (rc);
 }
 
+void write_pid(int port)
+{
+        char fname[1024];
+        FILE *fp = NULL;
+
+        snprintf(fname, sizeof(fname), "/tmp/vpcs.%d", port);
+
+        fp = fopen(fname, "w");
+
+        if (fp) {
+                fprintf(fp, "%d", getpid());
+                fclose(fp);
+        }
+	return;
+}
 /* end of file */

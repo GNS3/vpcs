@@ -43,6 +43,7 @@ int help_rlogin(int argc, char **argv);
 int help_save(int argc, char **argv);
 int help_set(int argc, char **argv);
 int help_show(int argc, char **argv);
+int help_shut(int argc, char **argv);
 int help_sleep(int argc, char **argv);
 int help_version(int argc, char **argv);
 
