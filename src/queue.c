@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -48,11 +48,14 @@ struct packet *new_pkt(int len)
 		return NULL;
 }
 
-struct packet *deq(struct pq *pq)
+struct packet *deq_impl(struct pq *pq, int cond)
 {
 	struct packet *m = NULL;
 	
 	lock_q(pq);
+	
+	if (cond && (pq->q == NULL) )
+		pthread_cond_wait(&(pq->cond), &(pq->locker));
 	
 	if (pq->q != NULL) {
 		m = pq->q;
@@ -63,6 +66,16 @@ struct packet *deq(struct pq *pq)
 	ulock_q(pq);
 	
 	return m;
+}
+
+struct packet *deq(struct pq *pq)
+{
+	return deq_impl(pq, 0);
+}
+
+struct packet *waitdeq(struct pq *pq)
+{
+	return deq_impl(pq, 1);
 }
 
 struct packet *enq(struct pq *pq, struct packet *m)
@@ -88,6 +101,8 @@ struct packet *enq(struct pq *pq, struct packet *m)
 	}
 
 	pq->size ++;
+	
+	pthread_cond_signal(&(pq->cond));
 
 	ulock_q(pq);
 	
@@ -97,6 +112,7 @@ struct packet *enq(struct pq *pq, struct packet *m)
 void init_queue(struct pq *pq)
 {
 	pthread_mutex_init(&(pq->locker), NULL);
+	pthread_cond_init(&(pq->cond), NULL);
 	pq->ip = 0;
 	pq->size = 0;
 }
@@ -112,3 +128,4 @@ void ulock_q(struct pq *pq)
 }
 
 /* end of file */
+

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -90,7 +90,8 @@ typedef struct {
 typedef struct {
 	int id;				/* pc id */
 	char xname[MAX_NAMES_LEN + 1];	/* pc name */
-	pthread_t pid;			/* pthread id */
+	pthread_t rpid;                 /* reader pthread id */
+	pthread_t wpid;                 /* writer pthread id */	
 	int dmpflag;			/* dump flag */
 	//int sock;			/* a command is running (socket is opened) */
 	int fd;				/* device handle */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -93,8 +93,6 @@ int VWrite(pcs *pc, void *buf, int len)
 int open_dev(int id)
 {
 	int fd = 0;
-	int flags;	
-	
 
 	switch(devtype) {
 #ifdef TAP
@@ -115,10 +113,6 @@ int open_dev(int id)
 			break;
 	}
 		
-	flags = fcntl(fd, F_GETFL, NULL);
-	flags |= O_NONBLOCK;
-	fcntl(fd, F_SETFL, flags);
-    
 	return fd;
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -49,6 +49,7 @@ struct pq {
 	int ip;					/* pointer of the queue */
 	int size;				/* size of queue */
 	pthread_mutex_t locker;
+	pthread_cond_t cond;
 	struct packet *q;
 };
 
@@ -61,6 +62,7 @@ struct pq {
 void init_queue(struct pq*);
 struct packet *enq(struct pq*, struct packet *pkt);
 struct packet *deq(struct pq*);
+struct packet *waitdeq(struct pq *pq);
 void lock_q(struct pq*);
 void ulock_q(struct pq*);
 struct packet *new_pkt(int len);

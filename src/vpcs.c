@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -75,7 +75,8 @@ int daemon_port = 0;
 
 int macaddr = 0; /* the last byte of ether address */
 
-void *pth_proc(void *devid);
+void *pth_reader(void *devid);
+void *pth_writer(void *devid);
 void *pth_timer_tick(void *);
 void parse_cmd(char *cmdstr);
 void sig_int(int sig);
@@ -200,7 +201,7 @@ int main(int argc, char **argv)
 	srand(time(0));
 	memset(vpc, 0, NUM_PTHS * sizeof(pcs));
 	for (i = 0; i < NUM_PTHS; i++) {
-		if (pthread_create(&(vpc[i].pid), NULL, pth_proc, (void *)&i) != 0) {
+		if (pthread_create(&(vpc[i].rpid), NULL, pth_reader, (void *)&i) != 0) {
 			printf("PC%d error\n", i + 1);
 			exit(-1);
 		}
@@ -340,7 +341,7 @@ void sig_int(int sig)
 	signal(SIGINT, &sig_int);
 }
 
-void *pth_proc(void *devid)
+void *pth_reader(void *devid)
 {
 	int id;
 	pcs *pc = NULL;
@@ -380,23 +381,12 @@ void *pth_proc(void *devid)
 	init_queue(&pc->oq);
 	pc->oq.type = 1 + id * 100;
 	
-	locallink6(pc);
+	if (pthread_create(&(pc->wpid), NULL, pth_writer, devid) != 0) {
+		printf("PC%d error\n", id + 1);
+		exit(-1);
+	}
 
 	while (1) {
-		while (1) {
-			struct packet *pkt = NULL;
-			
-			pkt = deq(&pc->oq);
-
-			if (pkt == NULL) 
-				break;
-
-			dmp_packet(pkt, pc->dmpflag);
-			if (VWrite(pc, pkt->data, pkt->len) != pkt->len)
-				printf("Send packet error\n");
-			del_pkt(pkt);
-		}
-		
 		rc = VRead(pc, buf, PKT_MAXSIZE);
 		if (rc > 0) {
 			m = new_pkt(PKT_MAXSIZE);
@@ -419,10 +409,32 @@ void *pth_proc(void *devid)
 					del_pkt(m);
 			} else if (rc == PKT_DROP)
 				del_pkt(m);
-		} else
-			delay_ms(0.5);
+		}
 	}		
 
+	return NULL;
+}
+
+void *pth_writer(void *devid)
+{
+	int id;
+	pcs *pc = NULL;
+	
+	id = *(int *)devid;
+	pc  = &vpc[id];
+	
+	locallink6(pc);
+	
+	while (1) {
+		struct packet *pkt = NULL;
+		
+		pkt = waitdeq(&pc->oq);
+		
+		dmp_packet(pkt, pc->dmpflag);
+		if (VWrite(pc, pkt->data, pkt->len) != pkt->len)
+			printf("Send packet error\n");
+		del_pkt(pkt);
+	}
 	return NULL;
 }
 
