@@ -114,14 +114,18 @@ int digitstring(const char *s)
 char *ttrim(char *s)
 {
 	int len;
+	int c;
 	
 	if (s == NULL)
 		return NULL;
 	len = strlen(s);
 	len--;
-	while (len >= 0 && isspace(s[len]))
+	while (len >= 0) {
+		c = s[len];
+		if (!isspace(c))
+			break;
 		len--;
-	
+	}
 	s[len + 1] = '\0';	
 	
 	return s;

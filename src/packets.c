@@ -57,7 +57,8 @@ int upv4(pcs *pc, struct packet *m)
 {
 	ethdr *eh = (ethdr *)(m->data);
 	int i;
-
+	u_int *si, *di;
+	
 	if (eh->type == htons(ETHERTYPE_IPV6))
 		return upv6(pc, m);
 		
@@ -123,16 +124,19 @@ int upv4(pcs *pc, struct packet *m)
 
 	} else if (eh->type == htons(ETHERTYPE_ARP)) {
 		arphdr *ah = (arphdr *)(eh + 1);
-		
+		si = (u_int *)ah->sip;
+		di = (u_int *)ah->dip;
+			
 		/* arp reply */
 		if (ah->op == htons(ARPOP_REQUEST)) {
-			if (((u_int *)ah->dip)[0] == pc->ip4.ip) {
+			
+			if (di[0] == pc->ip4.ip) {
 				ah->op = htons(ARPOP_REPLY);
 				memcpy(ah->dea, ah->sea, ETH_ALEN);
 				memcpy(ah->sea, pc->ip4.mac, ETH_ALEN);
 					
-				((u_int *)ah->dip)[0] = ((u_int *)ah->sip)[0];
-				((u_int *)ah->sip)[0] = pc->ip4.ip;
+				di[0] = si[0];
+				si[0] = pc->ip4.ip;
 					
 				encap_ehead(m->data, pc->ip4.mac, eh->src, ETHERTYPE_ARP);
 	
@@ -141,18 +145,18 @@ int upv4(pcs *pc, struct packet *m)
 				return PKT_ENQ;
 			}			
 		} else if (ah->op == htons(ARPOP_REPLY) && 	
-		    sameNet(((u_int *)ah->dip)[0], pc->ip4.ip, pc->ip4.cidr)) {
+		    sameNet(di[0], pc->ip4.ip, pc->ip4.cidr)) {
 			/* save the source ip/mac */	
 			i = 0;
 			while (i < ARP_SIZE) {
 				if (time_tick - pc->ipmac4[i].timeout <= 120 &&
-					pc->ipmac4[i].ip == ((u_int *)ah->sip)[0]) {
+					pc->ipmac4[i].ip == si[0]) {
 					pc->ipmac4[i].timeout = time_tick;
 					break;
 				}
 				if (pc->ipmac4[i].timeout == 0 || 
 				    time_tick - pc->ipmac4[i].timeout > 120) {
-					pc->ipmac4[i].ip = ((u_int *)ah->sip)[0];
+					pc->ipmac4[i].ip = si[0];
 					memcpy(pc->ipmac4[i].mac, eh->src, ETH_ALEN);
 					pc->ipmac4[i].timeout = time_tick;
 					break;
@@ -497,6 +501,7 @@ struct packet *arp(pcs *pc, u_int dip)
 	ethdr *eh;
 	arphdr *ah;
 	struct packet *m;
+	u_int *si, *di;
 	u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	
 	m = new_pkt(ARP_PSIZE);
@@ -512,8 +517,10 @@ struct packet *arp(pcs *pc, u_int dip)
 	ah->pln = 4;
 	ah->op = htons(ARPOP_REQUEST);
 	
-	((u_int *)ah->sip)[0] = pc->ip4.ip;
-	((u_int *)ah->dip)[0] = dip;
+	si = (u_int *)ah->sip;
+	di = (u_int *)ah->dip;
+	si[0] = pc->ip4.ip;
+	di[0] = dip;
 
 	memcpy(ah->dea, broadcast, ETH_ALEN);
 	memcpy(ah->sea, pc->ip4.mac, ETH_ALEN);
