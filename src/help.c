@@ -53,10 +53,10 @@ int help_relay(int argc, char **argv)
 		"  Configure the hub\n"
 		"  arguments:\n"
 		"    port <port>                  set mirror port\n"                    
-		"    show                         show\n"
+		"    show                         show the relay rules\n"
 		"    add [ip1:]port1 [ip2:]port2  relay the packets between port1 and port2\n"
-		"    del [ip1:]port1 [ip2:]port2  relay the packets between port1 and port2\n"
-		"    del <id>                     relay the packets between port1 and port2\n");
+		"    del [ip1:]port1 [ip2:]port2  delete the relay rule\n"
+		"    del <id>                     delete the relay rule\n");
 
 	return 1;
 }

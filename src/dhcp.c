@@ -347,42 +347,54 @@ int isDhcp4_Offer(pcs *pc, struct packet *m)
 	ui = (udpiphdr *)ip;
 	dh = (dhcp4_hdr*)(ui + 1);
 	
-	if (dh->xid == pc->ip4.dhcp.xid && dh->op == 2) {
-		pc->ip4.dhcp.svr = ip->sip;
-		pc->ip4.dhcp.ip = dh->yiaddr;
-		memcpy(pc->ip4.dhcp.smac, eh->src, 6);
-		p = dh->options;
-		magic = ((long*)(p))[0];
-		if (magic == htonl(0x63825363)) {
-			p += 4;
-			while (*p != DHO_END && p - dh->options < DHCP_OPTION_LEN) {
-				if (*p == DHO_SUBNET_MASK && *(p + 1) == 4) {
-					pc->ip4.dhcp.netmask = ((int*)(p + 2))[0];
-					p += 6;
-					continue;
-				} else if (*p == DHO_ROUTERS && *(p + 1) == 4) {
-					pc->ip4.dhcp.gw = ((int*)(p + 2))[0];
-					p += 6;
-					continue;
-				} else if (*p == DHO_DNS) {
-					if (*(p + 1) == 4) {
-						pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
-						p += 6;
-					} else if (*(p + 1) >= 8) {
-						pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
-						pc->ip4.dhcp.dns[1] = ((int*)(p + 2))[1];
-						p += *(p + 1) + 2;
-					}
-					continue;
-				} else {
-					p++;		/* skip op code */
-					p += *(p) + 1;	/* add op offset(length) */
-				}
-			}
-		}
-		return 1;
-	} else
+	if (dh->xid != pc->ip4.dhcp.xid || dh->op != 2)
 		return 0;
+	
+	/* offer for me */
+	p = dh->options;
+	magic = ((long*)(p))[0];
+	/* invalid magic */
+	if (magic != htonl(0x63825363))
+		return 0;
+	
+	pc->ip4.dhcp.svr = ip->sip;
+	pc->ip4.dhcp.ip = dh->yiaddr;
+	memcpy(pc->ip4.dhcp.smac, eh->src, 6);
+	
+	/* options */
+	p += 4;
+	while (*p != DHO_END && p - dh->options < DHCP_OPTION_LEN) {
+		if (*p == DHO_SUBNET_MASK && *(p + 1) == 4) {
+			pc->ip4.dhcp.netmask = ((int*)(p + 2))[0];
+			p += 6;
+			continue;
+		} else if (*p == DHO_ROUTERS && *(p + 1) == 4) {
+			pc->ip4.dhcp.gw = ((int*)(p + 2))[0];
+			p += 6;
+			continue;
+		} else if (*p == DHO_DNS) {
+			if (*(p + 1) == 4) {
+				pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
+				p += 6;
+			} else if (*(p + 1) >= 8) {
+				pc->ip4.dhcp.dns[0] = ((int*)(p + 2))[0];
+				pc->ip4.dhcp.dns[1] = ((int*)(p + 2))[1];
+				p += *(p + 1) + 2;
+			}
+			continue;
+		} else if (*p == DHO_DHCP_SERVER_IDENTIFIER && *(p + 1) == 4) {
+			pc->ip4.dhcp.svr = ((int*)(p + 2))[0];
+			p += 6;
+			continue;
+		} else {
+			p++;		/* skip op code */
+			p += *(p) + 1;	/* add op offset(length) */
+		}
+	}
+	
+	return 1;
+	
+	return 0;
 }
 
 int isDhcp4_packer(pcs *pc, struct packet *m)
