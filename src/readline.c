@@ -246,6 +246,7 @@ int _readline(struct rls *rls)
 				while (i-- > 0)
 					vprint("\b \b", 3);
 				
+				memset(rls->kbuffer, 0, rls->maxbuflen);
 				strcpy(rls->kbuffer, rls->history[ihist]);
 
 				rls->pos = strlen(rls->kbuffer);
@@ -281,6 +282,7 @@ int _readline(struct rls *rls)
 				while (i-- > 0)
 					vprint("\b \b", 3);
 				
+				memset(rls->kbuffer, 0, rls->maxbuflen);
 				strcpy(rls->kbuffer, rls->history[ihist]);
 
 				rls->pos = strlen(rls->kbuffer);

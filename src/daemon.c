@@ -45,7 +45,6 @@
 
 #include <termios.h>
 
-
 #ifdef Darwin
 #include <util.h>
 #elif Linux
@@ -57,6 +56,7 @@
 extern int ctrl_c;
 static int cmd_quit = 0;
 static pid_t fdtty_pid;
+static int daemon_port;
 
 static void daemon_proc(int sock, int fdtty);
 static void sig_cmd_quit(int sig);
@@ -64,6 +64,7 @@ static void sig_cmd_shut(int sig);
 static void sig_int(int sig);
 static void set_telnet_mode(int s);
 static void write_pid(int port);
+static void remove_pid(int port);
 
 int daemonize(int port)
 {
@@ -73,6 +74,7 @@ int daemonize(int port)
 	int on = 1;
 	int fdtty;
 	
+	daemon_port = port;
 	pid = fork();
 	if (pid < 0) {
 		perror("Daemon fork");
@@ -203,6 +205,8 @@ void sig_cmd_quit(int sig)
 
 void sig_cmd_shut(int sig)
 {
+	remove_pid(daemon_port);
+	
 	kill(fdtty_pid, SIGKILL);
 	kill(getpid(), SIGKILL);
 	signal(SIGUSR2, &sig_cmd_shut);
@@ -242,5 +246,14 @@ void write_pid(int port)
                 fclose(fp);
         }
 	return;
+}
+
+void remove_pid(int port)
+{
+        char fname[1024];
+
+        snprintf(fname, sizeof(fname), "/tmp/vpcs.%d", port);
+	
+	unlink(fname);	
 }
 /* end of file */

@@ -41,58 +41,100 @@
 #include <fcntl.h>
 #include <syslog.h>
 #include <libgen.h>
+#include <getopt.h>
 
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#include "hv.h"
 #include "utils.h"
 
-static int gcc_happy_int;
-static void *gcc_happy_ptr;
+const char *ver = "0.5a1";
 
-const char *ver = "0.5a0";
+static int parse_cmd(char *buf);
+static int readpid(int port, pid_t *pid);
+static void welcome(void);
+static void usage(void);
+static int exist(const char *name);
 
-#define delay_ms(x) usleep((x) * 1000)
-#define print(s, str) do { gcc_happy_int = write((s), (str), strlen(str)); } while (0);
-
-static int parse_cmd(char *buf, int s);
-static void help(int sock);
-static int readpid(char *port, pid_t *pid);
-static void welcome(int s);
+static int run_vpcs(int ac, char **av);
+static int run_list(int ac, char **av);
+static int run_quit(int ac, char **av);
+static int run_killme(int ac, char **av);
+static int run_stop(int ac, char **av);
+static int run_help(int ac, char **av);
 
 static int cmd_quit = 0;
 static int cmd_kill = 0;
-static char prgpath[PATH_MAX];
-
-#define MAX_DAEMONS (10)
-struct list {
-	pid_t pid;
-	char *cmdline;
-};
 
 static struct list vpcs_list[MAX_DAEMONS];
+static char vpcspath[PATH_MAX];
+static char cmdbuffer[1024];
 
-#define DEFAULT_PORT (21000)
+static int hvport = 0;
 
-int main(int argc, char **argv)
+static FILE *hvout, *hvin; /* input, output */
+
+cmdStub cmd_entry[] = {
+	{"vpcs",   run_vpcs},
+	{"quit",   run_quit},
+	{"list",   run_list},
+	{"killme", run_killme},
+	{"stop",   run_stop},
+	{"help",   run_help},
+	{"?",      run_help},
+	{NULL,     NULL}};
+	
+int 
+main(int argc, char **argv)
 {
 	pid_t pid;
 	int sock, sock_cli;
-	struct sockaddr_in serv, cli;
+	struct sockaddr_in serv, cli;	
 	int slen;
-	fd_set set;
-	char buf[1024];
-	int i;
-	int port = 0;
 	int prompt = 1;
+	int c;
+	char buf[PATH_MAX];
 	
-	if (argc == 2)
-		port = atoi(argv[1]);
+	memset(vpcspath, 0, sizeof(vpcspath));
+	while ((c = getopt(argc, argv, "?hp:f:")) != -1) {
+		switch (c) {
+			case 'p':
+				hvport = atoi(optarg);
+				break;
+			case 'f':
+				if (!realpath(optarg, vpcspath)) {
+					printf("Can not resolve the path\n");
+					return 1;
+				}
+				break;
+			case 'h':
+			case '?':
+				usage();
+				return 0;
+		}
+	}
 	
-	if (port < 1024 || port > 65534)
-		port = DEFAULT_PORT;
+	if (hvport < 1024 || hvport > 65534)
+		hvport = DEFAULT_PORT;
 	
+	if (vpcspath[0] == 0) {
+		if (realpath(argv[0], buf)) {
+			snprintf(vpcspath, sizeof(vpcspath), "%s/vpcs", 
+		    	    dirname(buf));
+		} else {
+			printf("Can not resolve the path: %s\n", argv[0]);
+			return 1;
+		}
+	}
+	
+	if (!exist(vpcspath)) {
+		printf("VPCS can not be found: %s\n", vpcspath);	
+		return 1;
+	}
+	
+	printf("VPCS Hypervisor is listening on port %d\n", hvport);
 	pid = fork();
 	if (pid < 0) {
 		perror("Daemon fork");
@@ -102,29 +144,27 @@ int main(int argc, char **argv)
 		exit(0);
 
 	setsid();
-	
-	signal (SIGTERM, SIG_IGN);
+
+	signal(SIGTERM, SIG_IGN);
 	signal(SIGINT, SIG_IGN);
-	signal (SIGHUP, SIG_IGN);
+	signal(SIGHUP, SIG_IGN);
 	
 	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
-	gcc_happy_ptr = realpath(argv[0], prgpath);
 	
 	/* daemon socket */
-   	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock < 0) {
+   	if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
 		perror("Create socket");
 		return 1;
 	}
 
-	i = 1;
+	c = 1;
 	(void) setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-	    (char *)&i, sizeof(i));
+	    (char *)&c, sizeof(c));
 
 	bzero((char *) &serv, sizeof(serv));
 	serv.sin_family = AF_INET;
 	serv.sin_addr.s_addr = htonl(INADDR_ANY);
-	serv.sin_port = htons(port);
+	serv.sin_port = htons(hvport);
 	
 	if (bind(sock, (struct sockaddr *) &serv, sizeof(serv)) < 0) {
 		perror("bind socket");
@@ -136,195 +176,424 @@ int main(int argc, char **argv)
 		close(sock);
 		return 1;
 	}
-	
+
 	fcntl(sock, F_SETFD, fcntl(sock, F_GETFD) | FD_CLOEXEC); 
 	slen = sizeof(cli);
 	while (!cmd_kill) {
 		cmd_quit = 0;
-		sock_cli = accept(sock, (struct sockaddr *) &cli, 
-		    (socklen_t *)&slen);
 		
-		if (sock_cli < 0) 
+		if ((sock_cli = accept(sock, (struct sockaddr *) &cli, 
+		    (socklen_t *)&slen)) < 0)
 			continue;
-		fcntl(sock_cli, F_SETFD, fcntl(sock_cli, F_GETFD) | FD_CLOEXEC); 
-		while (!cmd_quit) {
-			FD_ZERO(&set);
-			FD_SET(sock_cli, &set);
-			if (select(sock_cli + 1, &set, &set, NULL, NULL) < 0)
-				break;
-				
-			if (!FD_ISSET(sock_cli, &set)) 
-				continue;
+
+		fcntl(sock_cli, F_SETFD, fcntl(sock, F_GETFD) | FD_CLOEXEC); 
+		
+		hvin = fdopen(sock_cli, "r");
+		hvout = fdopen(sock_cli, "w");
+		if (!hvin || !hvout) {
+			snprintf(buf, sizeof(buf), "Internal error: %d", errno);
+			write(sock_cli, buf, strlen(buf));
+			close(sock_cli);
+			continue;
+		}
+		while (!cmd_quit) {	
 			if (prompt) {
-				welcome(sock_cli);
+				welcome();
 				prompt = 0;
 			}
 			
-			print(sock_cli, ">> ");	
-		
-			memset(buf, 0, sizeof(buf));
-			i = read(sock_cli, buf, sizeof(buf));
-			if (i <= 0)
+			fprintf(hvout, ">> ");
+			fflush(hvout);
+			
+			memset(cmdbuffer, 0, sizeof(cmdbuffer));
+			if (!fgets(cmdbuffer, sizeof(cmdbuffer), hvin))
 				break;
-			ttrim(buf);
-			parse_cmd(buf, sock_cli);
+
+			ttrim(cmdbuffer);
+			parse_cmd(cmdbuffer);
 		}
-		close(sock_cli);
+		
+		fclose(hvin);
+		fclose(hvout);
 	}
+	
 	return 0;
 }
 
-int parse_cmd(char *cmdstr, int sock)
+static int 
+parse_cmd(char *cmdstr)
 {
 	char *av[20];
 	int ac = 0;
-	int i, j, k;
-	pid_t pid;
-	char *p;
-	char ag0[1024];
-	char *ag1 = "-p";
-	char *ag2 = "2000";
-
-	ac = mkargv(cmdstr, (char **)av, 3);
+	cmdStub *ep = NULL;
+	
+	ac = mkargv(cmdstr, (char **)av, 20);
 	
 	if (ac == 0)
 		return 0;
-	
-	if (!strncmp(av[0], "start", strlen(av[0]))) {
-		p = strstr(cmdstr, "-p");
-		if (p == NULL) {
-			av[ac++] = ag1;
-			av[ac++] = ag2;
-			av[ac] = NULL;
-			p = ag2;
-		} else {
-			p = NULL;
-			/* get the '-p [port]' */
-			for (i = 0; i < ac; i++) {
-				if (!strcmp(av[i], "-p") && (i + 1) < ac) {
-					p = av[i + 1];
-					break;
-				}
-			}
-		}
-		
-		/* find free slot */
-		for (i = 0; i < MAX_DAEMONS && vpcs_list[i].pid != 0; i++);
-		
-		if (i == MAX_DAEMONS || p == NULL)
-			return 0;
-		
-		pid = fork();
-		if (pid < 0)
-			return 0;
-			
-		if (pid == 0) {
-			snprintf(ag0, sizeof(ag0), "%s/vpcs", dirname(prgpath));  
-			av[0] = ag0;
-			if (execvp(av[0], av) == -1) {
-				syslog(LOG_ERR, "Fork vpcs failed: %s", 
-				    strerror(errno));
-			}
-		}
-		
-		waitpid(pid, NULL, 0);
-		delay_ms(10);
-		readpid(p, &pid);
-		if (pid == 0)
-			return 0;
 
-		/* existed pid */
-		for (j = 0; j < MAX_DAEMONS; j++) {
-			if (vpcs_list[j].pid == pid)
-				return 0;
-		}
-		/* check the process */
-		if (kill(pid, 0)) {
-			pid = 0;
-			unlink(p);
-			printf("Fork vpcs failed.\n");
-			return 0;
-		}
-		vpcs_list[i].pid = pid;
-		p = ttrim(cmdstr + strlen(av[0]));
-		if (p) {
-			vpcs_list[i].cmdline = strdup(p);
-			syslog(LOG_INFO, "Start vpcs(%d) with %s\n", 
-			    vpcs_list[i].pid, p);
-		} else {
-			vpcs_list[i].cmdline = NULL;
-			syslog(LOG_INFO, "Start vpcs(%d)\n", vpcs_list[i].pid);
-		}
-		
-		return 0;
+	for (ep = cmd_entry; ep->name != NULL; ep++) {
+		if(!strncmp(av[0], ep->name, strlen(av[0]))) {
+        		return ep->f(ac, av);
+        	}
 	}
 	
-	if (ac == 2 && !strncmp(av[0], "stop", strlen(av[0]))) {
-		j = atoi(av[1]);
-		i = 0;
-		k = 0;
-		for (i = 0; i < MAX_DAEMONS; i++) {
-			if (vpcs_list[i].pid == 0)
-				continue;
-			k++;
-			if (k == j) {
-				kill(vpcs_list[i].pid, SIGUSR2);
-				vpcs_list[i].pid = 0;
-				if (vpcs_list[i].cmdline)
-					free(vpcs_list[i].cmdline);
-				break;
-			}
-		}
-		return 0;
-	}
+	ERR(hvout, "Invalid or incomplete command\r\n");
 	
-	if (!strncmp(av[0], "list", strlen(av[0]))) {
-		for (i = 0, k = 1; i < MAX_DAEMONS; i++) {
-			if (vpcs_list[i].pid == 0)
-				continue;
-			snprintf(ag0, sizeof(ag0), "%-2d\t%-5d\t%s\n", 
-			    k, vpcs_list[i].pid, vpcs_list[i].cmdline);
-			print(sock, ag0);
-			k++;
-		}
-		return 0;
-	}
-
-	if (!strncmp(av[0], "quit", strlen(av[0]))) {
-		cmd_quit = 1;
-		return 0;
-	}
-
-	if (!strncmp(av[0], "killme", strlen(av[0]))) {
-		for (i = 0; i < MAX_DAEMONS; i++) {
-			if (vpcs_list[i].pid == 0)
-				continue;
-			kill(vpcs_list[i].pid, SIGUSR2);
-			vpcs_list[i].pid = 0;
-			if (vpcs_list[i].cmdline)
-				free(vpcs_list[i].cmdline);
-		}
-		
-		cmd_quit = 1;
-		cmd_kill = 1;
-		return 0;
-	}
-
-	if (!strncmp(av[0], "help", strlen(av[0])) || !strcmp(av[0], "?")) {
-		help(sock);
-		return 0;
-	}
-	
-	print(sock, "Invalid or incomplete command\n");
 	return 0;
 }
 
-int readpid(char *port, pid_t *pid)
+static int
+run_vpcs(int ac, char **av)
+{
+	int i, j, c;
+	struct list *pv;
+	pid_t pid;
+	char *agv[20];
+	int agc = 0;
+	char buf[1024];
+	
+	/* find free slot */
+	for (i = 0; i < MAX_DAEMONS && vpcs_list[i].pid != 0; i++);
+	
+	if (i == MAX_DAEMONS)
+		return 0;
+
+	pv = &vpcs_list[i];
+	memset(pv, 0, sizeof(struct list));
+	
+	/* reinitialized, call getopt twice */
+	optind = 1;
+#if (defined(FreeBSD) || defined(Darwin))
+	optreset = 1;
+#endif	
+	while ((c = getopt(ac, av, "p:m:s:c:")) != -1) {
+		switch (c) {
+			case 'p':
+				pv->vport = atoi(optarg);
+				if (pv->vport == 0) {
+					ERR(hvout, "Invalid daemon port\r\n");
+					return 1;
+				}
+				break;
+			case 'm':
+				pv->vmac = atoi(optarg);
+				if (pv->vmac == 0) {
+					ERR(hvout, "Invalid ether address\r\n");
+					return 1;
+				}
+				break;
+			case 's':
+				pv->vsport = atoi(optarg);
+				if (pv->vsport == 0) {
+					ERR(hvout, "Invalid local port\r\n");
+					return 1;
+				}
+				break;
+			case 'c':
+				pv->vcport = atoi(optarg);
+				if (pv->vcport == 0) {
+					ERR(hvout, "Invalid remote port\r\n");
+					return 1;
+				}
+				break;				
+		}
+	}
+	
+	/* set the new daemon port */
+	if (pv->vport == 0) {
+		j = 0;
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (vpcs_list[i].vport > j)
+				j = vpcs_list[i].vport;
+		}
+		if (j == 0)
+			pv->vport = hvport + 1;
+		else
+			pv->vport = j + 1;
+		
+	} else {
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (pv->vport != vpcs_list[i].vport)
+				continue;
+			ERR(hvout, "Port %d already in use\r\n", pv->vport);
+			return 1;
+		}
+	}
+	
+	/* set the new mac */
+	if (pv->vmac == 0) {
+		j = 0;
+		c = 0;
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (vpcs_list[i].vmac > j)
+				j = vpcs_list[i].vmac;
+			c = 1;
+		}
+		if (j == 0) {
+			/* there's vpcs which ether address start from 0 */
+			if (c == 1)
+				pv->vmac = STEP;
+			else
+				pv->vmac = 0;
+		} else
+			pv->vmac = j + STEP;
+		
+	} else {
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (((pv->vmac >= vpcs_list[i].vmac) && 
+			    ((pv->vmac - vpcs_list[i].vmac) < STEP)) ||
+			    ((pv->vmac < vpcs_list[i].vmac) && 
+			    ((vpcs_list[i].vmac - pv->vmac) < STEP))) {
+				ERR(hvout, "Ether address overlapped\r\n");
+				return 1;		
+			}
+		}
+	}
+	
+	/* set the new local port */
+	if (pv->vsport == 0) {
+		j = 0;
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (vpcs_list[i].vsport > j)
+				j = vpcs_list[i].vsport;
+		}
+		if (j == 0)
+			pv->vsport = DEFAULT_SPORT;
+		else
+			pv->vsport = j + STEP;
+	} else {
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (((pv->vsport >= vpcs_list[i].vsport) && 
+			    ((pv->vsport - vpcs_list[i].vsport) < STEP)) ||
+			    ((pv->vsport < vpcs_list[i].vsport) && 
+			    ((vpcs_list[i].vsport - pv->vsport) < STEP))) {
+				ERR(hvout, "Local udp port overlapped\r\n");
+				return 1;		
+			}
+		}
+	}
+	
+	/* set the new remote port */
+	if (pv->vcport == 0) {
+		j = 0;
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (vpcs_list[i].vcport > j)
+				j = vpcs_list[i].vcport;
+		}
+		if (j == 0)
+			pv->vcport = DEFAULT_CPORT;
+		else
+			pv->vcport = j + STEP;
+	} else {
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid == 0)
+				continue;
+			if (((pv->vcport >= vpcs_list[i].vcport) && 
+			    ((pv->vcport - vpcs_list[i].vcport) < STEP)) ||
+			    ((pv->vcport < vpcs_list[i].vcport) && 
+			    ((vpcs_list[i].vcport - pv->vcport) < STEP))) {
+				ERR(hvout,"Remote udp port overlapped\r\n");
+				return 1;		
+			}
+		}
+	}
+	
+	pv->cmdline = strdup(cmdbuffer);
+	
+	i = 0;
+	if (pv->vport) 
+		i += snprintf(buf + i, sizeof(buf) - i, "-p %d ", 
+		    pv->vport);
+	if (pv->vsport)
+		i += snprintf(buf + i, sizeof(buf) - i, "-s %d ", 
+		    pv->vsport);
+	if (pv->vcport) 
+		i += snprintf(buf + i, sizeof(buf) - i, "-c %d ", 
+		    pv->vcport);
+	if (pv->vmac) 
+		i += snprintf(buf + i, sizeof(buf) - i, "-m %d ", 
+		    pv->vmac);
+	j = 1;
+	while (j < ac) {
+		if (!strcmp(av[j], "-p") || !strcmp(av[j], "-s") ||
+		    !strcmp(av[j], "-c") || !strcmp(av[j], "-m")) {
+			j += 2;
+			continue;
+		}
+		i += snprintf(buf + i, sizeof(buf) - i, "%s ", 
+		    av[j]);
+		j++;
+	}
+
+	pv->cmdline = strdup(buf);
+	agc = mkargv(buf, (char **)(agv + 1), 20);
+	
+	agv[0] = vpcspath;
+	agc++;
+
+	pid = fork();
+	if (pid < 0)
+		return 0;
+		
+	if (pid == 0) {
+		if (execvp(agv[0], agv) == -1) {
+			syslog(LOG_ERR, "Fork VPCS failed: %s", 
+			    strerror(errno));
+		}
+	}
+	
+	waitpid(pid, NULL, 0);
+	delay_ms(200);
+	readpid(pv->vport, &pid);
+	if (pid == 0)
+		return 0;
+
+	/* existed pid */
+	for (j = 0; j < MAX_DAEMONS; j++) {
+		if (vpcs_list[j].pid == pid)
+			return 0;
+	}
+	
+	/* check the process */
+	if (kill(pid, 0)) {
+		pid = 0;
+		ERR(hvout, "Fork VPCS failed.\r\n");
+		return 0;
+	}
+	pv->pid = pid;
+	
+	SUCC(hvout, "VPCS started with %s\r\n", pv->cmdline);
+	
+	return 0;
+}
+
+static int 
+run_list(int ac, char **av)
+{
+	int i, k;
+
+	fprintf(hvout, "ID\tPID\tParameters\r\n");
+	 
+	for (i = 0, k = 1; i < MAX_DAEMONS; i++) {
+		if (vpcs_list[i].pid == 0)
+			continue;
+		fprintf(hvout, "%-2d\t%-5d\t%s\r\n", 
+		    k, vpcs_list[i].pid, vpcs_list[i].cmdline);
+		k++;
+	}
+	SUCC(hvout, "OK\r\n");
+	return 0;
+}
+
+static int 
+run_quit(int ac, char **av)
+{
+	cmd_quit = 1;
+	
+	return 0;
+}
+
+static int 
+run_killme(int ac, char **av)
+{
+	int i;
+	
+	for (i = 0; i < MAX_DAEMONS; i++) {
+		if (vpcs_list[i].pid == 0)
+			continue;
+		kill(vpcs_list[i].pid, SIGUSR2);
+		vpcs_list[i].pid = 0;
+		if (vpcs_list[i].cmdline)
+			free(vpcs_list[i].cmdline);
+	}
+	
+	cmd_quit = 1;
+	cmd_kill = 1;
+	
+	return 0;
+}
+
+static int 
+run_stop(int ac, char **av)
+{
+	int i, j, k;
+
+	if (ac != 2)
+		return 1;
+		
+	j = atoi(av[1]);
+	i = 0;
+	k = 0;
+	for (i = 0; i < MAX_DAEMONS; i++) {
+		if (vpcs_list[i].pid == 0)
+			continue;
+		k++;
+		if (k != j)
+			continue;
+
+		SUCC(hvout, "VPCS ID %d is terminated\r\n", vpcs_list[i].pid);
+
+		kill(vpcs_list[i].pid, SIGUSR2);
+		vpcs_list[i].pid = 0;
+		if (vpcs_list[i].cmdline)
+			free(vpcs_list[i].cmdline);
+			
+		break;
+	}
+	
+	return 0;
+}
+
+static int 
+run_help(int ac, char **av)
+{
+	fprintf(hvout,  
+		"vpcs [parameters]     start vpcs with parameters of vpcs\r\n"
+		"stop id               stop vpcs process\r\n"
+		"list                  list vpcs process\r\n"
+		"quit                  disconnect\r\n"
+		"killme                stop vpcs process and hypervisor\r\n"
+		"help | ?              print help\r\n");
+	
+	return 0;
+}
+
+static int 
+exist(const char *name)
+{
+	struct stat sb;
+	
+	if (name == NULL)
+		return 0;
+		
+	if (stat(name, &sb) == 0 && S_ISREG(sb.st_mode))
+		return 1;
+	
+	return 0;
+}
+
+static int 
+readpid(int port, pid_t *pid)
 {
 	FILE *fp;
 	char path[1024];
 	
-	snprintf(path, sizeof(path), "/tmp/vpcs.%s", port);
+	snprintf(path, sizeof(path), "/tmp/vpcs.%d", port);
 
 	fp = fopen(path, "r");
 	if (fp) {
@@ -336,37 +605,40 @@ int readpid(char *port, pid_t *pid)
 	return 0;
 }
 
-void help(int sock)
+static void 
+usage(void)
 {
-	char buf[1024];
-	
-	snprintf(buf, sizeof(buf), 
-		"start [parameters]    start vpcs with parameters of vpcs\n"
-		"stop id               stop vpcs process\n"
-		"list                  list vpcs process\n"
-		"quit                  disconnect\n"
-		"killme                stop vpcs process and hypervisor\n"
-		"help | ?              print help\n");
-
-	print(sock, buf);
-}
-
-void welcome(int sock)
-{
-	char buf[1024];
-	
-	snprintf(buf, sizeof(buf), 
-		"Welcome to Hypervisor of VPCS, version %s\n"
+	printf(	"Welcome to Hypervisor of VPCS, version %s\n"
 		"Build time: %s %s\n"
 		"Copyright (c) 2013, Paul Meng (mirnshi@gmail.com)\n"
 		"All rights reserved.\n\n"
-		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\n"
+		"VPCS is free software, distributed under the terms of "
+		"the \"BSD\" licence.\n"
 		"Source code and license can be found at vpcs.sf.net.\n"
 		"For more information, please visit wiki.freecode.com.cn.\n", 
 		ver, __DATE__, __TIME__ );
-	
-	print(sock, buf);	
-	print(sock, "\nPress '?' to get help.\n");
+		
+	printf( "\nusage: hv [options]\n"
+		"    -h|?             print this help then exit\n"
+		"    -p <port>        listen port\n"
+		"    -f <vpcs_path>   VPCS filename\n");
+}
+
+
+static void 
+welcome(void)
+{
+	fprintf(hvout,  
+		"Welcome to Hypervisor of VPCS, version %s\r\n"
+		"Build time: %s %s\r\n"
+		"Copyright (c) 2013, Paul Meng (mirnshi@gmail.com)\r\n"
+		"All rights reserved.\r\n\r\n"
+		"VPCS is free software, distributed under the terms of "
+		"the \"BSD\" licence.\r\n"
+		"Source code and license can be found at vpcs.sf.net.\r\n"
+		"For more information, please visit wiki.freecode.com.cn.\r\n", 
+		ver, __DATE__, __TIME__ );
+		
+	fprintf(hvout, "\r\nPress '?' to get help.\r\n");
 }
 /* end of file */
-
