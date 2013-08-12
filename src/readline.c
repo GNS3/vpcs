@@ -522,8 +522,8 @@ void set_terminal(struct termios *stored_settings)
 	new_settings = *stored_settings;
 	new_settings.c_lflag &= ~(ICANON | ECHO | ISIG);
 	//new_settings.c_iflag &= IGNCR;
-	new_settings.c_cc[VTIME] = 0;
-	new_settings.c_cc[VMIN] = 1;
+	new_settings.c_cc[VTIME] = 1;
+	new_settings.c_cc[VMIN] = 3;
 
 	tcsetattr(0, TCSANOW, &new_settings);
 	return;
