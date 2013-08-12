@@ -1809,20 +1809,20 @@ int run_load(int argc, char **argv)
 	FILE *fp;
 	char buf[MAX_LEN];
 
-	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
+	if (argc != 2 || !strcmp(argv[1], "?")) {
 		return help_load(argc, argv);
 	}
 		
 	fp = fopen(argv[1], "r");
 	if (fp == NULL) {
-		printf("Can't open %s\n", argv[1]);
+		printf("Can't open \"%s\"\n", argv[1]);
 		return -1;
 	}
 
 	if (runStartup)
 		printf("\nExecuting the startup file\n");
 	else
-		printf("\nExecuting the file %s\n", argv[1]);
+		printf("\nExecuting the file \"%s\"\n", argv[1]);
 
 	while (!feof(fp) && !ctrl_c) {
 		runLoad = 1;
@@ -1835,9 +1835,7 @@ int run_load(int argc, char **argv)
 			if (buf[strlen(buf) - 1] == '\r')
 				buf[strlen(buf) - 1] = '\0';
 		}*/		
-		if (buf[0] == '#' ||
-			buf[0] == '!' ||
-			buf[0] == ';')
+		if (buf[0] == '#' || buf[0] == ';')
 			continue;
 		if (strlen(buf) > 0)	
 			parse_cmd(buf);
@@ -1856,7 +1854,7 @@ int run_save(int argc, char **argv)
 	u_int local_ip;
 	struct in_addr in;
 
-	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
+	if (argc != 2 || !strcmp(argv[1], "?")) {
 		return help_save(argc, argv);
 	}	
 	fp = fopen(argv[1], "w");

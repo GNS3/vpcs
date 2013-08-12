@@ -51,20 +51,42 @@ char *getkv(char *str)
 int mkargv(char *str, char **argv, int max)
 {
 	int n = 0;
-	char *p;
+	char *p, *q, *es;
 	char **args = argv;
+	char *sep = "=/ \t";
 	static char buf[MAX_LEN];
 	
-	if (str != NULL) {
-		memset(buf, 0, sizeof(buf));
-		strncpy(buf, str, strlen(str));
-
-		p = strtok(buf, "=/ \t");
-		while (p != NULL && n < max) {
-			args[n++] = p;
-			p = strtok(NULL, "=/ \t");
+	if (str == NULL)
+		return n;
+	
+	memset(buf, 0, sizeof(buf));
+	strncpy(buf, str, sizeof(buf) - 1);
+	
+	p = buf;
+	es = p + strlen(buf);
+	
+	while (p && p < es) {
+		if (*p == '"') {
+			q = strchr(p + 1, '"');
+			if (!q)
+				goto ret;
+			*q = '\0';
+			/* ignore "" */
+			if (q > p + 1)
+				args[n++] = p + 1;
+			p = ++q;
+			continue;
 		}
+		if ((q = strsep(&p, sep)) != NULL) {
+			/* ignore empty substring */
+			if (*q != '\0')
+				args[n++] = q;
+			continue;
+		} 
+		break;
 	}
+	
+ret:	
 	args[n] = NULL;
 	return n;
 }
