@@ -244,6 +244,14 @@ int help_set(int argc, char **argv)
 	return 1;
 }
 
+int help_shell(int argc, char **argv)
+{
+	printf( "\n\033[1m! [command [args]]\033[0m\n"
+		" Invoke an OS command with the 'args' as its arguments\n");
+			
+	return 1;
+}
+
 int help_show(int argc, char **argv)
 {
 	if (argc == 3 && !strncmp(argv[1], "arp", strlen(argv[1])) && 
@@ -329,6 +337,7 @@ int run_help(int argc, char **argv)
 {
 	printf ("\n"
 		"?                        Print help\n"
+		"! [command [args]]       Invoke an OS command with the 'args' as its arguments\n"
 		"<digit>                  Switch to the VPC<digit>. <digit> range 1 to 9\n"
 		"arp                      Shortcut for: \033[1mshow arp\033[0m. Show arp table\n"
 		"clear [arguments]        Clear IPv4/IPv6, arp/neighbor cache, command history\n"

@@ -233,8 +233,10 @@ int main(int argc, char **argv)
 		snprintf(prompt, sizeof(prompt), "\n\r%s[%d]> ", vpc[pcid].xname, pcid + 1);
 		ctrl_c = 0;
 		cmd = readline(prompt, rls);
-		if (cmd != NULL)
+		if (cmd != NULL) {
+			ttrim(cmd);
 			parse_cmd(cmd);
+		}
 	}
 	return 0;
 }
@@ -282,6 +284,21 @@ void parse_cmd(char *cmdstr)
 		return;
 	}
 	
+	if (*cmdstr == '!') {
+		char *p = NULL;
+		if (strlen(cmdstr) > 1) {
+			p = cmdstr + 1;
+			while (*p== ' ' || *p == '\t')
+				p++;
+				
+			if (*p && strcmp(p, "?")) {
+				system(p);
+				return;
+			}
+		}
+		help_shell(0, NULL);
+		return;
+	}
 	for (ep = cmd_entry; ep->name != NULL; ep++) {
 		if(!strncmp(argv[0], ep->name, strlen(argv[0]))) {
         		if (cmd != NULL)
