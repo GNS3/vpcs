@@ -31,6 +31,8 @@
 #include "keydef.h"
 
 struct rls {
+	int fdin;
+	int fdout;
 	char kb[16];
 	char *kbuffer;	/* key buffer */
 	int pos; 	/* pointer of key buffer */
@@ -60,10 +62,10 @@ int readline_tab(char** (*cb)(const char *string, const char *part), struct rls 
 int savehistory(const char *filename, struct rls *rls);
 int loadhistory(const char *filename, struct rls *rls);
 
-void set_terminal(struct termios *stored_settings);
-void reset_terminal(struct termios *stored_settings);
+void set_terminal(int fd, struct termios *stored_settings);
+void reset_terminal(int fd, struct termios *stored_settings);
 
-void kbhit(void);
+void kbhit(int fd);
 
 #endif
 /* end of file */

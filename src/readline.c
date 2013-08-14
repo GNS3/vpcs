@@ -39,27 +39,27 @@
 
 #include "readline.h"
 
-int _readline(struct rls *rls);
-int findhistory(struct rls *rls, int start);
-void trimspace(char *buf);
-void vprint(char *s, int len);
+static int _readline(struct rls *rls);
+static int findhistory(struct rls *rls, int start);
+static void trimspace(char *buf);
+static void vprint(int fd, char *s, int len);
 
-void kbhit(void)
+void kbhit(int fd)
 {
 	struct termios termios;
 	char kb[32];
 	int rc;
 	
-	set_terminal(&termios);
+	set_terminal(fd, &termios);
 	do {
-		rc = read(0, kb, sizeof(kb));
+		rc = read(fd, kb, sizeof(kb));
 		if (rc > 0)
 			break;
 
 		usleep(100);
 	} while (1);
 	
-	reset_terminal(&termios);
+	reset_terminal(fd, &termios);
 }
 
 char *readline(const char *prompt, struct rls *rls)
@@ -67,8 +67,9 @@ char *readline(const char *prompt, struct rls *rls)
 	if (prompt == NULL || rls == NULL)
 		return NULL;
 
-	printf("%s", prompt);
+	write(rls->fdout, prompt, strlen(prompt));
 	rls->prompt = (char *)prompt;
+
 	if (_readline(rls) == 0)
 		return NULL;
 	
@@ -156,6 +157,8 @@ struct rls * readline_init(int histnum, int buflen)
 		rls->kbuffer = p + buflen * (histnum + 1);
 		rls->maxbuflen = buflen;
 		rls->maxhistnum = histnum;
+		rls->fdin = 0;
+		rls->fdout = 1;
 	
 		return rls;
 	}
@@ -190,7 +193,8 @@ int _readline(struct rls *rls)
 	char **tab;
 	char *p;
 	
-	set_terminal(&termios);
+	if (isatty(rls->fdin))
+		set_terminal(rls->fdin, &termios);
 	
 	memset(rls->kbuffer, 0, rls->maxbuflen);
 	rls->pos = 0;
@@ -206,7 +210,7 @@ int _readline(struct rls *rls)
 		fflush(stdout);
 			
 		memset(kb, 0, sizeof(rls->kb));
-		rc = read(0, kb, sizeof(rls->kb));
+		rc = read(rls->fdin, kb, sizeof(rls->kb));
 		if (rc <= 0) {
 			usleep(1);
 			continue;
@@ -242,15 +246,15 @@ int _readline(struct rls *rls)
 				*/
 				i = strlen(rls->kbuffer);
 				while (rls->pos++ < i)
-					vprint(" ", 1);
+					vprint(rls->fdout, " ", 1);
 				while (i-- > 0)
-					vprint("\b \b", 3);
+					vprint(rls->fdout, "\b \b", 3);
 				
 				memset(rls->kbuffer, 0, rls->maxbuflen);
 				strcpy(rls->kbuffer, rls->history[ihist]);
 
 				rls->pos = strlen(rls->kbuffer);
-				vprint(rls->kbuffer, rls->pos);
+				vprint(rls->fdout, rls->kbuffer, rls->pos);
 
 				continue;
 			}
@@ -261,10 +265,10 @@ int _readline(struct rls *rls)
 				if ((ihist + 1) >= rls->hist_total) {
 					i = strlen(rls->kbuffer);
 					while (rls->pos++ < i)
-						vprint(" ", 1);
+						vprint(rls->fdout, " ", 1);
 					while (i-- > 0)
-						vprint("\b \b", 3);
-					rls->kbuffer[0] = '\0';
+						vprint(rls->fdout, "\b \b", 3);
+					memset(rls->kbuffer, 0, rls->maxbuflen);
 					rls->pos = 0;
 					flags = 0;
 					continue;
@@ -278,40 +282,40 @@ int _readline(struct rls *rls)
 				
 				i = strlen(rls->kbuffer);
 				while (rls->pos++ < i)
-					vprint(" ", 1);
+					vprint(rls->fdout, " ", 1);
 				while (i-- > 0)
-					vprint("\b \b", 3);
+					vprint(rls->fdout, "\b \b", 3);
 				
 				memset(rls->kbuffer, 0, rls->maxbuflen);
 				strcpy(rls->kbuffer, rls->history[ihist]);
 
 				rls->pos = strlen(rls->kbuffer);
-				vprint(rls->kbuffer, rls->pos);
+				vprint(rls->fdout, rls->kbuffer, rls->pos);
 
 				continue;
 			}
 			if (fkey == KEY_RIGHT) {
 				if (rls->pos < strlen(rls->kbuffer))
-					vprint(&(rls->kbuffer[rls->pos++]), 1);
+					vprint(rls->fdout, &(rls->kbuffer[rls->pos++]), 1);
 				continue;
 			}
 			if (fkey == KEY_LEFT) {
 				if (rls->pos > 0) {
-					vprint("\b", 1);
+					vprint(rls->fdout, "\b", 1);
 					rls->pos --;
 				}
 				continue;
 			}
 			if (fkey == KEY_HOME) {
 				while (rls->pos > 0) {
-					vprint("\b", 1);
+					vprint(rls->fdout, "\b", 1);
 					rls->pos --;
 				}
 				continue;
 			}
 			if (fkey == KEY_END) {
 				while (rls->pos < strlen(rls->kbuffer)) {
-					vprint(&(rls->kbuffer[rls->pos++]), 1);
+					vprint(rls->fdout, &(rls->kbuffer[rls->pos++]), 1);
 				}
 				continue;
 			}	
@@ -362,9 +366,9 @@ int _readline(struct rls *rls)
 			if (*tab != NULL && *(tab + 1) == NULL) {
 				
 				for (i = 0; i < strlen(p); i++)
-					vprint("\b \b", 3);
+					vprint(rls->fdout, "\b \b", 3);
 				i = strlen(*tab);
-				vprint(*tab, i);
+				vprint(rls->fdout, *tab, i);
 				if (p - rls->kbuffer + i < rls->maxbuflen) {
 					strcpy(p, *tab);
 					rls->pos = strlen(rls->kbuffer);
@@ -375,19 +379,19 @@ int _readline(struct rls *rls)
 				continue;			
 			}
 			/* more than one */
-			vprint("\n", 1);
+			vprint(rls->fdout, "\n", 1);
 			i = 0;
 			while (*(tab + i)) {
-				vprint(*(tab + i), strlen(*(tab + i)));
-				vprint(" ", 1);
+				vprint(rls->fdout, *(tab + i), strlen(*(tab + i)));
+				vprint(rls->fdout, " ", 1);
 				free(*(tab + i));
 				i++;
 			}
-			vprint("\n", 1);
+			vprint(rls->fdout, "\n", 1);
 			free(tab);
 			
-			vprint(rls->prompt, strlen(rls->prompt));
-			vprint(rls->kbuffer, rls->pos);
+			vprint(rls->fdout, rls->prompt, strlen(rls->prompt));
+			vprint(rls->fdout, rls->kbuffer, rls->pos);
 			continue;
 		}
 		
@@ -403,11 +407,11 @@ int _readline(struct rls *rls)
 				rls->kbuffer[j - 1] = '\0';
 				
 				rls->pos--;
-				vprint("\b", 1);
-				vprint(&rls->kbuffer[rls->pos], strlen(&rls->kbuffer[rls->pos]));
-				vprint(" \b", 2);
+				vprint(rls->fdout, "\b", 1);
+				vprint(rls->fdout, &rls->kbuffer[rls->pos], strlen(&rls->kbuffer[rls->pos]));
+				vprint(rls->fdout, " \b", 2);
 				for (i = 0; i < strlen(rls->kbuffer) - rls->pos; i++)
-					vprint("\b", 1);
+					vprint(rls->fdout, "\b", 1);
 			}
 			continue;
 		}
@@ -430,22 +434,23 @@ int _readline(struct rls *rls)
 						
 					rls->kbuffer[rls->pos] = kb[i];
 					//rls->kbuffer[rls->pos + 1] = '\0';
-					vprint(&rls->kbuffer[rls->pos], 
+					vprint(rls->fdout, &rls->kbuffer[rls->pos], 
 					    strlen(&rls->kbuffer[rls->pos]));
 					for (j = 0; j < strlen(rls->kbuffer) - rls->pos - 1; j++)
-						vprint("\b", 1);
+						vprint(rls->fdout, "\b", 1);
 				}
 			} else {
 				rls->kbuffer[rls->pos] = kb[i];
 				rls->kbuffer[rls->pos + 1] = '\0';
-				vprint(&kb[i], 1);
+				vprint(rls->fdout, &kb[i], 1);
 			}
 			rls->pos++;
 			i++;
 		}
 	} while (kb[0] != CTRLP);
 		
-	reset_terminal(&termios);
+	if (isatty(rls->fdin))
+		reset_terminal(rls->fdin, &termios);
 
 	return (rls->pos > 0 ? 1 : 0);
 }
@@ -507,31 +512,31 @@ void trimspace(char *buf)
 	*p = '\0';
 }
 
-void vprint(char *s, int len)
+void vprint(int fd, char *s, int len)
 {
 	int rc;
-	rc = write(1, s, len);
+	rc = write(fd, s, len);
 	if (rc != len);
 }
 
-void set_terminal(struct termios *stored_settings)
+void set_terminal(int fd, struct termios *stored_settings)
 {
 	struct termios new_settings;
 	
-	tcgetattr(0, stored_settings);
+	tcgetattr(fd, stored_settings);
 	new_settings = *stored_settings;
 	new_settings.c_lflag &= ~(ICANON | ECHO | ISIG);
 	//new_settings.c_iflag &= IGNCR;
 	new_settings.c_cc[VTIME] = 1;
 	new_settings.c_cc[VMIN] = 3;
 
-	tcsetattr(0, TCSANOW, &new_settings);
+	tcsetattr(fd, TCSANOW, &new_settings);
 	return;
 }
 
-void reset_terminal(struct termios *stored_settings)
+void reset_terminal(int fd, struct termios *stored_settings)
 {
-	tcsetattr(0, TCSANOW, stored_settings);
+	tcsetattr(fd, TCSANOW, stored_settings);
 	return;
 }
 
