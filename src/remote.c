@@ -111,7 +111,7 @@ int open_remote(const char *destip, const u_short destport)
 	flags = fcntl(0, F_GETFL);
 	fcntl(0, F_SETFL, O_NONBLOCK);
 	
-	set_terminal(&termios);
+	set_terminal(0, &termios);
 	
 	usleep(10);
 	
@@ -145,7 +145,7 @@ int open_remote(const char *destip, const u_short destport)
 	}
 	close(s);
 	
-	reset_terminal(&termios);
+	reset_terminal(0, &termios);
 	
 	fcntl(0, F_SETFL, flags);
 	

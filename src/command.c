@@ -1416,7 +1416,7 @@ int run_sleep(int argc, char **argv)
 	if (t == 0) {
 		if (argc == 1)
 			printf("Press any key to continue\n");
-		kbhit();
+		kbhit(0);
 	} else
 		sleep(t);
 
