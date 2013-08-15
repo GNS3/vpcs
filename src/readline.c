@@ -174,10 +174,10 @@ struct rls * readline_init(int histnum, int buflen)
 
 void readline_free(struct rls *rls)
 {
-	if (rls->kbuffer != NULL)
-		free(rls->kbuffer);
-	if (rls->history != NULL)
+	if (rls->history != NULL) {
+		free(rls->history[0]);
 		free(rls->history);
+	}
 	free(rls);
 }
 
