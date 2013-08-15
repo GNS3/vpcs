@@ -288,7 +288,6 @@ dmp_dns(void *dat)
 	int iplen;	
 	char *p, *q;
 	dnshdr *dh;
-	dnsflags *dflags;
 	u_short *sp;	
 	char name[256];
 	int i, j;
@@ -307,6 +306,12 @@ dmp_dns(void *dat)
 	const char *typestr[16] = {"A", "NS", "MD", "MF", "CNAME", "SOA", "MB", 
 		"MG", "MR", "NULL", "WKS", "PTR", "HINFO", "MINFO", "MX", "TXT"};
 	const char *classtr[4] = {"IN", "CS", "CH", "HS"};
+	/* make gcc happy */
+	union u_dnsflags {
+		u_short flags;
+		dnsflags dflags;
+	} u_dnsflags;
+	dnsflags *dflags;
 	
 	iplen = ntohs(iph->len);
 	dh = (dnshdr *)(uh + 1);
@@ -336,7 +341,8 @@ dmp_dns(void *dat)
 		printf("\n");
 	} else if (ntohs(uh->sport) == 53){
 		printf(", RespFlags = %x, ", dh->flags);
-		dflags = (dnsflags *)(&(dh->flags));
+		u_dnsflags.flags = dh->flags;
+		dflags = &u_dnsflags.dflags;
 		if (dflags->rc != 0) {
 			if (dflags->rc)
 				printf("rc: %s", rcode[dflags->rc]);
