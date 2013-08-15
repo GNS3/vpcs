@@ -46,7 +46,7 @@
 #include "dump.h"
 #include "relay.h"
 
-const char *ver = "0.5a1";
+const char *ver = "0.5a2";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -75,19 +75,20 @@ int daemon_port = 0;
 
 int macaddr = 0; /* the last byte of ether address */
 
-void *pth_reader(void *devid);
-void *pth_writer(void *devid);
-void *pth_timer_tick(void *);
+static void *pth_reader(void *devid);
+static void *pth_writer(void *devid);
+static void *pth_timer_tick(void *);
 void parse_cmd(char *cmdstr);
-void sig_int(int sig);
+static void sig_int(int sig);
+static void sig_clean(int sig);
 void clear_hist(void);
 
-void welcome(void);
-void usage();
-void startup(void);
+static void welcome(void);
+static void usage();
+static void startup(void);
 
-int run_quit(int argc, char **argv);
-int run_shut(int argc, char **argv);
+static int run_quit(int argc, char **argv);
+static int run_disconnect(int argc, char **argv);
 
 struct stub
 {
@@ -99,11 +100,12 @@ struct stub
 };
 typedef struct stub cmdStub;
 
-cmdStub cmd_entry[] = {
+static cmdStub cmd_entry[] = {
 	{"?",		NULL,	run_help,	help_help},
 	{"arp",		"show",	run_show,	help_show},
 	{"clear",	NULL,	run_clear,	help_clear},
 	{"dhcp",	"ip",	run_ipconfig,	help_ip},
+	{"disconnect",  NULL,   run_disconnect, NULL},
 	{"echo",	NULL,	run_echo,	NULL},
 	{"help",	NULL,	run_help,	help_help},
 	{"history",	NULL,	run_hist,	NULL},
@@ -118,30 +120,29 @@ cmdStub cmd_entry[] = {
 	{"save",	NULL,	run_save,	help_save},
 	{"set",		NULL,	run_set,	help_set},
 	{"show",	NULL,	run_show,	help_show},
-	{"shut",	NULL,	run_shut,	help_shut},
 	{"version",	NULL,	run_ver,	NULL},
 	{"sleep",	NULL,	run_sleep,	help_sleep},
 	{"zzz",		NULL,	run_sleep,	help_sleep},
 	{NULL, NULL}
 };
 
+#ifdef HV
+int vpcs(int argc, char **argv)
+#else
 int main(int argc, char **argv)
+#endif
 {
 	int i;
 	char prompt[MAX_LEN];
 	int c;
 	pthread_t timer_pid, relay_pid;
+	int daemon_bg = 1;
 	char *cmd;
-	
-	if (!isatty(0)) {
-		printf("Please run in the tty\n");
-		exit(-1);
-	}	
-	
+
 	rhost = inet_addr("127.0.0.1");
 	
-	devtype = DEV_UDP;
-	while ((c = getopt(argc, argv, "?c:ehm:p:r:s:t:uv")) != -1) {
+	devtype = DEV_UDP;		
+	while ((c = getopt(argc, argv, "?c:ehm:p:r:s:t:uvF")) != -1) {
 		switch (c) {
 			case 'c':
 				rport_flag = 1;
@@ -173,6 +174,9 @@ int main(int argc, char **argv)
 				run_ver(argc, argv);
 				exit(0);
 				break;
+			case 'F':
+				daemon_bg = 0;
+				break;
 				
 			case 'h':
 			case '?':
@@ -190,14 +194,19 @@ int main(int argc, char **argv)
 		}
 	}
 
-	signal(SIGCHLD, SIG_IGN);
-	signal(SIGINT, &sig_int);
-	
-	if (daemon_port && daemonize(daemon_port))
+	if (daemon_port && daemonize(daemon_port, daemon_bg))
 		exit(0);
+
+	if (!isatty(0)) {
+		printf("Please run in the tty\n");
+		exit(-1);
+	}	
+
+	signal(SIGINT, &sig_int);
+	signal(SIGUSR1, &sig_clean);
 		
 	welcome();
-	
+
 	srand(time(0));
 	memset(vpc, 0, NUM_PTHS * sizeof(pcs));
 	for (i = 0; i < NUM_PTHS; i++) {
@@ -208,13 +217,13 @@ int main(int argc, char **argv)
 		strcpy(vpc[i].xname, "VPCS");
 		while (vpc[i].ip4.mac[4] == 0) 
 			delay_ms(10);
-		delay_ms(50);
+		delay_ms(100);
 	}
 	pthread_create(&timer_pid, NULL, pth_timer_tick, (void *)0);
+	delay_ms(100);
 	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
-	
 	pcid = 0;
-	
+
 	delay_ms(50);
 	autoconf6();
 	
@@ -467,6 +476,7 @@ void *pth_timer_tick(void *dummy)
 		}
 		usleep(100);
 	}
+	return NULL;
 }
 
 void startup(void)
@@ -507,50 +517,46 @@ void startup(void)
 	}
 }
 
-int run_quit(int argc, char **argv)
+
+void 
+sig_clean(int sig)
 {
 	int i;
+	
+	for (i = 0; i < NUM_PTHS; i++)
+		close(vpc[i].fd);
+
+	if (rls != NULL && histfile != NULL) 
+		savehistory(histfile, rls);	
+}
+
+int run_quit(int argc, char **argv)
+{
 	pid_t pid;
 	
 	if (daemon_port) {
 		pid = getppid();
 		kill(pid, SIGUSR1);
-		return 0;
 	}
 		
-	for (i = 0; i < NUM_PTHS; i++)
-		close(vpc[i].fd);
-
-	if (rls != NULL && histfile != NULL) 
-		savehistory(histfile, rls);
+	sig_clean(0);
 
 	printf("\n");
 	exit(0);
 }
 
-int run_shut(int argc, char **argv)
+int run_disconnect(int argc, char **argv)
 {
-	int i;
 	pid_t pid;
 	
 	if (daemon_port) {
 		pid = getppid();
-		kill(pid, SIGUSR1);
-		usleep(10);
-		kill(pid, SIGKILL);
-
-		for (i = 0; i < NUM_PTHS; i++)
-			close(vpc[i].fd);
-
-		if (rls != NULL && histfile != NULL) 
-			savehistory(histfile, rls);
-
-		printf("\n");
-		exit(0);
-	}
-	return 0;		
+		kill(pid, SIGTERM);
+	} else
+		printf("NOT daemon mode\n");
+	
+	return 0;
 }
-
 void clear_hist(void)
 {
 	rls->hist_total = 0;	

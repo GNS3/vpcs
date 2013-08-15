@@ -43,6 +43,10 @@
 #include <fcntl.h>
 #include <syslog.h>
 
+#include <sys/wait.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+
 #include <termios.h>
 
 #ifdef Darwin
@@ -59,37 +63,40 @@ static pid_t fdtty_pid;
 static int daemon_port;
 
 static void daemon_proc(int sock, int fdtty);
-static void sig_cmd_quit(int sig);
-static void sig_cmd_shut(int sig);
+static void sig_usr1(int sig);
+static void sig_usr2(int sig);
+static void sig_term(int sig);
 static void sig_int(int sig);
 static void set_telnet_mode(int s);
-static void write_pid(int port);
-static void remove_pid(int port);
 
-int daemonize(int port)
+int 
+daemonize(int port, int bg)
 {
-	pid_t pid;
 	int sock = 0;
 	struct sockaddr_in serv;
 	int on = 1;
-	int fdtty;
-	
-	daemon_port = port;
-	pid = fork();
-	if (pid < 0) {
-		perror("Daemon fork");
-		return (-1);
+	int fdtty;	
+	pid_t pid;
+		
+	if (bg) {
+		pid = fork();
+		if (pid < 0) {
+			perror("Daemon fork");
+			return (-1);
+		}
+		if (pid > 0)
+			exit(0);
 	}
-	if (pid > 0)
-		exit(0);
 
+	daemon_port = port;
+	
 	setsid();
 	
-	signal (SIGTERM, SIG_IGN);
+	signal(SIGTERM, &sig_term);
 	signal(SIGINT, &sig_int);
-	signal (SIGHUP, SIG_IGN);
-	signal(SIGUSR1, &sig_cmd_quit);
-   	signal(SIGUSR2, &sig_cmd_shut);
+	signal(SIGHUP, SIG_IGN);
+	signal(SIGUSR1, &sig_usr1);
+   	signal(SIGUSR2, &sig_usr2);
    	
    	/* open an tty as standard I/O for vpcs */
    	fdtty_pid = forkpty(&fdtty, NULL, NULL, NULL);
@@ -126,7 +133,6 @@ int daemonize(int port)
 		goto err;
 	}
 
-	write_pid(port);
 	daemon_proc(sock, fdtty);
 err:
 	if (sock >= 0)
@@ -137,7 +143,8 @@ err:
 	exit(-1);
 }
 
-static void daemon_proc(int sock, int fdtty)
+static void 
+daemon_proc(int sock, int fdtty)
 {
 	int sock_cli;
 	struct sockaddr_in cli;
@@ -197,28 +204,53 @@ static void daemon_proc(int sock, int fdtty)
 	}
 }
 
-void sig_cmd_quit(int sig)
+/* should be sent from 'real vpcs' command: disconnect
+ */
+static void 
+sig_term(int sig)
 {
 	cmd_quit = 1;
-	signal(SIGUSR1, &sig_cmd_quit);
+	signal(SIGTERM, &sig_term);
 }
 
-void sig_cmd_shut(int sig)
+
+/* should be sent from 'real vpcs' command: quit
+ * vpcs has exited. 
+ */
+static void 
+sig_usr1(int sig)
 {
-	remove_pid(daemon_port);
-	
+	usleep(100000);
 	kill(fdtty_pid, SIGKILL);
-	kill(getpid(), SIGKILL);
-	signal(SIGUSR2, &sig_cmd_shut);
+		
+	exit(0);
 }
 
-void sig_int(int sig)
+/* should be sent from hypervisor command: stop or quit 
+ */
+static void 
+sig_usr2(int sig)
+{
+	/* release the resource and save workspace */
+	kill(fdtty_pid, SIGUSR1);
+	
+	usleep(100000);
+	kill(fdtty_pid, SIGKILL);
+	
+	usleep(100000);
+	exit(0);
+}
+
+/* Ctrl+C was pressed */
+static void 
+sig_int(int sig)
 {
 	ctrl_c = 1;
 	signal(SIGINT, &sig_int);
 }
 
-void set_telnet_mode(int s)
+static void 
+set_telnet_mode(int s)
 {
 	/* DO echo */
 	char *neg =
@@ -232,28 +264,4 @@ void set_telnet_mode(int s)
 	if (rc);
 }
 
-void write_pid(int port)
-{
-        char fname[1024];
-        FILE *fp = NULL;
-
-        snprintf(fname, sizeof(fname), "/tmp/vpcs.%d", port);
-
-        fp = fopen(fname, "w");
-
-        if (fp) {
-                fprintf(fp, "%d", getpid());
-                fclose(fp);
-        }
-	return;
-}
-
-void remove_pid(int port)
-{
-        char fname[1024];
-
-        snprintf(fname, sizeof(fname), "/tmp/vpcs.%d", port);
-	
-	unlink(fname);	
-}
 /* end of file */

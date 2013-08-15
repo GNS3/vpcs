@@ -27,7 +27,7 @@
 #ifndef _DAEMON_H_
 #define _DAEMON_H_
 
-int daemonize(int port);
+int daemonize(int port, int bg);
 
 #endif
 

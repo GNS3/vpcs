@@ -33,6 +33,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <ctype.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -42,205 +43,259 @@
 #include <syslog.h>
 #include <libgen.h>
 #include <getopt.h>
+#include <pthread.h>
+#include <termios.h>
 
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#include <sys/ioctl.h>
+#include <termios.h>
+
+#ifdef Darwin
+#include <util.h>
+#elif Linux
+#include <pty.h>
+#include <windows.h>
+#elif FreeBSD
+#include <libutil.h>
+#endif
+
+#include <syslog.h>
+
 #include "hv.h"
 #include "utils.h"
+#include "readline.h"
 
-const char *ver = "0.5a1";
+static const char *ver = "0.5a2";
 
-static int parse_cmd(char *buf);
-static int readpid(int port, pid_t *pid);
-static void welcome(void);
 static void usage(void);
-static int exist(const char *name);
+static void set_telnet_mode(int s);
+static void loop(void);
+static void* pty_slave(void *arg);
+static void clean(void);
+static int hypervisor(int port);
+extern int vpcs(int argc, char **argv);
 
 static int run_vpcs(int ac, char **av);
 static int run_list(int ac, char **av);
 static int run_quit(int ac, char **av);
-static int run_killme(int ac, char **av);
+static int run_disconnect(int ac, char **av);
 static int run_stop(int ac, char **av);
 static int run_help(int ac, char **av);
-
-static int cmd_quit = 0;
-static int cmd_kill = 0;
+extern int run_remote(int ac, char **av);
 
 static struct list vpcs_list[MAX_DAEMONS];
-static char vpcspath[PATH_MAX];
-static char cmdbuffer[1024];
 
-static int hvport = 0;
+static int ptyfdm, ptyfds;
+static FILE *fptys;
+static int sock = -1;
+static int sock_cli = -1;
+static int cmd_quit = 0;
+static pthread_t pid_salve;
+static int hvport = 2000;
+static struct rls *rls = NULL;
+static char *prgname = NULL;
 
-static FILE *hvout, *hvin; /* input, output */
+static cmdStub cmd_entry[] = {
+	{"?",          run_help},
+	{"disconnect", run_disconnect},
+	{"help",       run_help},
+	{"list",       run_list},
+	{"quit",       run_quit},
+	{"stop",       run_stop},
+	{"vpcs",       run_vpcs},
+	{NULL,         NULL}};
 
-cmdStub cmd_entry[] = {
-	{"vpcs",   run_vpcs},
-	{"quit",   run_quit},
-	{"list",   run_list},
-	{"killme", run_killme},
-	{"stop",   run_stop},
-	{"help",   run_help},
-	{"?",      run_help},
-	{NULL,     NULL}};
-	
 int 
-main(int argc, char **argv)
-{
-	pid_t pid;
-	int sock, sock_cli;
-	struct sockaddr_in serv, cli;	
-	int slen;
-	int prompt = 1;
-	int c;
-	char buf[PATH_MAX];
-	
-	memset(vpcspath, 0, sizeof(vpcspath));
-	while ((c = getopt(argc, argv, "?hp:f:")) != -1) {
-		switch (c) {
-			case 'p':
-				hvport = atoi(optarg);
-				break;
-			case 'f':
-				if (!realpath(optarg, vpcspath)) {
-					printf("Can not resolve the path\n");
-					return 1;
-				}
-				break;
-			case 'h':
-			case '?':
-				usage();
-				return 0;
-		}
-	}
-	
-	if (hvport < 1024 || hvport > 65534)
-		hvport = DEFAULT_PORT;
-	
-	if (vpcspath[0] == 0) {
-		if (realpath(argv[0], buf)) {
-			snprintf(vpcspath, sizeof(vpcspath), "%s/vpcs", 
-		    	    dirname(buf));
-		} else {
-			printf("Can not resolve the path: %s\n", argv[0]);
-			return 1;
-		}
-	}
-	
-	if (!exist(vpcspath)) {
-		printf("VPCS can not be found: %s\n", vpcspath);	
-		return 1;
-	}
-	
-	printf("VPCS Hypervisor is listening on port %d\n", hvport);
-	pid = fork();
-	if (pid < 0) {
-		perror("Daemon fork");
-		return 1;
-	}
-	if (pid > 0)
-		exit(0);
+main(int argc, char **argv, char** envp)
+{	
+	if (!strcmp(basename(argv[0]), "vpcs"))
+		return vpcs(argc, argv);
 
-	setsid();
-
-	signal(SIGTERM, SIG_IGN);
-	signal(SIGINT, SIG_IGN);
-	signal(SIGHUP, SIG_IGN);
-	
-	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
-	
-	/* daemon socket */
-   	if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-		perror("Create socket");
-		return 1;
-	}
-
-	c = 1;
-	(void) setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-	    (char *)&c, sizeof(c));
-
-	bzero((char *) &serv, sizeof(serv));
-	serv.sin_family = AF_INET;
-	serv.sin_addr.s_addr = htonl(INADDR_ANY);
-	serv.sin_port = htons(hvport);
-	
-	if (bind(sock, (struct sockaddr *) &serv, sizeof(serv)) < 0) {
-		perror("bind socket");
-		close(sock);
-		return 1;
-	}
-	if (listen(sock, 5) < 0) {
-		perror("listen socket");
-		close(sock);
-		return 1;
-	}
-
-	fcntl(sock, F_SETFD, fcntl(sock, F_GETFD) | FD_CLOEXEC); 
-	slen = sizeof(cli);
-	while (!cmd_kill) {
-		cmd_quit = 0;
-		
-		if ((sock_cli = accept(sock, (struct sockaddr *) &cli, 
-		    (socklen_t *)&slen)) < 0)
-			continue;
-
-		fcntl(sock_cli, F_SETFD, fcntl(sock, F_GETFD) | FD_CLOEXEC); 
-		
-		hvin = fdopen(sock_cli, "r");
-		hvout = fdopen(sock_cli, "w");
-		if (!hvin || !hvout) {
-			snprintf(buf, sizeof(buf), "Internal error: %d", errno);
-			write(sock_cli, buf, strlen(buf));
-			close(sock_cli);
-			continue;
-		}
-		while (!cmd_quit) {	
-			if (prompt) {
-				welcome();
-				prompt = 0;
+	if (argc == 3 && !strcmp(argv[1], "-H")) {
+		hvport = atoi(argv[2]);
+		if (hvport > 1024 && hvport < 65000) {
+			/* keep program name for vpcs */
+#ifdef cygwin
+			/* using windows native API to get 'real' path */
+			prgname = malloc(PATH_MAX);
+			if (!prgname || 
+			    GetModuleFileName(NULL, prgname, PATH_MAX) == 0) {
+			    	printf("Can not get file path\n");
+			    	return 1;
 			}
-			
-			fprintf(hvout, ">> ");
-			fflush(hvout);
-			
-			memset(cmdbuffer, 0, sizeof(cmdbuffer));
-			if (!fgets(cmdbuffer, sizeof(cmdbuffer), hvin))
-				break;
-
-			ttrim(cmdbuffer);
-			parse_cmd(cmdbuffer);
+#else			
+			prgname = realpath(argv[0], NULL);
+#endif
+			return hypervisor(hvport);
 		}
-		
-		fclose(hvin);
-		fclose(hvout);
+	} else if (argc == 1) {
+		usage();
+	} else {
+		vpcs(argc, argv);
 	}
 	
 	return 0;
 }
-
-static int 
-parse_cmd(char *cmdstr)
+	
+int 
+hypervisor(int port)
 {
+	struct sockaddr_in serv;
+	int on = 1;
+	
+	setsid();	
+	daemon(0, 1);
+	
+	signal(SIGCHLD, SIG_IGN);
+	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
+	
+	if (openpty(&ptyfdm, &ptyfds, NULL, NULL, NULL)) {
+		perror("Create pseudo-terminal");
+		goto ret;
+	}
+	fptys = fdopen(ptyfds, "w");
+	
+	rls = readline_init(50, 128);
+	rls->fdin = ptyfds;
+	rls->fdout = ptyfds;
+	
+	if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) >= 0) {
+		(void) setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+		    (char *)&on, sizeof(on));
+		
+		//fcntl(sock, F_SETFD, fcntl(sock, F_GETFD) | FD_CLOEXEC);
+		
+		bzero((char *) &serv, sizeof(serv));
+		serv.sin_family = AF_INET;
+		serv.sin_addr.s_addr = htonl(INADDR_ANY);
+		serv.sin_port = htons(port);
+		
+		if (bind(sock, (struct sockaddr *) &serv, sizeof(serv)) < 0) {
+			perror("Daemon bind port");
+			goto ret;
+		}
+		if (listen(sock, 5) < 0) {
+			perror("Daemon listen");
+			goto ret;
+		}
+	
+		loop();
+		close(sock);
+	}
+ret:	
+	if (rls)
+		readline_free(rls);
+	return 1;		
+	
+}
+
+static void* 
+pty_slave(void *arg)
+{
+	char *cmd;
 	char *av[20];
 	int ac = 0;
 	cmdStub *ep = NULL;
+	int matched = 0;
 	
-	ac = mkargv(cmdstr, (char **)av, 20);
+	while (!cmd_quit) {
+		cmd = readline("HV > " , rls);
+		fprintf(fptys, "\r\n");
+		if (!cmd)
+			continue;
+		ttrim(cmd);
+		ac = mkargv(cmd, (char **)av, 20);
 	
-	if (ac == 0)
-		return 0;
+		if (ac == 0)
+			continue;
 
-	for (ep = cmd_entry; ep->name != NULL; ep++) {
-		if(!strncmp(av[0], ep->name, strlen(av[0]))) {
-        		return ep->f(ac, av);
-        	}
+		for (ep = cmd_entry, matched = 0; ep->name != NULL; ep++) {
+			if(!strncmp(av[0], ep->name, strlen(av[0]))) {
+				matched = 1;
+				break;
+	        	}
+	        		
+		}
+		if (matched)
+			ep->f(ac, av);
+		else
+			ERR(fptys, "Invalid or incomplete command\r\n");
 	}
 	
-	ERR(hvout, "Invalid or incomplete command\r\n");
+	return NULL;
+}
+
+static void 
+loop(void)
+{
+	struct sockaddr_in cli;
+	int slen;
+	fd_set set;
+	struct timeval tv;
+	u_char buf[128], *p;
+	int i;
+
+	/* wait 100ms */
+	tv.tv_sec = 0;
+	tv.tv_usec = 10000;		
+	slen = sizeof(cli);
+	while (cmd_quit != 2) {
+		cmd_quit = 0;
+		sock_cli = accept(sock, (struct sockaddr *) &cli, (socklen_t *)&slen);
+		if (sock_cli < 0) 
+			continue;
+		
+		set_telnet_mode(sock_cli);
+		
+		/* command receiver */
+		pthread_create(&pid_salve, NULL, pty_slave, (void *)&ptyfds);
 	
-	return 0;
+		while (!cmd_quit) {
+			FD_ZERO(&set);
+			FD_SET(sock_cli, &set);
+			i = select(sock_cli + 1, &set, NULL, NULL, &tv);
+
+			if (i > 0 && FD_ISSET(sock_cli, &set)) {
+				memset(buf, 0, sizeof(buf));
+				i = read(sock_cli, buf, sizeof(buf));
+				p = buf;
+				if (i > 0) {
+					/* skip telnet IAC... */
+					if (*p == 0xff) {
+						p++;
+						while (!isprint(*p))
+							p++;
+					}
+					write(ptyfdm, p, i - (p - buf));
+				}
+			}
+			
+			FD_ZERO(&set);
+			FD_SET(ptyfdm, &set);
+			i = select(ptyfdm + 1, &set, NULL, NULL, &tv);
+			
+			if (i > 0 && FD_ISSET(ptyfdm, &set)) {
+				memset(buf, 0, sizeof(buf));
+				i = read(ptyfdm, buf, sizeof(buf));
+				if (i > 0) {	
+					write(sock_cli, buf, i);
+				}
+			}
+		}
+		close(sock_cli);
+	}
+}
+
+static void 
+clean(void)
+{
+	close(ptyfdm);
+	close(ptyfds);
+	close(sock_cli);
+	close(sock);	
 }
 
 static int
@@ -262,7 +317,7 @@ run_vpcs(int ac, char **av)
 	pv = &vpcs_list[i];
 	memset(pv, 0, sizeof(struct list));
 	
-	/* reinitialized, call getopt twice */
+	/* reinitialized, maybe call getopt twice */
 	optind = 1;
 #if (defined(FreeBSD) || defined(Darwin))
 	optreset = 1;
@@ -272,28 +327,28 @@ run_vpcs(int ac, char **av)
 			case 'p':
 				pv->vport = atoi(optarg);
 				if (pv->vport == 0) {
-					ERR(hvout, "Invalid daemon port\r\n");
+					ERR(fptys, "Invalid daemon port\r\n");
 					return 1;
 				}
 				break;
 			case 'm':
 				pv->vmac = atoi(optarg);
 				if (pv->vmac == 0) {
-					ERR(hvout, "Invalid ether address\r\n");
+					ERR(fptys, "Invalid ether address\r\n");
 					return 1;
 				}
 				break;
 			case 's':
 				pv->vsport = atoi(optarg);
 				if (pv->vsport == 0) {
-					ERR(hvout, "Invalid local port\r\n");
+					ERR(fptys, "Invalid local port\r\n");
 					return 1;
 				}
 				break;
 			case 'c':
 				pv->vcport = atoi(optarg);
 				if (pv->vcport == 0) {
-					ERR(hvout, "Invalid remote port\r\n");
+					ERR(fptys, "Invalid remote port\r\n");
 					return 1;
 				}
 				break;				
@@ -320,7 +375,7 @@ run_vpcs(int ac, char **av)
 				continue;
 			if (pv->vport != vpcs_list[i].vport)
 				continue;
-			ERR(hvout, "Port %d already in use\r\n", pv->vport);
+			ERR(fptys, "Port %d already in use\r\n", pv->vport);
 			return 1;
 		}
 	}
@@ -353,7 +408,7 @@ run_vpcs(int ac, char **av)
 			    ((pv->vmac - vpcs_list[i].vmac) < STEP)) ||
 			    ((pv->vmac < vpcs_list[i].vmac) && 
 			    ((vpcs_list[i].vmac - pv->vmac) < STEP))) {
-				ERR(hvout, "Ether address overlapped\r\n");
+				ERR(fptys, "Ether address overlapped\r\n");
 				return 1;		
 			}
 		}
@@ -380,7 +435,7 @@ run_vpcs(int ac, char **av)
 			    ((pv->vsport - vpcs_list[i].vsport) < STEP)) ||
 			    ((pv->vsport < vpcs_list[i].vsport) && 
 			    ((vpcs_list[i].vsport - pv->vsport) < STEP))) {
-				ERR(hvout, "Local udp port overlapped\r\n");
+				ERR(fptys, "Local udp port overlapped\r\n");
 				return 1;		
 			}
 		}
@@ -407,14 +462,13 @@ run_vpcs(int ac, char **av)
 			    ((pv->vcport - vpcs_list[i].vcport) < STEP)) ||
 			    ((pv->vcport < vpcs_list[i].vcport) && 
 			    ((vpcs_list[i].vcport - pv->vcport) < STEP))) {
-				ERR(hvout,"Remote udp port overlapped\r\n");
+				ERR(fptys,"Remote udp port overlapped\r\n");
 				return 1;		
 			}
 		}
 	}
 	
-	pv->cmdline = strdup(cmdbuffer);
-	
+	/* the arguments for vpcs */
 	i = 0;
 	if (pv->vport) 
 		i += snprintf(buf + i, sizeof(buf) - i, "-p %d ", 
@@ -441,43 +495,34 @@ run_vpcs(int ac, char **av)
 	}
 
 	pv->cmdline = strdup(buf);
+	agv[0] = "vpcs";
 	agc = mkargv(buf, (char **)(agv + 1), 20);
 	
-	agv[0] = vpcspath;
+	/* run vpcs daemon in foreground */
 	agc++;
+	agv[agc] = "-F";
+	agc++;
+	agv[agc] = NULL;
 
 	pid = fork();
-	if (pid < 0)
-		return 0;
-		
-	if (pid == 0) {
-		if (execvp(agv[0], agv) == -1) {
-			syslog(LOG_ERR, "Fork VPCS failed: %s", 
-			    strerror(errno));
-		}
-	}
-	
-	waitpid(pid, NULL, 0);
-	delay_ms(200);
-	readpid(pv->vport, &pid);
-	if (pid == 0)
-		return 0;
-
-	/* existed pid */
-	for (j = 0; j < MAX_DAEMONS; j++) {
-		if (vpcs_list[j].pid == pid)
+	switch (pid) {
+		case -1:
 			return 0;
+		case 0:
+			/* 'real' vpcs */	
+			clean();
+			if (execvp(prgname, agv) == -1) {
+				syslog(LOG_ERR, "Execute vpcs failed: %s\n", 
+				    strerror(errno)); 
+			}
+			/* never here */
+			exit(0);
+			break;
+		default:
+			pv->pid = pid;
+			SUCC(fptys, "VPCS started with %s\r\n", pv->cmdline);
+			break;
 	}
-	
-	/* check the process */
-	if (kill(pid, 0)) {
-		pid = 0;
-		ERR(hvout, "Fork VPCS failed.\r\n");
-		return 0;
-	}
-	pv->pid = pid;
-	
-	SUCC(hvout, "VPCS started with %s\r\n", pv->cmdline);
 	
 	return 0;
 }
@@ -487,21 +532,27 @@ run_list(int ac, char **av)
 {
 	int i, k;
 
-	fprintf(hvout, "ID\tPID\tParameters\r\n");
+	fprintf(fptys, "ID\tPID\tParameters\r\n");
 	 
 	for (i = 0, k = 1; i < MAX_DAEMONS; i++) {
 		if (vpcs_list[i].pid == 0)
 			continue;
-		fprintf(hvout, "%-2d\t%-5d\t%s\r\n", 
+		/* remove the invalid instance */
+		if (kill(vpcs_list[i].pid, 0)) {
+			vpcs_list[i].pid = 0;
+			continue;
+		}
+		fprintf(fptys, "%-2d\t%-5d\t%s\r\n", 
 		    k, vpcs_list[i].pid, vpcs_list[i].cmdline);
 		k++;
 	}
-	SUCC(hvout, "OK\r\n");
+	SUCC(fptys, "OK\r\n");
+	
 	return 0;
 }
 
 static int 
-run_quit(int ac, char **av)
+run_disconnect(int ac, char **av)
 {
 	cmd_quit = 1;
 	
@@ -509,7 +560,7 @@ run_quit(int ac, char **av)
 }
 
 static int 
-run_killme(int ac, char **av)
+run_quit(int ac, char **av)
 {
 	int i;
 	
@@ -522,9 +573,8 @@ run_killme(int ac, char **av)
 			free(vpcs_list[i].cmdline);
 	}
 	
-	cmd_quit = 1;
-	cmd_kill = 1;
-	
+	cmd_quit = 2;
+
 	return 0;
 }
 
@@ -546,7 +596,7 @@ run_stop(int ac, char **av)
 		if (k != j)
 			continue;
 
-		SUCC(hvout, "VPCS ID %d is terminated\r\n", vpcs_list[i].pid);
+		SUCC(fptys, "VPCS PID %d is terminated\r\n", vpcs_list[i].pid);
 
 		kill(vpcs_list[i].pid, SIGUSR2);
 		vpcs_list[i].pid = 0;
@@ -562,48 +612,18 @@ run_stop(int ac, char **av)
 static int 
 run_help(int ac, char **av)
 {
-	fprintf(hvout,  
-		"vpcs [parameters]     start vpcs with parameters of vpcs\r\n"
-		"stop id               stop vpcs process\r\n"
-		"list                  list vpcs process\r\n"
-		"quit                  disconnect\r\n"
-		"killme                stop vpcs process and hypervisor\r\n"
-		"help | ?              print help\r\n");
+	fprintf(fptys,
+		"help | ?              Print help\r\n"
+		"vpcs [parameters]     Start vpcs with parameters of vpcs\r\n"
+		"stop id               Stop vpcs process\r\n"
+		"list                  List vpcs process\r\n"
+		"disconnect            Exit the telnet session\r\n"
+		"quit                  Stop vpcs processes and hypervisor\r\n"
+		);
 	
 	return 0;
 }
 
-static int 
-exist(const char *name)
-{
-	struct stat sb;
-	
-	if (name == NULL)
-		return 0;
-		
-	if (stat(name, &sb) == 0 && S_ISREG(sb.st_mode))
-		return 1;
-	
-	return 0;
-}
-
-static int 
-readpid(int port, pid_t *pid)
-{
-	FILE *fp;
-	char path[1024];
-	
-	snprintf(path, sizeof(path), "/tmp/vpcs.%d", port);
-
-	fp = fopen(path, "r");
-	if (fp) {
-		if (fscanf(fp, "%d", pid) != 1)
-			*pid = 0;
-		fclose(fp);
-	}
-
-	return 0;
-}
 
 static void 
 usage(void)
@@ -618,27 +638,21 @@ usage(void)
 		"For more information, please visit wiki.freecode.com.cn.\n", 
 		ver, __DATE__, __TIME__ );
 		
-	printf( "\nusage: hv [options]\n"
-		"    -h|?             print this help then exit\n"
-		"    -p <port>        listen port\n"
-		"    -f <vpcs_path>   VPCS filename\n");
+	printf( "\nusage: hv -H <port>\n\n");
 }
 
-
-static void 
-welcome(void)
+void set_telnet_mode(int s)
 {
-	fprintf(hvout,  
-		"Welcome to Hypervisor of VPCS, version %s\r\n"
-		"Build time: %s %s\r\n"
-		"Copyright (c) 2013, Paul Meng (mirnshi@gmail.com)\r\n"
-		"All rights reserved.\r\n\r\n"
-		"VPCS is free software, distributed under the terms of "
-		"the \"BSD\" licence.\r\n"
-		"Source code and license can be found at vpcs.sf.net.\r\n"
-		"For more information, please visit wiki.freecode.com.cn.\r\n", 
-		ver, __DATE__, __TIME__ );
-		
-	fprintf(hvout, "\r\nPress '?' to get help.\r\n");
+	/* DO echo */
+	char *neg =
+	    "\xFF\xFD\x01"
+	    "\xFF\xFB\x01"
+	    "\xFF\xFD\x03"
+	    "\xFF\xFB\x03";
+	int rc;
+	
+	rc = write(s, neg, strlen(neg));
+	if (rc);
 }
+
 /* end of file */
