@@ -1,10 +1,10 @@
 RM=rm -f
-CC=gcc -m32
+CC=gcc -m64
 OSTYPE=Linux
 CPUTYPE=i386
 OPT=-O2
 
-CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) -Wall -I. -DTAP
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) $(HVOPT) -Wall -I. -DTAP
 LDFLAGS=-lpthread -lutil -s -static
 OBJS=vpcs.o \
 	daemon.o \
@@ -26,14 +26,13 @@ OBJS=vpcs.o \
 	dump.o \
 	relay.o
 	
-HV_OBJS=hv.o \
-	utils.o
+HV_OBJS=hv.o $(OBJS)
 
-all: vpcs hv
 
 vpcs: $(OBJS)
 	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
 
+hv: HVOPT=-DHV
 hv: $(HV_OBJS)
 	$(CC) $(HV_OBJS) -o hv $(LDFLAGS) 
 	

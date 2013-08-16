@@ -67,7 +67,7 @@ char *readline(const char *prompt, struct rls *rls)
 	if (prompt == NULL || rls == NULL)
 		return NULL;
 
-	write(rls->fdout, prompt, strlen(prompt));
+	if (write(rls->fdout, prompt, strlen(prompt)));
 	rls->prompt = (char *)prompt;
 
 	if (_readline(rls) == 0)

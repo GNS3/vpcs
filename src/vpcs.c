@@ -301,7 +301,7 @@ void parse_cmd(char *cmdstr)
 				p++;
 				
 			if (*p && strcmp(p, "?")) {
-				system(p);
+				if (system(p));
 				return;
 			}
 		}

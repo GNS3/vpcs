@@ -57,9 +57,12 @@
 #include <util.h>
 #elif Linux
 #include <pty.h>
-#include <windows.h>
 #elif FreeBSD
 #include <libutil.h>
+#endif
+
+#ifdef cygwin
+#include <windows.h>
 #endif
 
 #include <syslog.h>
@@ -147,7 +150,10 @@ hypervisor(int port)
 	int on = 1;
 	
 	setsid();	
-	daemon(0, 1);
+	if (daemon(0, 1)) {
+		perror("Daemonize fail");
+		goto ret;
+	}
 	
 	signal(SIGCHLD, SIG_IGN);
 	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
@@ -269,7 +275,7 @@ loop(void)
 						while (!isprint(*p))
 							p++;
 					}
-					write(ptyfdm, p, i - (p - buf));
+					if (write(ptyfdm, p, i - (p - buf)));
 				}
 			}
 			
@@ -281,7 +287,7 @@ loop(void)
 				memset(buf, 0, sizeof(buf));
 				i = read(ptyfdm, buf, sizeof(buf));
 				if (i > 0) {	
-					write(sock_cli, buf, i);
+					if (write(sock_cli, buf, i));
 				}
 			}
 		}
