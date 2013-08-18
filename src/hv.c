@@ -118,6 +118,7 @@ static cmdStub cmd_entry[] = {
 int 
 main(int argc, char **argv, char** envp)
 {	
+	
 	if (argc == 3 && !strcmp(argv[1], "-H")) {
 		hvport = atoi(argv[2]);
 		if (hvport < 1024 || hvport > 65000) {
@@ -149,7 +150,7 @@ hypervisor(int port)
 	
 	setsid();
 #if 1		
-	if (daemon(0, 1)) {
+	if (daemon(1, 1)) {
 		perror("Daemonize fail");
 		goto ret;
 	}
@@ -535,11 +536,9 @@ run_vpcs(int ac, char **av)
 
 	pv->cmdline = strdup(buf);
 	agv[0] = "vpcs";
-	agc = mkargv(buf, (char **)(agv + 1), 20);
-	
-	/* run vpcs daemon in foreground */
+	agv[1] = "-F";
+	agc = mkargv(buf, (char **)(agv + 2), 20);
 	agc++;
-	agv[agc] = "-F";
 	agc++;
 	agv[agc] = NULL;
 
