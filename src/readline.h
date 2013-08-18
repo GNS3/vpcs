@@ -31,9 +31,9 @@
 #include "keydef.h"
 
 struct rls {
+	char kb[512];
 	int fdin;
 	int fdout;
-	char kb[16];
 	char *kbuffer;	/* key buffer */
 	int pos; 	/* pointer of key buffer */
 	char **history;

@@ -67,7 +67,8 @@ char *readline(const char *prompt, struct rls *rls)
 	if (prompt == NULL || rls == NULL)
 		return NULL;
 
-	if (write(rls->fdout, prompt, strlen(prompt)));
+	if (write(rls->fdout, prompt, strlen(prompt)))
+		;
 	rls->prompt = (char *)prompt;
 
 	if (_readline(rls) == 0)
@@ -192,6 +193,7 @@ int _readline(struct rls *rls)
 	int rc;
 	char **tab;
 	char *p;
+	int off = 0;
 	
 	if (isatty(rls->fdin))
 		set_terminal(rls->fdin, &termios);
@@ -206,14 +208,19 @@ int _readline(struct rls *rls)
 	flags = 0;
 	ihist = 0;
 	kb = rls->kb;
-	do {
-		fflush(stdout);
-			
-		memset(kb, 0, sizeof(rls->kb));
-		rc = read(rls->fdin, kb, sizeof(rls->kb));
-		if (rc <= 0) {
-			usleep(1);
-			continue;
+	rc = 0;
+	do {	
+		if (off >= rc) {
+			memset(kb, 0, sizeof(rls->kb));
+			rc = read(rls->fdin, kb, sizeof(rls->kb));
+			if (rc <= 0) {
+				//usleep(1);
+				continue;
+			}
+			off = 0;
+		} else {
+			memmove(kb, kb + off, rc - off);
+			rc -= off;
 		}
 #if 0
 		printf("\n%2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x\n",
@@ -222,7 +229,8 @@ int _readline(struct rls *rls)
 #endif		
 		if (kb[0] == ESC && kb[1] == ESC_PAD) {
 			fkey = kb[2] | (kb[3] << 8);
-			if (fkey == KEY_UP) {
+			if (kb[2] == KEY_UP) {
+				off = 3;
 				if (flags == 0) {
 					/* set history-mode */
 					flags = 1;
@@ -257,9 +265,9 @@ int _readline(struct rls *rls)
 				vprint(rls->fdout, rls->kbuffer, rls->pos);
 
 				continue;
-			}
-			
-			if (fkey == KEY_DOWN){
+			}			
+			if (kb[2] == KEY_DOWN){
+				off = 3;
 				if (flags == 0)
 					continue;
 				if ((ihist + 1) >= rls->hist_total) {
@@ -294,12 +302,14 @@ int _readline(struct rls *rls)
 
 				continue;
 			}
-			if (fkey == KEY_RIGHT) {
+			if (kb[2] == KEY_RIGHT) {
+				off = 3;
 				if (rls->pos < strlen(rls->kbuffer))
 					vprint(rls->fdout, &(rls->kbuffer[rls->pos++]), 1);
 				continue;
 			}
-			if (fkey == KEY_LEFT) {
+			if (kb[2] == KEY_LEFT) {
+				off = 3;
 				if (rls->pos > 0) {
 					vprint(rls->fdout, "\b", 1);
 					rls->pos --;
@@ -307,6 +317,7 @@ int _readline(struct rls *rls)
 				continue;
 			}
 			if (fkey == KEY_HOME) {
+				off = 4;
 				while (rls->pos > 0) {
 					vprint(rls->fdout, "\b", 1);
 					rls->pos --;
@@ -314,6 +325,7 @@ int _readline(struct rls *rls)
 				continue;
 			}
 			if (fkey == KEY_END) {
+				off = 4;
 				while (rls->pos < strlen(rls->kbuffer)) {
 					vprint(rls->fdout, &(rls->kbuffer[rls->pos++]), 1);
 				}
@@ -325,6 +337,7 @@ int _readline(struct rls *rls)
 				
 		/* 'enter' */
 		if (kb[0] == LF || kb[0] == CR) {
+			off = 1;
 			trimspace(rls->kbuffer);
 			rls->pos = strlen(rls->kbuffer);
 			if (rls->pos == 0)
@@ -339,12 +352,14 @@ int _readline(struct rls *rls)
 		} 
 		
 		if (kb[0] == CTRLC) {
+			off = 1;
 			rls->pos = 0;
 			rls->kbuffer[0] = '\0';
 			break;
 		}
 		
 		if (kb[0] == '\t') {
+			off = 1;
 			if (rls->tab_callback == NULL)
 				continue;
 			
@@ -397,6 +412,7 @@ int _readline(struct rls *rls)
 		
 		/* backspace */
 		if ((kb[0] == BACKSP0)|| (kb[0] == BACKSP1)) {
+			off = 1;
 			if (rls->pos > 0) {
 				i = strlen(rls->kbuffer);
 				j = rls->pos;
@@ -417,12 +433,9 @@ int _readline(struct rls *rls)
 		}
 		
 		/* normal key */	
-		i = 0;
-		while (i < rc) {
-			if (!isprint((int)kb[i])) {
-				i++;
-				continue;
-			}
+		off = 1;
+		i = kb[0];
+		if (isprint(i)) {
 			if (rls->pos < strlen(rls->kbuffer) - 1) {
 				j = strlen(rls->kbuffer);
 				/* avoid overflow */
@@ -432,7 +445,7 @@ int _readline(struct rls *rls)
 						j--;
 					}
 						
-					rls->kbuffer[rls->pos] = kb[i];
+					rls->kbuffer[rls->pos] = kb[0];
 					//rls->kbuffer[rls->pos + 1] = '\0';
 					vprint(rls->fdout, &rls->kbuffer[rls->pos], 
 					    strlen(&rls->kbuffer[rls->pos]));
@@ -440,12 +453,11 @@ int _readline(struct rls *rls)
 						vprint(rls->fdout, "\b", 1);
 				}
 			} else {
-				rls->kbuffer[rls->pos] = kb[i];
+				rls->kbuffer[rls->pos] = kb[0];
 				rls->kbuffer[rls->pos + 1] = '\0';
-				vprint(rls->fdout, &kb[i], 1);
+				vprint(rls->fdout, &kb[0], 1);
 			}
 			rls->pos++;
-			i++;
 		}
 	} while (kb[0] != CTRLP);
 		
@@ -514,9 +526,8 @@ void trimspace(char *buf)
 
 void vprint(int fd, char *s, int len)
 {
-	int rc;
-	rc = write(fd, s, len);
-	if (rc != len);
+	if (write(fd, s, len))
+		;
 }
 
 void set_terminal(int fd, struct termios *stored_settings)
