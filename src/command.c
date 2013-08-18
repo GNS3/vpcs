@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 
+#include <sys/param.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -1808,12 +1809,23 @@ int run_load(int argc, char **argv)
 {
 	FILE *fp;
 	char buf[MAX_LEN];
-
+	char fname[PATH_MAX];
+	
 	if (argc != 2 || !strcmp(argv[1], "?")) {
 		return help_load(argc, argv);
 	}
-		
+
 	fp = fopen(argv[1], "r");
+	if (fp == NULL) {
+		/* try to open .vpc */
+		if (!strrchr(argv[1], '.') && 
+		    (strlen(argv[1]) < PATH_MAX - 5)) {
+			memset(fname, 0, PATH_MAX);
+			strncpy(fname, argv[1], PATH_MAX - 1);
+			strcat(fname, ".vpc");
+			fp = fopen(fname, "r");
+		}
+	}
 	if (fp == NULL) {
 		printf("Can't open \"%s\"\n", argv[1]);
 		return -1;
@@ -1853,11 +1865,22 @@ int run_save(int argc, char **argv)
 	char buf[64];
 	u_int local_ip;
 	struct in_addr in;
+	char fname[PATH_MAX];
 
 	if (argc != 2 || !strcmp(argv[1], "?")) {
 		return help_save(argc, argv);
-	}	
-	fp = fopen(argv[1], "w");
+	}
+	if (strlen(argv[1]) > PATH_MAX - 5) {
+		printf("%s is too long\n", argv[1]);
+		return 1;
+	}
+	
+	memset(fname, 0, PATH_MAX);
+	strncpy(fname, argv[1], PATH_MAX - 1);
+	if (!strrchr(fname, '.'))
+		strcat(fname, ".vpc");
+	
+	fp = fopen(fname, "w");
 	if (fp != NULL) {
 		local_ip = inet_addr("127.0.0.1");
 		for (i = 0; i < NUM_PTHS; i++) {
