@@ -170,6 +170,22 @@ void preh(u_char *e)
 		printf("%2.2x ", *(e + i));
 	return;
 }
+
+#include <stdarg.h>
+int logs(const char *fmt, ...)
+{
+	va_list ap;
+	FILE *fp;
+	int ret;
+	
+	fp = fopen("vpcs.log", "a+");
+	va_start(ap, fmt);
+	ret = vfprintf(fp, fmt, ap);
+	va_end(ap);
+	fclose(fp);
+	
+	return ret;
+}
 #endif
 
 /* end of file */

@@ -3,6 +3,7 @@ CC=gcc
 OSTYPE=Linux
 CPUTYPE=i386
 OPT=-O2
+HVOPT=-DHV
 
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) -Dcygwin $(OPT) $(HVOPT) -Wall -I.
 LDFLAGS=-static -lpthread -s -static-libgcc -lutil
@@ -25,20 +26,16 @@ OBJS=vpcs.o \
 	remote.o \
 	help.o \
 	dump.o \
-	relay.o
+	relay.o \
+	hv.o
 
-HV_OBJS=hv.o $(OBJS)
-
+all: vpcs
 
 vpcs: $(OBJS)
 	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
 
-hv: HVOPT=-DHV
-hv: $(HV_OBJS)
-	$(CC) $(HV_OBJS) -o hv $(LDFLAGS) 
-	
 .c.o: keys.h vpcs.h packets.h dhcp.h
 	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
 
 clean:
-	$(RM) *.o vpcs vpcs.exe hv
+	$(RM) *.o vpcs vpcs.exe

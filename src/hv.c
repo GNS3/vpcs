@@ -71,11 +71,12 @@
 #include "utils.h"
 #include "readline.h"
 
-static const char *ver = "0.5a2";
+//static const char *ver = "0.5a2";
 
-static void usage(void);
+//static void usage(void);
 static void set_telnet_mode(int s);
 static void loop(void);
+static void* pty_master(void *arg);
 static void* pty_slave(void *arg);
 static void clean(void);
 static int hypervisor(int port);
@@ -88,6 +89,7 @@ static int run_disconnect(int ac, char **av);
 static int run_stop(int ac, char **av);
 static int run_help(int ac, char **av);
 extern int run_remote(int ac, char **av);
+extern void usage(void);
 
 static struct list vpcs_list[MAX_DAEMONS];
 
@@ -96,10 +98,12 @@ static FILE *fptys;
 static int sock = -1;
 static int sock_cli = -1;
 static int cmd_quit = 0;
-static pthread_t pid_salve;
+static volatile int cmd_wait = 0;
+static pthread_t pid_master, pid_salve;
+static pthread_mutex_t cmd_mtx;
 static int hvport = 2000;
 static struct rls *rls = NULL;
-static char *prgname = NULL;
+static char prgname[PATH_MAX];
 
 static cmdStub cmd_entry[] = {
 	{"?",          run_help},
@@ -114,33 +118,27 @@ static cmdStub cmd_entry[] = {
 int 
 main(int argc, char **argv, char** envp)
 {	
-	if (!strcmp(basename(argv[0]), "vpcs"))
-		return vpcs(argc, argv);
-
 	if (argc == 3 && !strcmp(argv[1], "-H")) {
 		hvport = atoi(argv[2]);
-		if (hvport > 1024 && hvport < 65000) {
-			/* keep program name for vpcs */
-#ifdef cygwin
-			/* using windows native API to get 'real' path */
-			prgname = malloc(PATH_MAX);
-			if (!prgname || 
-			    GetModuleFileName(NULL, prgname, PATH_MAX) == 0) {
-			    	printf("Can not get file path\n");
-			    	return 1;
-			}
-#else			
-			prgname = realpath(argv[0], NULL);
-#endif
-			return hypervisor(hvport);
+		if (hvport < 1024 || hvport > 65000) {
+			printf("Invalid port\n");
+			exit(1);
 		}
-	} else if (argc == 1) {
-		usage();
-	} else {
-		vpcs(argc, argv);
+		/* keep program name for vpcs */
+#ifdef cygwin
+		/* using windows native API to get 'real' path */
+		if (GetModuleFileName(NULL, prgname, PATH_MAX) == 0) {
+#else			
+		if (!realpath(argv[0], prgname)) {
+#endif
+		    	printf("Can not get file path\n");
+		    	return 1;
+		}
+		return hypervisor(hvport);
 	}
-	
-	return 0;
+
+	/* go to vpcs */
+ 	return vpcs(argc, argv);
 }
 	
 int 
@@ -149,12 +147,13 @@ hypervisor(int port)
 	struct sockaddr_in serv;
 	int on = 1;
 	
-	setsid();	
+	setsid();
+#if 1		
 	if (daemon(0, 1)) {
 		perror("Daemonize fail");
 		goto ret;
 	}
-	
+#endif	
 	signal(SIGCHLD, SIG_IGN);
 	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
 	
@@ -167,7 +166,7 @@ hypervisor(int port)
 	rls = readline_init(50, 128);
 	rls->fdin = ptyfds;
 	rls->fdout = ptyfds;
-	
+
 	if ((sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) >= 0) {
 		(void) setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
 		    (char *)&on, sizeof(on));
@@ -199,6 +198,22 @@ ret:
 }
 
 static void* 
+pty_master(void *arg)
+{
+	int i;
+	u_char buf[128];
+	
+	while (!cmd_quit) {
+		memset(buf, 0, sizeof(buf));
+		i = read(ptyfdm, buf, sizeof(buf));
+		if (i > 0 && write(sock_cli, buf, i))
+			;
+	}
+	return NULL;
+}
+
+
+static void* 
 pty_slave(void *arg)
 {
 	char *cmd;
@@ -208,29 +223,39 @@ pty_slave(void *arg)
 	int matched = 0;
 	
 	while (!cmd_quit) {
+		/* locked the mutex to keep socket waiting */
+		pthread_mutex_lock(&cmd_mtx);
 		cmd = readline("HV > " , rls);
-		fprintf(fptys, "\r\n");
-		if (!cmd)
-			continue;
+		
+		fprintf(fptys, "\n");
+		if (!cmd) 
+			goto unlock;
+
 		ttrim(cmd);
 		ac = mkargv(cmd, (char **)av, 20);
-	
-		if (ac == 0)
-			continue;
+		if (ac == 0) 
+			goto unlock;
 
 		for (ep = cmd_entry, matched = 0; ep->name != NULL; ep++) {
 			if(!strncmp(av[0], ep->name, strlen(av[0]))) {
 				matched = 1;
 				break;
-	        	}
-	        		
+	        	}	
 		}
-		if (matched)
+
+		if (matched) {
 			ep->f(ac, av);
-		else
+		} else
 			ERR(fptys, "Invalid or incomplete command\r\n");
+
+unlock:
+		/* my job is done, unlock mutex
+		 * let socket do its job.
+		 */
+		pthread_mutex_unlock(&cmd_mtx);
+		usleep(5);
 	}
-	
+
 	return NULL;
 }
 
@@ -239,15 +264,12 @@ loop(void)
 {
 	struct sockaddr_in cli;
 	int slen;
-	fd_set set;
-	struct timeval tv;
 	u_char buf[128], *p;
 	int i;
-
-	/* wait 100ms */
-	tv.tv_sec = 0;
-	tv.tv_usec = 10000;		
+		
 	slen = sizeof(cli);
+	pthread_mutex_init(&cmd_mtx, NULL);
+	
 	while (cmd_quit != 2) {
 		cmd_quit = 0;
 		sock_cli = accept(sock, (struct sockaddr *) &cli, (socklen_t *)&slen);
@@ -255,44 +277,55 @@ loop(void)
 			continue;
 		
 		set_telnet_mode(sock_cli);
-		
-		/* command receiver */
-		pthread_create(&pid_salve, NULL, pty_slave, (void *)&ptyfds);
+
+		pthread_create(&pid_master, NULL, pty_master, NULL);
+		pthread_create(&pid_salve, NULL, pty_slave, NULL);
 	
 		while (!cmd_quit) {
-			FD_ZERO(&set);
-			FD_SET(sock_cli, &set);
-			i = select(sock_cli + 1, &set, NULL, NULL, &tv);
+			memset(buf, 0, sizeof(buf));
+			i = read(sock_cli, buf, sizeof(buf));
+			if (i < 0)
+				break;
+			if (i == 0)
+				continue;
+			p = buf;
 
-			if (i > 0 && FD_ISSET(sock_cli, &set)) {
-				memset(buf, 0, sizeof(buf));
-				i = read(sock_cli, buf, sizeof(buf));
-				p = buf;
-				if (i > 0) {
-					/* skip telnet IAC... */
-					if (*p == 0xff) {
-						p++;
-						while (!isprint(*p))
-							p++;
-					}
-					if (write(ptyfdm, p, i - (p - buf)));
-				}
-			}
+			/* skip telnet IAC... */
+			if (*p == 0xff)
+				while (*p && !isprint(*p))
+					p++;
+
+			if (*p == '\0')
+				continue;
+
+			i = i - (p - buf);
+
+			while (i > 0 && *(p + i - 1) == '\0')
+				i--;
+	
+			if (i <= 0)
+				continue;
+
+			/* ignore pty error */
+			if (write(ptyfdm, p, i))
+				;
 			
-			FD_ZERO(&set);
-			FD_SET(ptyfdm, &set);
-			i = select(ptyfdm + 1, &set, NULL, NULL, &tv);
-			
-			if (i > 0 && FD_ISSET(ptyfdm, &set)) {
-				memset(buf, 0, sizeof(buf));
-				i = read(ptyfdm, buf, sizeof(buf));
-				if (i > 0) {	
-					if (write(sock_cli, buf, i));
-				}
+			/* if 'Enter' was pressed, 
+			 * wait command interpreter to finish its job,
+			 *    then check 'cmd_quit'
+			 */
+			if (p[i - 1] == '\n' || p[i - 1] == '\r') {
+				pthread_mutex_lock(&cmd_mtx);
+				pthread_mutex_unlock(&cmd_mtx);
 			}
 		}
+		
+		pthread_cancel(pid_master);
+		pthread_cancel(pid_salve);
+		
 		close(sock_cli);
 	}
+	pthread_mutex_destroy(&cmd_mtx);
 }
 
 static void 
@@ -561,7 +594,7 @@ static int
 run_disconnect(int ac, char **av)
 {
 	cmd_quit = 1;
-	
+
 	return 0;
 }
 
@@ -630,23 +663,6 @@ run_help(int ac, char **av)
 	return 0;
 }
 
-
-static void 
-usage(void)
-{
-	printf(	"Welcome to Hypervisor of VPCS, version %s\n"
-		"Build time: %s %s\n"
-		"Copyright (c) 2013, Paul Meng (mirnshi@gmail.com)\n"
-		"All rights reserved.\n\n"
-		"VPCS is free software, distributed under the terms of "
-		"the \"BSD\" licence.\n"
-		"Source code and license can be found at vpcs.sf.net.\n"
-		"For more information, please visit wiki.freecode.com.cn.\n", 
-		ver, __DATE__, __TIME__ );
-		
-	printf( "\nusage: hv -H <port>\n\n");
-}
-
 void set_telnet_mode(int s)
 {
 	/* DO echo */
@@ -655,10 +671,9 @@ void set_telnet_mode(int s)
 	    "\xFF\xFB\x01"
 	    "\xFF\xFD\x03"
 	    "\xFF\xFB\x03";
-	int rc;
 	
-	rc = write(s, neg, strlen(neg));
-	if (rc);
+	if (write(s, neg, strlen(neg)))
+		;
 }
 
 /* end of file */

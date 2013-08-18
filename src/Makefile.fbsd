@@ -2,10 +2,11 @@ RM=rm -f
 CC=gcc
 OSTYPE=FreeBSD
 CPUTYPE=i386
-OPT=-g -Wall
+OPT=-Wall 
+HVOPT=-DHV
 
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) $(HVOPT) $(DBGOPT) -I. 
-LDFLAGS=-g -lpthread -lutil -static
+LDFLAGS=-lpthread -lutil -static $(STRIP)
 OBJS=vpcs.o \
 	daemon.o \
 	readline.o \
@@ -24,28 +25,22 @@ OBJS=vpcs.o \
 	remote.o \
 	help.o \
 	dump.o \
-	relay.o
+	relay.o \
+	hv.o
 
-HV_OBJS=hv.o $(OBJS)
+all: vpcs
 
 vpcs: $(OBJS)
 	$(CC) $(.ALLSRC) -o $(.TARGET) $(LDFLAGS) 
 
-hv: $(HV_OBJS)
-	$(CC) $(.ALLSRC) -o $(.TARGET) $(LDFLAGS) 
-	
 .c.o: vpcs.h packets.h dhcp.h
 	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
 
 clean:
-	$(RM) *.o vpcs hv
-
-.if (make(hv) || make(all))
-  HVOPT=-DHV
-.endif
+	$(RM) *.o vpcs
 
 .if make(debug)
-  DBGOPT=-DDEBUG
+  DBGOPT=-DDEBUG -g
 .else
   DBGOPT=-O2
   STRIP=-s

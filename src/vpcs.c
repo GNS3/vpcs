@@ -84,7 +84,7 @@ static void sig_clean(int sig);
 void clear_hist(void);
 
 static void welcome(void);
-static void usage();
+void usage();
 static void startup(void);
 
 static int run_quit(int argc, char **argv);
@@ -301,7 +301,8 @@ void parse_cmd(char *cmdstr)
 				p++;
 				
 			if (*p && strcmp(p, "?")) {
-				if (system(p));
+				if (system(p))
+					;
 				return;
 			}
 		}
@@ -589,6 +590,8 @@ void usage()
 		"    -s port    local udp base port, default from 20000\n"
 		"    -c port    remote udp base port (dynamips udp port), default from 30000\n"
 		"    -t ip      remote host IP, default 127.0.0.1\n"
+		"\nhypervisor mode option:\n"
+		"    -H port    run as the hypervisor listening on the tcp 'port'\n"
 		"\n"
 		"  If no 'scriptfile' specified, vpcs will read and execute the file named\n"
 		"  'startup.vpc' if it exsits in the current directory.\n"
