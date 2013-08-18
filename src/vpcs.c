@@ -33,6 +33,11 @@
 #include <errno.h>
 #include <pthread.h>
 
+#ifdef cygwin
+#include <windows.h>
+#include <sys/cygwin.h>
+#endif
+
 #include "globle.h"
 #include "vpcs.h"
 #include "readline.h"
@@ -82,6 +87,7 @@ void parse_cmd(char *cmdstr);
 static void sig_int(int sig);
 static void sig_clean(int sig);
 void clear_hist(void);
+static int invoke_cmd(const char *);
 
 static void welcome(void);
 void usage();
@@ -204,6 +210,7 @@ int main(int argc, char **argv)
 
 	signal(SIGINT, &sig_int);
 	signal(SIGUSR1, &sig_clean);
+	signal(SIGCHLD, SIG_IGN);
 		
 	welcome();
 
@@ -212,6 +219,7 @@ int main(int argc, char **argv)
 	for (i = 0; i < NUM_PTHS; i++) {
 		if (pthread_create(&(vpc[i].rpid), NULL, pth_reader, (void *)&i) != 0) {
 			printf("PC%d error\n", i + 1);
+			fflush(stdout);
 			exit(-1);
 		}
 		strcpy(vpc[i].xname, "VPCS");
@@ -301,8 +309,7 @@ void parse_cmd(char *cmdstr)
 				p++;
 				
 			if (*p && strcmp(p, "?")) {
-				if (system(p))
-					;
+				invoke_cmd(p);
 				return;
 			}
 		}
@@ -569,6 +576,21 @@ void welcome(void)
 	
 	printf("\nPress '?' to get help.\n");
 	return;			
+}
+
+static int 
+invoke_cmd(const char *cmd)
+{
+	int rc = 0;
+	
+#ifdef cygwin
+	char str[1024];
+	snprintf(str, sizeof(str), "%s /c %s", getenv("COMSPEC"), cmd);
+	rc = WinExec(str, SW_SHOW);
+#else	
+	rc = system(cmd);
+#endif	
+	return rc;
 }
 
 void usage()
