@@ -228,7 +228,10 @@ pty_slave(void *arg)
 		pthread_mutex_lock(&cmd_mtx);
 		cmd = readline("HV > " , rls);
 		
-		fprintf(fptys, "\n");
+		fprintf(fptys, "\r\n");
+		fflush(fptys);
+		usleep(1);
+		
 		if (!cmd) 
 			goto unlock;
 
@@ -347,6 +350,17 @@ run_vpcs(int ac, char **av)
 	char *agv[20];
 	int agc = 0;
 	char buf[1024];
+	int fd1;
+	
+	if (ac == 2 && !strcmp(av[1], "?")) {
+		/* redirect STDOUT to socket */
+		fd1 = dup(STDOUT_FILENO);
+		dup2(sock_cli, STDOUT_FILENO);
+		usage();
+		fflush(stdout);
+		dup2(fd1, STDOUT_FILENO);
+		return 0;
+	}
 	
 	/* find free slot */
 	for (i = 0; i < MAX_DAEMONS && vpcs_list[i].pid != 0; i++);
@@ -601,6 +615,34 @@ static int
 run_quit(int ac, char **av)
 {
 	int i;
+	char ans[8];
+	char *warning_quit = 
+		"Warning: There are active VPCS sessions.\r\n"
+		"Are you sure you want to quit and terminate these sessions(y/N)? ";
+
+	if (ac == 1) {
+		for (i = 0; i < MAX_DAEMONS; i++) {
+			if (vpcs_list[i].pid != 0)
+				break;
+		}
+		/* There are active VPCS sessions */
+		if (i < MAX_DAEMONS) {
+			write(sock_cli, warning_quit, strlen(warning_quit));
+			memset(ans, 0, sizeof(ans));
+			i = read(sock_cli, ans, sizeof(ans));
+			if (i <= 0)
+				return 0;
+			write(sock_cli, ans, strlen(ans));
+			write(sock_cli, "\r\n", 2);
+			if (strcmp(ans, "y") && strcmp(ans, "Y"))
+				return 0;
+		}
+	} else if (ac == 2 && strcmp(av[1], "-f"))
+		return 1;
+	else if (ac > 2) {
+		ERR(fptys, "Invalid command\r\n");
+		return 1;
+	}	
 	
 	for (i = 0; i < MAX_DAEMONS; i++) {
 		if (vpcs_list[i].pid == 0)
@@ -619,11 +661,13 @@ run_quit(int ac, char **av)
 static int 
 run_stop(int ac, char **av)
 {
-	int i, j, k;
-
-	if (ac != 2)
+	int i, j, k, found = 0;
+	
+	if (ac == 1) {
+		ERR(fptys, "Invalid or incomplete command\r\n");
 		return 1;
-		
+	}
+	
 	j = atoi(av[1]);
 	i = 0;
 	k = 0;
@@ -640,10 +684,13 @@ run_stop(int ac, char **av)
 		vpcs_list[i].pid = 0;
 		if (vpcs_list[i].cmdline)
 			free(vpcs_list[i].cmdline);
-			
+		found = 1;	
 		break;
 	}
 	
+	if (!found)
+		ERR(fptys, "VPCS id %s does not exist\r\n", av[1]);
+		
 	return 0;
 }
 
@@ -656,7 +703,8 @@ run_help(int ac, char **av)
 		"stop id               Stop vpcs process\r\n"
 		"list                  List vpcs process\r\n"
 		"disconnect            Exit the telnet session\r\n"
-		"quit                  Stop vpcs processes and hypervisor\r\n"
+		"quit [-f]             Stop vpcs processes and hypervisor\r\n"
+		"                        -f force quit without prompting\r\n"
 		);
 	
 	return 0;
