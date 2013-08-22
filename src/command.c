@@ -1781,16 +1781,16 @@ static int show_echo(int argc, char **argv)
 
 int run_ver(int argc, char **argv)
 {
-	printf ("\n"
-		"Welcome to Virtual PC Simulator, version %s\n"
-		"Dedicated to Daling.\n"
-		"Build time: %s %s\n"
-		"Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)\n"
-		"All rights reserved.\n\n"
-		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\n"
-		"Source code and license can be found at vpcs.sf.net.\n"
-		"For more information, please visit wiki.freecode.com.cn.\n", 
-		ver, __DATE__, __TIME__ );	
+	printf ("\r\n"
+		"Welcome to Virtual PC Simulator, version %s\r\n"
+		"Dedicated to Daling.\r\n"
+		"Build time: %s %s\r\n"
+		"Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)\r\n"
+		"All rights reserved.\r\n\r\n"
+		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\r\n"
+		"Source code and license can be found at vpcs.sf.net.\r\n"
+		"For more information, please visit wiki.freecode.com.cn.\r\n", 
+		ver, __DATE__, __TIME__ );
 	
 	return 1;	
 }
