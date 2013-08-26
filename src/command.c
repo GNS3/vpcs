@@ -1331,13 +1331,9 @@ int run_set(int argc, char **argv)
 				printf("Device(%d) open error [%s]\n", pcid, strerror(errno));
 				return 0;
 			}
-		
+			close(pc->fd);
 			pc->fd = fd;
 			pc->lport = value;
-		
-			flags = fcntl(pc->fd, F_GETFL, NULL);
-			flags |= O_NONBLOCK;
-			fcntl(pc->fd, F_SETFL, flags);
 		}
 	} else if (!strncmp("rport", argv[1], strlen(argv[1]))) {
 		if (argc != 3) {

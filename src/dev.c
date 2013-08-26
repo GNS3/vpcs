@@ -54,7 +54,15 @@ int VRead(pcs *pc, void *buf, int len)
 	struct sockaddr addr;
 	socklen_t size;
 	int n = 0;
+	fd_set readSet;
+	struct timeval timeout = {1, 0};
 	
+	FD_ZERO(&readSet);
+	FD_SET(pc->fd, &readSet);
+	
+	if (select(pc->fd + 1, &readSet, NULL, NULL, &timeout) <= 0)
+		return 0;
+		
 	switch (devtype) {
 		case DEV_TAP:
 			n = read(pc->fd, buf, len);
@@ -71,7 +79,16 @@ int VWrite(pcs *pc, void *buf, int len)
 {
 	struct sockaddr_in addr;
 	int n = 0;
-
+	fd_set writeSet;
+	struct timeval timeout = {1, 0};
+	
+	FD_ZERO(&writeSet);
+	FD_SET(pc->fd, &writeSet);
+	
+	if (select(pc->fd + 1, NULL, &writeSet, NULL, &timeout) <= 0)
+		return 0;
+		
+		
 	switch (devtype) {
 		case DEV_TAP:
 			n = write(pc->fd, buf, len);
