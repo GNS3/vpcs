@@ -1,0 +1,27 @@
+1. how to compile
+   cp if_utun.c /sys/net/.
+   mkdir /sys/modules/utun
+   cp Makefile /sys/modules/utun/.
+   cd /sys/modules/utun
+   make
+
+2. how to load
+   kldload ./if_utun.ko
+   ifconfig utun create a.b.c.d netmask A.B.C.D
+
+3. config
+   sysctl net.link.utun.0.sport=40001
+   sysctl net.link.utun.0.dport=40002
+   sysctl net.link.utun.0.destaddr="127.0.0.1"
+
+   receive the udp packets from 127.0.0.1:40002
+   send the packets to 127.0.0.1:40002
+
+   sysctl net.link.utun.0.sport=40001
+   sysctl net.link.utun.0.dport=40002
+   sysctl net.link.utun.0.destaddr="192.168.1.1"
+
+   receive the udp packets from 192.168.1.1:40002
+   send the packets to 192.168.1.1:40002
+
+   Plesae note, port 40001 should not be used by local application.
