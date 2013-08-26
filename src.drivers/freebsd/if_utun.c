@@ -26,7 +26,9 @@
  *
  */
 
-/* utun, pseudo interface driver
+/* $Id$
+ *
+ * utun, pseudo interface driver
  *       encapsulates the traffic into UDP packets. 
  *
  *  outgoing path

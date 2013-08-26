@@ -1,8 +1,8 @@
 1. how to compile
    cp if_utun.c /sys/net/.
-   mkdir /sys/modules/utun
-   cp Makefile /sys/modules/utun/.
-   cd /sys/modules/utun
+   mkdir /sys/modules/if_utun
+   cp Makefile /sys/modules/if_utun/.
+   cd /sys/modules/if_utun
    make
 
 2. how to load
