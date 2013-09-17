@@ -1301,7 +1301,6 @@ int run_set(int argc, char **argv)
 {
 	int value;
 	int fd;
-	int flags;
 	pcs *pc = &vpc[pcid];
 	u_int ip;
 
@@ -1468,13 +1467,13 @@ int run_remote(int argc, char **argv)
 			printf("Invalid port\n");
 			return help_rlogin(argc, argv);
 		}
-		return open_remote("127.0.0.1", atoi(argv[1]));
+		return open_remote(0, "127.0.0.1", atoi(argv[1]));
 	} else if (argc == 3) {
 		if (!digitstring(argv[2])) {
 			printf("Invalid port\n");
 			return help_rlogin(argc, argv);
 		}
-		return open_remote(argv[1], atoi(argv[2]));
+		return open_remote(0, argv[1], atoi(argv[2]));
 	}
 	
 	return help_rlogin(argc, argv);
@@ -1781,7 +1780,7 @@ int run_ver(int argc, char **argv)
 		"Welcome to Virtual PC Simulator, version %s\r\n"
 		"Dedicated to Daling.\r\n"
 		"Build time: %s %s\r\n"
-		"Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)\r\n"
+		"Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)\r\n"
 		"All rights reserved.\r\n\r\n"
 		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\r\n"
 		"Source code and license can be found at vpcs.sf.net.\r\n"

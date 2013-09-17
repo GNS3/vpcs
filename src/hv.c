@@ -40,7 +40,7 @@
 #include <sys/select.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <syslog.h>
+
 #include <libgen.h>
 #include <getopt.h>
 #include <pthread.h>
@@ -70,6 +70,7 @@
 #include "hv.h"
 #include "utils.h"
 #include "readline.h"
+#include "remote.h"
 
 //static const char *ver = "0.5a2";
 
@@ -81,6 +82,7 @@ static void* pty_slave(void *arg);
 static void clean(void);
 static int hypervisor(int port);
 extern int vpcs(int argc, char **argv);
+extern int help_rlogin(int argc, char **argv);
 
 static int run_vpcs(int ac, char **av);
 static int run_list(int ac, char **av);
@@ -88,7 +90,7 @@ static int run_quit(int ac, char **av);
 static int run_disconnect(int ac, char **av);
 static int run_stop(int ac, char **av);
 static int run_help(int ac, char **av);
-extern int run_remote(int ac, char **av);
+static int run_rlogin(int ac, char **av);
 extern void usage(void);
 
 static struct list vpcs_list[MAX_DAEMONS];
@@ -111,6 +113,8 @@ static cmdStub cmd_entry[] = {
 	{"help",       run_help},
 	{"list",       run_list},
 	{"quit",       run_quit},
+	{"rlogin",     run_rlogin},
+	{"telnet",     run_rlogin},
 	{"stop",       run_stop},
 	{"vpcs",       run_vpcs},
 	{NULL,         NULL}};
@@ -268,7 +272,7 @@ loop(void)
 {
 	struct sockaddr_in cli;
 	int slen;
-	u_char buf[128], *p;
+	u_char buf[256], *p;
 	int i;
 		
 	slen = sizeof(cli);
@@ -309,7 +313,13 @@ loop(void)
 	
 			if (i <= 0)
 				continue;
-
+			
+			if (*p == CTRLD) {
+				p = buf;
+				strcpy((char *)buf, "disconnect\n");
+				i = strlen((char *)buf);
+			}
+			
 			/* ignore pty error */
 			if (write(ptyfdm, p, i))
 				;
@@ -659,6 +669,31 @@ run_quit(int ac, char **av)
 }
 
 static int 
+run_rlogin(int argc, char **argv)
+{
+	if (!strcmp(argv[argc - 1], "?"))
+		return help_rlogin(argc, argv);
+
+	if (argc == 2) {
+		if (!digitstring(argv[1])) {
+			printf("Invalid port\n");
+			return help_rlogin(argc, argv);
+		}
+		pthread_mutex_unlock(&cmd_mtx);
+		return open_remote(ptyfds, "127.0.0.1", atoi(argv[1]));
+	} else if (argc == 3) {
+		if (!digitstring(argv[2])) {
+			printf("Invalid port\n");
+			return help_rlogin(argc, argv);
+		}
+		pthread_mutex_unlock(&cmd_mtx);
+		return open_remote(ptyfds, argv[1], atoi(argv[2]));
+	}
+	
+	return help_rlogin(argc, argv);
+}
+
+static int 
 run_stop(int ac, char **av)
 {
 	int i, j, k, found = 0;
@@ -705,6 +740,8 @@ run_help(int ac, char **av)
 		"disconnect            Exit the telnet session\r\n"
 		"quit [-f]             Stop vpcs processes and hypervisor\r\n"
 		"                        -f force quit without prompting\r\n"
+		"telnet [<ip>] <port>  Telnet to <port> at <ip> (def 127.0.0.1)\r\n"
+		"rlogin [<ip>] <port>  Same as telnet\r\n"
 		);
 	
 	return 0;

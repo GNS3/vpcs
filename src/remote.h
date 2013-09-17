@@ -27,7 +27,7 @@
 #ifndef _REMOTE_H_
 #define _REMOTE_H_
 
-int open_remote(const char *ip, const unsigned short port);
+int open_remote(int fdio, const char *ip, const unsigned short port);
 
 #endif
 
