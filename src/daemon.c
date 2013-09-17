@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -97,7 +97,9 @@ daemonize(int port, int bg)
 	signal(SIGHUP, SIG_IGN);
 	signal(SIGUSR1, &sig_usr1);
    	signal(SIGUSR2, &sig_usr2);
-   	
+   	signal(SIGCHLD, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
+	
    	/* open an tty as standard I/O for vpcs */
    	fdtty_pid = forkpty(&fdtty, NULL, NULL, NULL);
    	
@@ -170,7 +172,7 @@ daemon_proc(int sock, int fdtty)
 			
 			/* wait 100ms */
 			tv.tv_sec = 0;
-			tv.tv_usec = 10000; 
+			tv.tv_usec = 100000; 
 			i = select((fdtty > sock_cli) ? (fdtty+1) : (sock_cli+1),
 			    &set, NULL, NULL, &tv);
 			
@@ -200,6 +202,8 @@ daemon_proc(int sock, int fdtty)
 					break;
 			}
 		}
+		strcpy((char *)buf, "\r\nGood-bye\r\n");
+		write(sock_cli, buf, strlen((char *)buf));
 		close(sock_cli);
 	}
 }

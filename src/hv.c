@@ -72,9 +72,6 @@
 #include "readline.h"
 #include "remote.h"
 
-//static const char *ver = "0.5a2";
-
-//static void usage(void);
 static void set_telnet_mode(int s);
 static void loop(void);
 static void* pty_master(void *arg);
@@ -102,7 +99,6 @@ static int sock_cli = -1;
 static int cmd_quit = 0;
 static volatile int cmd_wait = 0;
 static pthread_t pid_master, pid_salve;
-static pthread_mutex_t cmd_mtx;
 static int hvport = 2000;
 static struct rls *rls = NULL;
 static char prgname[PATH_MAX];
@@ -153,13 +149,15 @@ hypervisor(int port)
 	int on = 1;
 	
 	setsid();
-#if 1		
+#if 1
 	if (daemon(1, 1)) {
 		perror("Daemonize fail");
 		goto ret;
 	}
 #endif	
 	signal(SIGCHLD, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
+
 	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
 	
 	if (openpty(&ptyfdm, &ptyfds, NULL, NULL, NULL)) {
@@ -228,8 +226,6 @@ pty_slave(void *arg)
 	int matched = 0;
 	
 	while (!cmd_quit) {
-		/* locked the mutex to keep socket waiting */
-		pthread_mutex_lock(&cmd_mtx);
 		cmd = readline("HV > " , rls);
 		
 		fprintf(fptys, "\r\n");
@@ -237,12 +233,12 @@ pty_slave(void *arg)
 		usleep(1);
 		
 		if (!cmd) 
-			goto unlock;
+			continue;
 
 		ttrim(cmd);
 		ac = mkargv(cmd, (char **)av, 20);
 		if (ac == 0) 
-			goto unlock;
+			continue;
 
 		for (ep = cmd_entry, matched = 0; ep->name != NULL; ep++) {
 			if(!strncmp(av[0], ep->name, strlen(av[0]))) {
@@ -255,13 +251,6 @@ pty_slave(void *arg)
 			ep->f(ac, av);
 		} else
 			ERR(fptys, "Invalid or incomplete command\r\n");
-
-unlock:
-		/* my job is done, unlock mutex
-		 * let socket do its job.
-		 */
-		pthread_mutex_unlock(&cmd_mtx);
-		usleep(5);
 	}
 
 	return NULL;
@@ -274,13 +263,17 @@ loop(void)
 	int slen;
 	u_char buf[256], *p;
 	int i;
+	fd_set set;
+	struct timeval tv;
 		
 	slen = sizeof(cli);
-	pthread_mutex_init(&cmd_mtx, NULL);
 	
+	
+			
 	while (cmd_quit != 2) {
 		cmd_quit = 0;
-		sock_cli = accept(sock, (struct sockaddr *) &cli, (socklen_t *)&slen);
+		sock_cli = accept(sock, (struct sockaddr *) &cli, 
+		    (socklen_t *)&slen);
 		if (sock_cli < 0) 
 			continue;
 		
@@ -288,49 +281,63 @@ loop(void)
 
 		pthread_create(&pid_master, NULL, pty_master, NULL);
 		pthread_create(&pid_salve, NULL, pty_slave, NULL);
-	
+
+		fcntl(0, F_SETFL, fcntl(sock_cli, F_GETFL) | O_NONBLOCK);
+
 		while (!cmd_quit) {
-			memset(buf, 0, sizeof(buf));
-			i = read(sock_cli, buf, sizeof(buf));
+			FD_ZERO(&set);
+			FD_SET(sock_cli, &set);
+			
+			/* wait 1s */
+			tv.tv_sec = 1;
+			tv.tv_usec = 0; 
+			i = select(sock_cli + 1, &set, NULL, NULL, &tv);
+			
+			/* error */
 			if (i < 0)
 				break;
+			/* time out */
 			if (i == 0)
 				continue;
-			p = buf;
-
-			/* skip telnet IAC... */
-			if (*p == 0xff)
-				while (*p && !isprint(*p))
-					p++;
-
-			if (*p == '\0')
-				continue;
-
-			i = i - (p - buf);
-
-			while (i > 0 && *(p + i - 1) == '\0')
-				i--;
-	
-			if (i <= 0)
-				continue;
 			
-			if (*p == CTRLD) {
+			if (FD_ISSET(sock_cli, &set)) {	    
+				memset(buf, 0, sizeof(buf));
+				i = read(sock_cli, buf, sizeof(buf));
+				if (i < 0)
+					break;
+				if (i == 0)
+					continue;
 				p = buf;
-				strcpy((char *)buf, "disconnect\n");
-				i = strlen((char *)buf);
-			}
-			
-			/* ignore pty error */
-			if (write(ptyfdm, p, i))
-				;
-			
-			/* if 'Enter' was pressed, 
-			 * wait command interpreter to finish its job,
-			 *    then check 'cmd_quit'
-			 */
-			if (p[i - 1] == '\n' || p[i - 1] == '\r') {
-				pthread_mutex_lock(&cmd_mtx);
-				pthread_mutex_unlock(&cmd_mtx);
+	
+				/* skip telnet IAC... */
+				if (*p == 0xff)
+					while (*p && !isprint(*p))
+						p++;
+	
+				if (*p == '\0')
+					continue;
+	
+				i = i - (p - buf);
+	
+				while (i > 0 && *(p + i - 1) == '\0')
+					i--;
+		
+				if (i <= 0)
+					continue;
+				
+				if (*p == CTRLD) {
+					p = buf;
+					strcpy((char *)buf, "disconnect\n");
+					i = strlen((char *)buf);
+					write(ptyfdm, p, i);
+					usleep(100);
+					strcpy((char *)buf, "\n");
+					i = strlen((char *)buf);					
+				}
+				
+				/* ignore pty error */
+				if (write(ptyfdm, p, i))
+					;
 			}
 		}
 		
@@ -339,7 +346,6 @@ loop(void)
 		
 		close(sock_cli);
 	}
-	pthread_mutex_destroy(&cmd_mtx);
 }
 
 static void 
@@ -617,7 +623,7 @@ static int
 run_disconnect(int ac, char **av)
 {
 	cmd_quit = 1;
-
+	
 	return 0;
 }
 
@@ -627,7 +633,7 @@ run_quit(int ac, char **av)
 	int i;
 	char ans[8];
 	char *warning_quit = 
-		"Warning: There are active VPCS sessions.\r\n"
+		"Warning: there are active VPCS sessions.\r\n"
 		"Are you sure you want to quit and terminate these sessions(y/N)? ";
 
 	if (ac == 1) {
@@ -679,14 +685,12 @@ run_rlogin(int argc, char **argv)
 			printf("Invalid port\n");
 			return help_rlogin(argc, argv);
 		}
-		pthread_mutex_unlock(&cmd_mtx);
 		return open_remote(ptyfds, "127.0.0.1", atoi(argv[1]));
 	} else if (argc == 3) {
 		if (!digitstring(argv[2])) {
 			printf("Invalid port\n");
 			return help_rlogin(argc, argv);
 		}
-		pthread_mutex_unlock(&cmd_mtx);
 		return open_remote(ptyfds, argv[1], atoi(argv[2]));
 	}
 	

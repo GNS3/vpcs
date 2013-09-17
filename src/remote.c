@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -51,9 +51,7 @@ int open_remote(int fdio, const char *destip, const u_short destport)
 	char kb[512];
 	u_char outbuf[512];
 	int rc;
-	/* char *neg = "\xFF\xFB\x18\xFF\xFD\x01\xFF\xFD\x03"; */
 	int i;
-	int flags;
 	struct timeval tv;
 	fd_set fset;
 	static FILE *fpio;
@@ -74,24 +72,15 @@ int open_remote(int fdio, const char *destip, const u_short destport)
 	addr_in.sin_addr.s_addr = inet_addr(destip);
 	addr_in.sin_port = htons(destport);
 	
-	flags = fcntl(s, F_GETFL, NULL);
-	fcntl(s, F_SETFL, O_NONBLOCK);
-	
-	tv.tv_sec = 5;
-	tv.tv_usec = 0;
-	
 	fpio = fdopen(fdio, "w");
-	fprintf(fpio, "\r\nConnect %s:%d, press Ctrl+X to quit\r\n", 
-	    destip, destport);
-	fprintf(fpio,   "NOTES: You will be back to the starting point, "
-	    "NOT THE LAST, \r\n       if using Ctrl+X to quit.\r\n");
-	fflush(fpio);
-			
+	
 	rc = connect(s, (struct sockaddr*)&addr_in, sizeof(struct sockaddr));
 	if (rc < 0) {
 		if (errno == EINPROGRESS) {
 			FD_ZERO(&fset);
 			FD_SET(s, &fset);
+			tv.tv_sec = 5;
+			tv.tv_usec = 0;
 			rc = select(s + 1, &fset, NULL, NULL, &tv);
 			
 			if (rc > 0 && FD_ISSET(s, &fset)) {
@@ -116,52 +105,85 @@ int open_remote(int fdio, const char *destip, const u_short destport)
 			return 1;
 		}
 	}
-next:
-	flags = fcntl(fdio, F_GETFL);
-	fcntl(fdio, F_SETFL, O_NONBLOCK);
 	
+next:
 	set_terminal(fdio, &termios);
 	
-	usleep(10);
+	fprintf(fpio, "\r\nConnect %s:%d, press Ctrl+X to quit\r\n", 
+	    destip, destport);
+	fprintf(fpio,
+	    "NOTES: you will be back to the starting point, NOT THE LAST, \r\n"
+	    "       if using Ctrl+X to quit.\r\n");
+	fflush(fpio);
+				
+	while (1) {
+		/* check socket */
+		kb[0] = 0xff;
+		if (write(s, kb, 1) < 0)
+			break;
+					
+		FD_ZERO(&fset);
+		FD_SET(s, &fset);
+		FD_SET(fdio, &fset);
+		tv.tv_sec = 5;
+		tv.tv_usec = 0;
+		rc = select((fdio > s) ? (fdio + 1) : (s + 1), &fset, NULL, NULL, &tv);
+		if (rc < 0)
+			break;
+		if (rc == 0)
+			continue;
+
+		if (FD_ISSET(s, &fset)) {
+			rc = read(s, outbuf, sizeof(outbuf));
+			if (rc < 0) 
+				break;
+			if (rc > 0) {
+				i = 0;
+				/* discard IAC */
+				while (outbuf[i] == 0xff && i < rc) 
+					i += 3;
+				if (i < rc) {
+					rc = write(fdio, outbuf + i, rc - i);
+					if (rc < 0) 
+						break;
+				 }
+			}
+		}
+
+		if (FD_ISSET(fdio, &fset)) {
+			rc = read(fdio, kb, sizeof(kb));
+			if (rc < 0) 
+				break;
+
+			if (kb[0] == CTRLX)
+				break;
+			
+			/* my buddy likes '\r' */
+			if (kb[0] == LF) {
+				rc = write(s, "\r", 1);
+				if (rc < 0) 
+					break;
+				continue;
+			}
 	
-   	while (1) {
-   		rc = read(s, outbuf, sizeof(outbuf));
-   		if (rc > 0) {
-   			i = 0;
-   			/* discard IAC */
-   			while (outbuf[i] == 0xff && i < rc) 
-   				i += 3;
-   			if (i < rc)
-   				rc = write(fdio, outbuf + i, rc - i);
-   			
-   		} else if (rc < 0 && errno != EAGAIN) 
-   			break;
-
-   		rc = read(fdio, kb, sizeof(kb));
-		if (rc <= 0) {
-			usleep(1);
-			continue;
-		}
-
-		if (kb[0] == CTRLX)
-			break;
-		
-		/* my buddy likes '\r' */
-		if (kb[0] == LF) {
-			rc = write(s, "\r", 1);
-			continue;
-		}
-		rc = write(s, kb, rc);
-		if (rc < 0 && errno != EAGAIN)
-			break;
+			if (rc > 0) {
+				rc = write(s, kb, rc);
+				if (rc < 0) 
+					break;
+			}
+		}	
 	}
 	close(s);
 	
+	fprintf(fpio, "\r\nDisconnected from %s:%d\r\n", 
+	    destip, destport);
+	fflush(fpio);
+	
+	
+	
 	reset_terminal(fdio, &termios);
-	
-	fcntl(fdio, F_SETFL, flags);
-	
-	return 1;
+
+	return 0;
 }
 
 /* end of file */
