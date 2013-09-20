@@ -1,5 +1,5 @@
 RM=rm -f
-CC=gcc
+CC=gcc $(CCOPT)
 OSTYPE=Linux
 CPUTYPE=i386
 OPT=-O2
