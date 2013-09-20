@@ -1,5 +1,5 @@
 
-    欢迎使用 VPCS, 最新版本为 0.4b2.
+    欢迎使用 VPCS, 最新版本为 0.5b0.
 
     VPCS 是免费软件，遵从 BSD 许可的条款分发。
     源代码和许可协议条款可以从 vpcs.sf.net 获取到。
@@ -40,6 +40,9 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
        -c port    remote udp base port (dynamips udp port), default from 30000
        -t ip      remote host IP, default 127.0.0.1
    
+   hypervisor mode option:
+    -H port    run as the hypervisor listening on the tcp 'port'
+    
      If no 'scriptfile' specified, vpcs will read and execute the file named
      'startup.vpc' if it exsits in the current directory.
 
@@ -53,6 +56,8 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 站点：http://wiki.freecode.com.cn 或 http://mirnshi.cublog.cn
 
 历史版本：
+   0.5b0   支持hypervisor
+   
    0.4b2   支持DNS
            支持数据包协议输出显示
            支持远程登录其他设备，热键返回

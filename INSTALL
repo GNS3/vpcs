@@ -1,11 +1,8 @@
-Linux:
-$ cd src
-$ make -f Makefile.linux
+run src/mk.sh to compile
 
-Windows:
-$ cd src
-$ make -f Makefile.cygwin
+Options:
+ [i386 | amd64 | 32 | 64] [clean]
 
-OSX
-$ cd src
-$ make -f Makefile.osx
+ i386 or 32, generate code for 32bit
+ amd64 or 64, generate code for 64bit
+

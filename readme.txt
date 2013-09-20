@@ -1,5 +1,5 @@
 
-   Welcome to Virtual PC Simulator, Ver 0.4b2.
+   Welcome to Virtual PC Simulator, Ver 0.5b0.
    
    VPCS is free software, distributed under the terms of the "BSD" licence.
    Source code and license can be found at vpcs.sf.net.
@@ -43,7 +43,10 @@ The line started with '#' or '!' will be discarded.
        -s port    local udp base port, default from 20000
        -c port    remote udp base port (dynamips udp port), default from 30000
        -t ip      remote host IP, default 127.0.0.1
-   
+
+   hypervisor mode option:
+    -H port    run as the hypervisor listening on the tcp 'port'
+
      If no 'scriptfile' specified, vpcs will read and execute the file named
      'startup.vpc' if it exsits in the current directory.
 
@@ -56,6 +59,8 @@ The line started with '#' or '!' will be discarded.
 Website: http://wiki.freecode.com.cn or http://mirnshi.cublog.cn
    
 History:
+   0.5b0   support hypervisor mode
+           
    0.4b2   support DNS
            support 'dump' packets
            add 'rlogin' command to connect the remote host
