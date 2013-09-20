@@ -51,7 +51,7 @@
 #include "dump.h"
 #include "relay.h"
 
-const char *ver = "0.5a3";
+const char *ver = "0.5b0";
 /* track the binary */
 static const char *ident = "$Id$";
 

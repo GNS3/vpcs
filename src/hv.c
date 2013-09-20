@@ -329,7 +329,7 @@ loop(void)
 					p = buf;
 					strcpy((char *)buf, "disconnect\n");
 					i = strlen((char *)buf);
-					write(ptyfdm, p, i);
+					i = write(ptyfdm, p, i);
 					usleep(100);
 					strcpy((char *)buf, "\n");
 					i = strlen((char *)buf);					
@@ -643,13 +643,13 @@ run_quit(int ac, char **av)
 		}
 		/* There are active VPCS sessions */
 		if (i < MAX_DAEMONS) {
-			write(sock_cli, warning_quit, strlen(warning_quit));
+			i = write(sock_cli, warning_quit, strlen(warning_quit));
 			memset(ans, 0, sizeof(ans));
 			i = read(sock_cli, ans, sizeof(ans));
 			if (i <= 0)
 				return 0;
-			write(sock_cli, ans, strlen(ans));
-			write(sock_cli, "\r\n", 2);
+			i = write(sock_cli, ans, strlen(ans));
+			i = write(sock_cli, "\r\n", 2);
 			if (strcmp(ans, "y") && strcmp(ans, "Y"))
 				return 0;
 		}

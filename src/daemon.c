@@ -203,7 +203,7 @@ daemon_proc(int sock, int fdtty)
 			}
 		}
 		strcpy((char *)buf, "\r\nGood-bye\r\n");
-		write(sock_cli, buf, strlen((char *)buf));
+		i = write(sock_cli, buf, strlen((char *)buf));
 		close(sock_cli);
 	}
 }
