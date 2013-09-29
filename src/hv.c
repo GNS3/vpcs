@@ -78,6 +78,7 @@ static void* pty_master(void *arg);
 static void* pty_slave(void *arg);
 static void clean(void);
 static int hypervisor(int port);
+static char *getpath(const char *name);
 extern int vpcs(int argc, char **argv);
 extern int help_rlogin(int argc, char **argv);
 
@@ -130,7 +131,7 @@ main(int argc, char **argv, char** envp)
 		/* using windows native API to get 'real' path */
 		if (GetModuleFileName(NULL, prgname, PATH_MAX) == 0) {
 #else			
-		if (!realpath(argv[0], prgname)) {
+		if (!getpath(argv[0])) {
 #endif
 		    	printf("Can not get file path\n");
 		    	return 1;
@@ -731,6 +732,69 @@ run_stop(int ac, char **av)
 		ERR(fptys, "VPCS id %s does not exist\r\n", av[1]);
 		
 	return 0;
+}
+
+static int
+is_there(char *candidate)
+{
+	struct stat fin;
+
+	/* XXX work around access(2) false positives for superuser */
+	if (access(candidate, X_OK) == 0 &&
+	    stat(candidate, &fin) == 0 &&
+	    S_ISREG(fin.st_mode) &&
+	    (getuid() != 0 ||
+	    (fin.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) != 0)) {
+		return (1);
+	}
+	return (0);
+}
+
+
+static char *
+getpath(const char *name)
+{
+	char *pathenv = NULL, *env;
+	const char *d;
+	int found;
+	char rpath[PATH_MAX];
+	
+	if (strchr(name, '/') != NULL) {
+		strcpy(rpath, name);
+		if (is_there(rpath)) {
+			found = 1;
+			goto ret;
+		} else
+			return NULL;
+	}
+
+	if (getenv("PATH") == NULL)
+		return NULL;
+	
+	pathenv = strdup(getenv("PATH"));
+	if (pathenv == NULL)
+		return NULL;
+
+	found = 0;
+	env = pathenv;
+	while ((d = strsep(&env, ":")) != NULL) {
+		if (*d == '\0')
+			d = ".";
+		if (snprintf(rpath, sizeof(rpath), "%s/%s", d, name) >= 
+		    (int)sizeof(rpath))
+			continue;
+		if (is_there(rpath)) {
+			found = 1;
+			break;
+		}
+	}
+
+	free(pathenv);
+ret:	
+	if (found) {
+		return realpath(rpath, prgname);
+	} else
+		return NULL;
 }
 
 static int 
