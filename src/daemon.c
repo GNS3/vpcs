@@ -51,7 +51,7 @@
 
 #ifdef Darwin
 #include <util.h>
-#elif Linux
+#elif Linux || GNUkFreeBSD
 #include <pty.h>
 #elif FreeBSD
 #include <libutil.h>

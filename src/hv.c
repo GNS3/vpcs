@@ -55,7 +55,7 @@
 
 #ifdef Darwin
 #include <util.h>
-#elif Linux
+#elif Linux || GNUkFreeBSD
 #include <pty.h>
 #elif FreeBSD
 #include <libutil.h>
@@ -156,15 +156,16 @@ hypervisor(int port)
 		goto ret;
 	}
 #endif	
-	signal(SIGCHLD, SIG_IGN);
-	signal(SIGPIPE, SIG_IGN);
-
 	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
 	
 	if (openpty(&ptyfdm, &ptyfds, NULL, NULL, NULL)) {
 		perror("Create pseudo-terminal");
 		goto ret;
 	}
+
+	signal(SIGCHLD, SIG_IGN);
+	signal(SIGPIPE, SIG_IGN);
+
 	fptys = fdopen(ptyfds, "w");
 	
 	rls = readline_init(50, 128);
@@ -390,7 +391,7 @@ run_vpcs(int ac, char **av)
 	
 	/* reinitialized, maybe call getopt twice */
 	optind = 1;
-#if (defined(FreeBSD) || defined(Darwin))
+#if ((!defined(GNUkFreeBSD) && defined(FreeBSD)) || defined(Darwin))
 	optreset = 1;
 #endif	
 	while ((c = getopt(ac, av, "p:m:s:c:")) != -1) {
