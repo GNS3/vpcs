@@ -195,8 +195,8 @@ int help_rlogin(int argc, char **argv)
 
 int help_save(int argc, char **argv)
 {
-	printf( "\n\033[1msave <filename>\033[0m\n"
-		"  Save the configuration to the file <filename>.\n");
+	printf( "\n\033[1msave [filename]\033[0m\n"
+		"  Save the configuration to the file 'filename'. (default startup.vpc)\n");
 
 	return 1;
 }

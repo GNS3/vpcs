@@ -62,6 +62,7 @@ extern const char *ver;
 extern struct rls *rls;
 extern int runLoad;
 extern int runStartup;
+extern const char *default_startupfile;
 
 static int set_dump(int argc, char **argv);
 static int show_dump(int argc, char **argv);
@@ -1861,51 +1862,67 @@ int run_save(int argc, char **argv)
 	u_int local_ip;
 	struct in_addr in;
 	char fname[PATH_MAX];
+	char tmpbuf[4096];
+	int off;
 
-	if (argc != 2 || !strcmp(argv[1], "?")) {
+	if (argc == 1)
+		strcpy(fname, default_startupfile);
+	else if (argc == 2 && strcmp(argv[1], "?")) {
+		if (strlen(argv[1]) > PATH_MAX - 5) {
+			printf("%s is too long\n", argv[1]);
+			return 1;
+		}
+	
+		memset(fname, 0, PATH_MAX);
+		strncpy(fname, argv[1], PATH_MAX - 1);
+		if (!strrchr(fname, '.'))
+			strcat(fname, ".vpc");
+	} else
 		return help_save(argc, argv);
-	}
-	if (strlen(argv[1]) > PATH_MAX - 5) {
-		printf("%s is too long\n", argv[1]);
-		return 1;
-	}
-	
-	memset(fname, 0, PATH_MAX);
-	strncpy(fname, argv[1], PATH_MAX - 1);
-	if (!strrchr(fname, '.'))
-		strcat(fname, ".vpc");
-	
+
 	fp = fopen(fname, "w");
 	if (fp != NULL) {
 		local_ip = inet_addr("127.0.0.1");
 		for (i = 0; i < NUM_PTHS; i++) {
-			fprintf(fp, "%d\n", i + 1);
-			
+			off = 0;
 			sprintf(buf, "VPCS[%d]", i + 1);
 			if (strncmp(vpc[i].xname, buf, 3)) 
-				fprintf(fp, "set pcname %s\n", vpc[i].xname);
+				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				    "set pcname %s\n", vpc[i].xname);
 			
-			if (vpc[i].lport != (20000 + i)) 
-				fprintf(fp, "set lport %d\n", vpc[i].lport);
+			if (vpc[i].lport != (20000 + i))
+				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				    "set lport %d\n", vpc[i].lport);
 				
-			if (vpc[i].rport != (30000 + i)) 
-				fprintf(fp, "set rport %d\n", vpc[i].rport);
+			if (vpc[i].rport != (30000 + i))
+				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				    "set rport %d\n", vpc[i].rport);
+
 			if (vpc[i].rhost != local_ip) {
 				in.s_addr = vpc[i].rhost;
-				fprintf(fp, "set rhost %s\n", inet_ntoa(in));
+				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				    "set rhost %s\n", inet_ntoa(in));
 			}
 			if (vpc[i].ip4.dynip == 1) 
-				fputs("dhcp\n", fp);
+				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				    "dhcp\n");
 			else {
 				p = (char *)ip4Info(i);
-				if (p != NULL) 
-					fprintf(fp, "%s\n", p); 
+				if (p != NULL)
+					off += snprintf(tmpbuf, 
+					    sizeof(tmpbuf) - off, "%s\n", p);
 				p = (char *)ip6Info(i);
 				if (p != NULL) 
-					fprintf(fp, "%s\n", p);
+					off += snprintf(tmpbuf, 
+					    sizeof(tmpbuf) - off, "%s\n", p);
 			}
 			if (vpc[i].ip6auto == 1)
-				fputs("ip auto\n", fp);
+				off += snprintf(tmpbuf, sizeof(tmpbuf) - off,
+				    "ip auto\n");
+			if (off > 0) {
+				fprintf(fp, "%d\n", i + 1);
+				fprintf(fp, "%s", tmpbuf);
+			}
 			printf(".");
 		}
 		fprintf(fp, "1\n");
