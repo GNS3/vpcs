@@ -51,7 +51,7 @@
 #include "dump.h"
 #include "relay.h"
 
-const char *ver = "0.5b1";
+const char *ver = "0.5b2";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -298,6 +298,7 @@ void parse_cmd(char *cmdstr)
 			if (p != NULL)
 				printf("%s", p + 1);
 		}
+		fflush(stdout);
 		return;
 	}
 	

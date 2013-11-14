@@ -27,6 +27,7 @@
 #ifndef _TCP_H_
 #define _TCP_H_
 
+#define TCP_TIMEOUT 60 /* seconds */
 int tcp_open(int ipv);
 int tcp_send(int ipv);
 int tcp_close(int ipv);

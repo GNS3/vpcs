@@ -501,10 +501,9 @@ int tcp(pcs *pc, struct packet *m)
 	 * 4. mscb.proto is TCP
 	 */
 	if (pc->mscb.sock && ntohs(ti->ti_dport) == pc->mscb.sport && 
-		ip->sip == pc->mscb.dip && pc->mscb.proto == ip->proto) {
-		
+	    ip->sip == pc->mscb.dip && pc->mscb.proto == ip->proto) {
 		/* mscb is actived, up to the upper application */
-		if (time_tick - pc->mscb.timeout <= 120)
+		if (time_tick - pc->mscb.timeout <= TCP_TIMEOUT)
 			return PKT_UP;
 
 		/* not mine, reset the request */
@@ -530,14 +529,14 @@ int tcp(pcs *pc, struct packet *m)
 	/* request process
 	 * find control block 
 	 */
-	for (i = 0; i < NUM_PTHS; i++) {
+	for (i = 0; i < MAX_SESSIONS; i++) {
 		if (ti->ti_flags == TH_SYN) {
 			if (pc->sesscb[i].timeout == 0 || 
-				(ip->sip == pc->sesscb[i].sip && 
-				 ip->dip == pc->sesscb[i].dip &&
-				 ti->ti_sport == pc->sesscb[i].sport &&
-				 ti->ti_dport == pc->sesscb[i].dport)) {
-				
+			    time_tick - pc->sesscb[i].timeout > TCP_TIMEOUT ||
+			    (ip->sip == pc->sesscb[i].sip && 
+			     ip->dip == pc->sesscb[i].dip &&
+			     ti->ti_sport == pc->sesscb[i].sport &&
+			     ti->ti_dport == pc->sesscb[i].dport)) {
 				/* get new scb */
 				cb = &pc->sesscb[i];
 				cb->timeout = time_tick;
@@ -550,12 +549,12 @@ int tcp(pcs *pc, struct packet *m)
 				break;
 			}
 		} else {
-			if ((time_tick - pc->sesscb[i].timeout <= 120) && 
-				 ip->sip == pc->sesscb[i].sip && 
-				 ip->dip == pc->sesscb[i].dip &&
-				 ti->ti_sport == pc->sesscb[i].sport &&
-				 ti->ti_dport == pc->sesscb[i].dport) {
-				
+			if ((time_tick - 
+			    pc->sesscb[i].timeout <= TCP_TIMEOUT) && 
+			    ip->sip == pc->sesscb[i].sip && 
+			    ip->dip == pc->sesscb[i].dip &&
+			    ti->ti_sport == pc->sesscb[i].sport &&
+			    ti->ti_dport == pc->sesscb[i].dport) {
 				/* get the scb */
 				cb = &pc->sesscb[i];
 				break;
@@ -675,9 +674,10 @@ int tcp6(pcs *pc, struct packet *m)
 	 * 4. mscb.proto is TCP
 	 */
 	if (pc->mscb.sock && ntohs(th->th_sport) == pc->mscb.sport && 
-		IP6EQ(&(pc->mscb.dip6), &(ip->src)) && pc->mscb.proto == ip->ip6_nxt) {
+	    IP6EQ(&(pc->mscb.dip6), &(ip->src)) && 
+	    pc->mscb.proto == ip->ip6_nxt) {
 		/* mscb is actived, up to the upper application */
-		if (time_tick - pc->mscb.timeout <= 120)
+		if (time_tick - pc->mscb.timeout <= TCP_TIMEOUT)
 			return PKT_UP;
 
 		/* not mine, reset the request*/
@@ -704,7 +704,7 @@ int tcp6(pcs *pc, struct packet *m)
 	/* request process
 	 * find control block 
 	 */
-	for (i = 0; i < NUM_PTHS; i++) {
+	for (i = 0; i < MAX_SESSIONS; i++) {
 		if (th->th_flags == TH_SYN) {
 			if (pc->sesscb[i].timeout == 0 || 
 				(IP6EQ(&(pc->sesscb[i].sip6), &(ip->src)) && 
@@ -723,11 +723,12 @@ int tcp6(pcs *pc, struct packet *m)
 				break;
 			}
 		} else {
-			if ((time_tick - pc->sesscb[i].timeout <= 120) && 
-				 IP6EQ(&(pc->sesscb[i].sip6), &(ip->src)) && 
-				 IP6EQ(&(pc->sesscb[i].dip6), &(ip->dst)) &&
-				 th->th_sport == pc->sesscb[i].sport &&
-				 th->th_dport == pc->sesscb[i].dport) {
+			if ((time_tick - 
+			    pc->sesscb[i].timeout <= TCP_TIMEOUT) && 
+			    IP6EQ(&(pc->sesscb[i].sip6), &(ip->src)) && 
+			    IP6EQ(&(pc->sesscb[i].dip6), &(ip->dst)) &&
+			    th->th_sport == pc->sesscb[i].sport &&
+			    th->th_dport == pc->sesscb[i].dport) {
 				/* get the scb */
 				cb = &pc->sesscb[i];
 				break;
