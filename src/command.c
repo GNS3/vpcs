@@ -1880,6 +1880,7 @@ int run_save(int argc, char **argv)
 	} else
 		return help_save(argc, argv);
 
+	printf("Saving %s ", fname);
 	fp = fopen(fname, "w");
 	if (fp != NULL) {
 		local_ip = inet_addr("127.0.0.1");
@@ -1887,37 +1888,44 @@ int run_save(int argc, char **argv)
 			off = 0;
 			sprintf(buf, "VPCS[%d]", i + 1);
 			if (strncmp(vpc[i].xname, buf, 3)) 
-				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				off += snprintf(tmpbuf + off, 
+				    sizeof(tmpbuf) - off, 
 				    "set pcname %s\n", vpc[i].xname);
 			
 			if (vpc[i].lport != (20000 + i))
-				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				off += snprintf(tmpbuf + off, 
+				    sizeof(tmpbuf) - off, 
 				    "set lport %d\n", vpc[i].lport);
-				
+
 			if (vpc[i].rport != (30000 + i))
-				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				off += snprintf(tmpbuf + off, 
+				    sizeof(tmpbuf) - off, 
 				    "set rport %d\n", vpc[i].rport);
 
 			if (vpc[i].rhost != local_ip) {
 				in.s_addr = vpc[i].rhost;
-				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				off += snprintf(tmpbuf + off, 
+				    sizeof(tmpbuf) - off, 
 				    "set rhost %s\n", inet_ntoa(in));
 			}
+
 			if (vpc[i].ip4.dynip == 1) 
-				off += snprintf(tmpbuf, sizeof(tmpbuf) - off, 
+				off += snprintf(tmpbuf + off, 
+				    sizeof(tmpbuf) - off, 
 				    "dhcp\n");
 			else {
 				p = (char *)ip4Info(i);
 				if (p != NULL)
-					off += snprintf(tmpbuf, 
+					off += snprintf(tmpbuf + off, 
 					    sizeof(tmpbuf) - off, "%s\n", p);
 				p = (char *)ip6Info(i);
 				if (p != NULL) 
-					off += snprintf(tmpbuf, 
+					off += snprintf(tmpbuf + off, 
 					    sizeof(tmpbuf) - off, "%s\n", p);
 			}
 			if (vpc[i].ip6auto == 1)
-				off += snprintf(tmpbuf, sizeof(tmpbuf) - off,
+				off += snprintf(tmpbuf + off, 
+				    sizeof(tmpbuf) - off, 
 				    "ip auto\n");
 			if (off > 0) {
 				fprintf(fp, "%d\n", i + 1);
@@ -1929,7 +1937,7 @@ int run_save(int argc, char **argv)
 		fclose(fp);
 		printf("  done\n");
 	} else
-		printf("Can not write %s\n", argv[1]);
+		printf("failed: %s\n", strerror(errno));
 	return 1;
 }
 

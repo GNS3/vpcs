@@ -40,7 +40,7 @@ static struct packet *arp(pcs *pc, u_int dip);
 
 static struct packet *udpReply(struct packet *m0);
 static struct packet *icmpReply(struct packet *m0, char icmptype);
-
+static void save_eaddr(pcs *pc, u_int addr, u_char *mac);
 extern int upv6(pcs *pc, struct packet *m);
 extern int tcp(pcs *pc, struct packet *m);
 
@@ -56,7 +56,6 @@ extern u_int time_tick;
 int upv4(pcs *pc, struct packet *m)
 {
 	ethdr *eh = (ethdr *)(m->data);
-	int i;
 	u_int *si, *di;
 	
 	if (eh->type == htons(ETHERTYPE_IPV6))
@@ -128,45 +127,31 @@ int upv4(pcs *pc, struct packet *m)
 		di = (u_int *)ah->dip;
 			
 		/* arp reply */
-		if (ah->op == htons(ARPOP_REQUEST)) {
-			
-			if (di[0] == pc->ip4.ip) {
-				ah->op = htons(ARPOP_REPLY);
-				memcpy(ah->dea, ah->sea, ETH_ALEN);
-				memcpy(ah->sea, pc->ip4.mac, ETH_ALEN);
+		if (ah->op == htons(ARPOP_REQUEST) && 
+		    di[0] == pc->ip4.ip) {
+			save_eaddr(pc, si[0], ah->sea);
+				
+			ah->op = htons(ARPOP_REPLY);
+			memcpy(ah->dea, ah->sea, ETH_ALEN);
+			memcpy(ah->sea, pc->ip4.mac, ETH_ALEN);
 					
-				di[0] = si[0];
-				si[0] = pc->ip4.ip;
+			di[0] = si[0];
+			si[0] = pc->ip4.ip;
 					
-				encap_ehead(m->data, pc->ip4.mac, eh->src, ETHERTYPE_ARP);
+			encap_ehead(m->data, pc->ip4.mac, eh->src, 
+			    ETHERTYPE_ARP);
 	
-				enq(&pc->oq, m);
-	
-				return PKT_ENQ;
-			}			
+			enq(&pc->oq, m);
+				
+			return PKT_ENQ;
 		} else if (ah->op == htons(ARPOP_REPLY) && 	
 		    sameNet(di[0], pc->ip4.ip, pc->ip4.cidr)) {
-			/* save the source ip/mac */	
-			i = 0;
-			while (i < ARP_SIZE) {
-				if (time_tick - pc->ipmac4[i].timeout <= 120 &&
-					pc->ipmac4[i].ip == si[0]) {
-					pc->ipmac4[i].timeout = time_tick;
-					break;
-				}
-				if (pc->ipmac4[i].timeout == 0 || 
-				    time_tick - pc->ipmac4[i].timeout > 120) {
-					pc->ipmac4[i].ip = si[0];
-					memcpy(pc->ipmac4[i].mac, eh->src, ETH_ALEN);
-					pc->ipmac4[i].timeout = time_tick;
-					break;
-				}
-				i++;
-			}
+		    	save_eaddr(pc, si[0], ah->sea);
 		}
 		
 		return PKT_DROP;
-	} else if (strncmp((const char *)eh->dst, (const char *)pc->ip4.mac, ETH_ALEN) != 0)
+	} else if (strncmp((const char *)eh->dst, (const char *)pc->ip4.mac, 
+	    ETH_ALEN) != 0)
 		return PKT_DROP;
 	
 	return PKT_UP;
@@ -653,6 +638,32 @@ struct packet *icmpReply(struct packet *m0, char icmptype)
 	}
 	
 	return NULL;
+}
+
+static void 
+save_eaddr(pcs *pc, u_int addr, u_char *mac)
+{
+	int i;
+	
+	if (!sameNet(addr, pc->ip4.ip, pc->ip4.cidr))
+		return;
+	
+	i = 0;
+	while (i < ARP_SIZE) {
+		if (time_tick - pc->ipmac4[i].timeout <= 120 &&
+			pc->ipmac4[i].ip == addr) {
+			pc->ipmac4[i].timeout = time_tick;
+			break;
+		}
+		if (pc->ipmac4[i].timeout == 0 || 
+		    time_tick - pc->ipmac4[i].timeout > 120) {
+			pc->ipmac4[i].ip = addr;
+			memcpy(pc->ipmac4[i].mac, mac, ETH_ALEN);
+			pc->ipmac4[i].timeout = time_tick;
+			break;
+		}
+		i++;
+	}
 }
 
 #if 0
