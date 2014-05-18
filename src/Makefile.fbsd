@@ -1,0 +1,47 @@
+RM=rm -f
+CC=gcc $(CCOPT)
+OSTYPE=FreeBSD
+CPUTYPE=i386
+OPT=-Wall 
+HVOPT=-DHV
+
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) $(HVOPT) $(DBGOPT) -I. 
+LDFLAGS=-lpthread -lutil -static $(STRIP)
+OBJS=vpcs.o \
+	daemon.o \
+	readline.o \
+	packets.o \
+	utils.o \
+	queue.o \
+	command.o \
+	dev.o \
+	dhcp.o \
+	command6.o \
+	packets6.o \
+	ip.o \
+	tcp.o \
+	inet6.o \
+	dns.o \
+	remote.o \
+	help.o \
+	dump.o \
+	relay.o \
+	hv.o
+
+all: vpcs
+
+vpcs: $(OBJS)
+	$(CC) $(.ALLSRC) -o $(.TARGET) $(LDFLAGS) 
+
+.c.o: vpcs.h packets.h dhcp.h
+	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
+
+clean:
+	$(RM) *.o vpcs
+
+.if make(debug)
+  DBGOPT=-DDEBUG -g
+.else
+  DBGOPT=-O2
+  STRIP=-s
+.endif
