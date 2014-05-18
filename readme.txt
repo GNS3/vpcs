@@ -64,7 +64,7 @@ Website: http://wiki.freecode.com.cn or http://mirnshi.cublog.cn
    
 History:
    
-   05b1    support for a specified number of vpc instances (between 1 and 9)
+   0.5b1    support for a specified number of vpc instances (between 1 and 9)
            support for TAP device name (only with 1 VPC instance)
 
    0.5b0   support hypervisor mode
