@@ -30,6 +30,7 @@
 #include <unistd.h>
 #include <errno.h>
 
+#include "globle.h"
 #include "vpcs.h"
 #include "dev.h"
 #include "relay.h"
@@ -272,7 +273,7 @@ void *pth_relay(void *dummy)
 	socklen_t size;
 	struct peerlist *peerhost;
 		
-	relay_port = vpc[0].lport + 9;
+	relay_port = vpc[0].lport + MAX_NUM_PTHS;
 	relay_fd = open_udp(relay_port);
 	if (relay_fd <= 0)
 		relay_fd = 0;

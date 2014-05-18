@@ -62,6 +62,7 @@ extern const char *ver;
 extern struct rls *rls;
 extern int runLoad;
 extern int runStartup;
+extern int num_pths;
 
 static int set_dump(int argc, char **argv);
 static int show_dump(int argc, char **argv);
@@ -127,7 +128,7 @@ int run_show(int argc, char **argv)
 			j = sprintf(buf + 64, "GATEWAY");
 			printf("%s\n", buf);
 
-			for (i = 0; i < NUM_PTHS; i++) {
+			for (i = 0; i < num_pths; i++) {
 				memset(buf, 0, sizeof(buf));
 				memset(buf, ' ', sizeof(buf) - 1);
 				
@@ -165,7 +166,7 @@ int run_show(int argc, char **argv)
 			j = sprintf(buf + 72, "RHOST:PORT");
 			printf("%s\n", buf);
 			
-			for (i = 0; i < NUM_PTHS; i++) {
+			for (i = 0; i < num_pths; i++) {
 				memset(buf, 0, sizeof(buf));
 				memset(buf, ' ', sizeof(buf) - 1);
 				if (strcmp(vpc[i].xname, "VPCS")== 0)
@@ -1545,7 +1546,7 @@ int show_arp(int argc, char **argv)
 	
 	if (argc == 3) {
 		if (!strncmp(argv[2], "all", strlen(argv[2]))) {
-			for (si = 0; si < NUM_PTHS; si++) {
+			for (si = 0; si < num_pths; si++) {
 				pc = &vpc[si];
 				printf("%s[%d]:\n", pc->xname, si + 1);
 				
@@ -1614,7 +1615,7 @@ static int show_dump(int argc, char **argv)
 	printf("\n");
 	if (argc == 3) {
 		if (!strncmp(argv[2], "all", strlen(argv[2]))) {
-			for (i = 0; i < NUM_PTHS; i++) {
+			for (i = 0; i < num_pths; i++) {
 				printf("%s[%d] dumpflag:", vpc[i].xname, i + 1);
 				if (vpc[i].dmpflag & DMP_MAC)
 					printf(" mac");
@@ -1677,7 +1678,7 @@ static int show_ip(int argc, char **argv)
 			j = sprintf(buf + 65, "DNS");
 			printf("\n%s\n", buf);
 			
-			for (i = 0; i < NUM_PTHS; i++) {
+			for (i = 0; i < num_pths; i++) {
 				memset(buf, 0, sizeof(buf));
 				memset(buf, ' ', sizeof(buf) - 1);
 				if (strcmp(vpc[i].xname, "VPCS")== 0)
@@ -1878,7 +1879,7 @@ int run_save(int argc, char **argv)
 	fp = fopen(fname, "w");
 	if (fp != NULL) {
 		local_ip = inet_addr("127.0.0.1");
-		for (i = 0; i < NUM_PTHS; i++) {
+		for (i = 0; i < num_pths; i++) {
 			fprintf(fp, "%d\n", i + 1);
 			
 			sprintf(buf, "VPCS[%d]", i + 1);

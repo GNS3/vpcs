@@ -49,6 +49,11 @@
 
 extern int devtype;
 
+#ifdef TAP
+extern int num_pths;
+extern char *devname;
+#endif
+
 int VRead(pcs *pc, void *buf, int len)
 {
 	struct sockaddr addr;
@@ -163,8 +168,13 @@ int open_tap(int id)
 
 	char dev[IFNAMESIZ];
 	
-	sprintf(dev, "tap%d", id);
-		
+	if (num_pths > 1)
+		sprintf(dev, "tap%d", id);
+	else
+		if (strlen(devname) >= IFNAMSIZ)
+			return(-1);
+		sprintf(dev, "%s", devname);
+
 	if ((fd = open("/dev/net/tun", O_RDWR)) < 0) {
 		return(-1);
 	}

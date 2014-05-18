@@ -39,6 +39,7 @@ extern int pcid;
 extern int ctrl_c;
 extern u_int time_tick;
 extern int dmpflag;
+extern int num_pths;
 
 /*******************************************************
  *      client                  server
@@ -530,7 +531,7 @@ int tcp(pcs *pc, struct packet *m)
 	/* request process
 	 * find control block 
 	 */
-	for (i = 0; i < NUM_PTHS; i++) {
+	for (i = 0; i < num_pths; i++) {
 		if (ti->ti_flags == TH_SYN) {
 			if (pc->sesscb[i].timeout == 0 || 
 				(ip->sip == pc->sesscb[i].sip && 
@@ -704,7 +705,7 @@ int tcp6(pcs *pc, struct packet *m)
 	/* request process
 	 * find control block 
 	 */
-	for (i = 0; i < NUM_PTHS; i++) {
+	for (i = 0; i < num_pths; i++) {
 		if (th->th_flags == TH_SYN) {
 			if (pc->sesscb[i].timeout == 0 || 
 				(IP6EQ(&(pc->sesscb[i].sip6), &(ip->src)) && 
