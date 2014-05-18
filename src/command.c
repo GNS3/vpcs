@@ -1806,18 +1806,22 @@ int run_load(int argc, char **argv)
 	FILE *fp;
 	char buf[MAX_LEN];
 	char fname[PATH_MAX];
+	char *filename = "startup.vpc";
 	
-	if (argc != 2 || !strcmp(argv[1], "?")) {
+	if (argc > 2 || (argc == 2 && !strcmp(argv[1], "?"))) {
 		return help_load(argc, argv);
 	}
+	else if (argc == 2) {
+		filename = argv[1];
+	}
 
-	fp = fopen(argv[1], "r");
+	fp = fopen(filename, "r");
 	if (fp == NULL) {
 		/* try to open .vpc */
-		if (!strrchr(argv[1], '.') && 
-		    (strlen(argv[1]) < PATH_MAX - 5)) {
+		if (!strrchr(filename, '.') &&
+		    (strlen(filename) < PATH_MAX - 5)) {
 			memset(fname, 0, PATH_MAX);
-			strncpy(fname, argv[1], PATH_MAX - 1);
+			strncpy(fname, filename, PATH_MAX - 1);
 			strcat(fname, ".vpc");
 			fp = fopen(fname, "r");
 		}
@@ -1830,7 +1834,7 @@ int run_load(int argc, char **argv)
 	if (runStartup)
 		printf("\nExecuting the startup file\n");
 	else
-		printf("\nExecuting the file \"%s\"\n", argv[1]);
+		printf("\nExecuting the file \"%s\"\n", filename);
 
 	while (!feof(fp) && !ctrl_c) {
 		runLoad = 1;
@@ -1863,37 +1867,47 @@ int run_save(int argc, char **argv)
 	struct in_addr in;
 	char fname[PATH_MAX];
 
-	if (argc != 2 || !strcmp(argv[1], "?")) {
+	memset(fname, 0, PATH_MAX);
+	if (argc > 2 || (argc == 2 && !strcmp(argv[1], "?"))) {
 		return help_save(argc, argv);
 	}
-	if (strlen(argv[1]) > PATH_MAX - 5) {
-		printf("%s is too long\n", argv[1]);
-		return 1;
+	else if (argc == 1) {
+		strncpy(fname, "startup.vpc", PATH_MAX - 1);
 	}
-	
-	memset(fname, 0, PATH_MAX);
-	strncpy(fname, argv[1], PATH_MAX - 1);
+	else {
+		if (strlen(argv[1]) > PATH_MAX - 5) {
+			printf("%s is too long\n", argv[1]);
+			return 1;
+		}
+		else {
+			strncpy(fname, argv[1], PATH_MAX - 1);
+		}
+	}
+
 	if (!strrchr(fname, '.'))
 		strcat(fname, ".vpc");
-	
+
 	fp = fopen(fname, "w");
 	if (fp != NULL) {
 		local_ip = inet_addr("127.0.0.1");
 		for (i = 0; i < num_pths; i++) {
-			fprintf(fp, "%d\n", i + 1);
-			
+			if (num_pths > 1)
+				fprintf(fp, "%d\n", i + 1);
+
 			sprintf(buf, "VPCS[%d]", i + 1);
 			if (strncmp(vpc[i].xname, buf, 3)) 
 				fprintf(fp, "set pcname %s\n", vpc[i].xname);
 			
-			if (vpc[i].lport != (20000 + i)) 
-				fprintf(fp, "set lport %d\n", vpc[i].lport);
-				
-			if (vpc[i].rport != (30000 + i)) 
-				fprintf(fp, "set rport %d\n", vpc[i].rport);
-			if (vpc[i].rhost != local_ip) {
-				in.s_addr = vpc[i].rhost;
-				fprintf(fp, "set rhost %s\n", inet_ntoa(in));
+			if (num_pths > 1) {
+				if (vpc[i].lport != (20000 + i))
+					fprintf(fp, "set lport %d\n", vpc[i].lport);
+
+				if (vpc[i].rport != (30000 + i))
+					fprintf(fp, "set rport %d\n", vpc[i].rport);
+				if (vpc[i].rhost != local_ip) {
+					in.s_addr = vpc[i].rhost;
+					fprintf(fp, "set rhost %s\n", inet_ntoa(in));
+				}
 			}
 			if (vpc[i].ip4.dynip == 1) 
 				fputs("dhcp\n", fp);
@@ -1909,7 +1923,8 @@ int run_save(int argc, char **argv)
 				fputs("ip auto\n", fp);
 			printf(".");
 		}
-		fprintf(fp, "1\n");
+		if (num_pths > 1)
+			fprintf(fp, "1\n");
 		fclose(fp);
 		printf("  done\n");
 	} else

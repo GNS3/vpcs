@@ -89,7 +89,6 @@ static void *pth_writer(void *devid);
 static void *pth_timer_tick(void *);
 void parse_cmd(char *cmdstr);
 static void sig_int(int sig);
-static void sig_term(int sig);
 static void sig_clean(int sig);
 void clear_hist(void);
 static int invoke_cmd(const char *);
