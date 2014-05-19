@@ -1781,7 +1781,7 @@ int run_ver(int argc, char **argv)
 		"Welcome to Virtual PC Simulator, version %s\r\n"
 		"Dedicated to Daling.\r\n"
 		"Build time: %s %s\r\n"
-		"Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)\r\n"
+		"Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)\r\n"
 		"All rights reserved.\r\n\r\n"
 		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\r\n"
 		"Source code and license can be found at vpcs.sf.net.\r\n"
