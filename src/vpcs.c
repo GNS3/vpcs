@@ -579,7 +579,7 @@ int run_disconnect(int argc, char **argv)
 	
 	if (daemon_port) {
 		pid = getppid();
-		kill(pid, SIGTERM);
+		kill(pid, SIGQUIT);
 	} else
 		printf("NOT daemon mode\n");
 	

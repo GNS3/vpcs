@@ -65,6 +65,7 @@ static int daemon_port;
 static void daemon_proc(int sock, int fdtty);
 static void sig_usr1(int sig);
 static void sig_usr2(int sig);
+static void sig_quit(int sig);
 static void sig_term(int sig);
 static void sig_int(int sig);
 static void set_telnet_mode(int s);
@@ -93,6 +94,7 @@ daemonize(int port, int bg)
 	setsid();
 	
 	signal(SIGTERM, &sig_term);
+	signal(SIGQUIT, &sig_quit);
 	signal(SIGINT, &sig_int);
 	signal(SIGHUP, SIG_IGN);
 	signal(SIGUSR1, &sig_usr1);
@@ -208,13 +210,24 @@ daemon_proc(int sock, int fdtty)
 	}
 }
 
+/* to stop VPCS from another process
+ */
+static void
+sig_term(int sig)
+{
+	usleep(100000);
+	kill(fdtty_pid, SIGKILL);
+
+	exit(0);
+}
+
 /* should be sent from 'real vpcs' command: disconnect
  */
 static void 
-sig_term(int sig)
+sig_quit(int sig)
 {
 	cmd_quit = 1;
-	signal(SIGTERM, &sig_term);
+	signal(SIGQUIT, &sig_quit);
 }
 
 
