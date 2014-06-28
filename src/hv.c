@@ -156,6 +156,7 @@ hypervisor(int port)
 		goto ret;
 	}
 #endif	
+
 	memset(vpcs_list, 0, MAX_DAEMONS * sizeof(struct list));
 	
 	if (openpty(&ptyfdm, &ptyfds, NULL, NULL, NULL)) {
@@ -750,7 +751,6 @@ is_there(char *candidate)
 	}
 	return (0);
 }
-
 
 static char *
 getpath(const char *name)

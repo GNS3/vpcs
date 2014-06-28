@@ -47,6 +47,7 @@ extern int pcid;
 extern int devtype;
 extern int ctrl_c;
 extern u_int time_tick;
+extern int num_pths;
 
 int run_net6(char *cmdstr);
 
@@ -550,7 +551,7 @@ int show_ipv6(int argc, char **argv)
 	printf("\n");
 	if (argc == 3) {
 		if (!strncmp(argv[2], "all", strlen(argv[2]))) {
-			for (i = 0; i < NUM_PTHS; i++) {
+			for (i = 0; i < num_pths; i++) {
 				if (vpc[i].ip6.ip.addr32[0] != 0 || vpc[i].ip6.ip.addr32[1] != 0 || 
 				    vpc[i].ip6.ip.addr32[2] != 0 || vpc[i].ip6.ip.addr32[3] != 0) {
 					memset(buf6, 0, INET6_ADDRSTRLEN + 1);
@@ -579,7 +580,7 @@ int show_ipv6(int argc, char **argv)
 			j = sprintf(buf + off3, "MTU");
 			printf("%s\n", buf);
 
-			for (i = 0; i < NUM_PTHS; i++) {
+			for (i = 0; i < num_pths; i++) {
 				memset(buf, 0, sizeof(buf));
 				memset(buf, ' ', sizeof(buf) - 1);
 				if (strcmp(vpc[i].xname, "VPCS")== 0)
@@ -730,7 +731,7 @@ void autoconf6(void)
 	int i;
 	struct packet *m = NULL;
 	
-	for (i = 0; i < NUM_PTHS; i++) {
+	for (i = 0; i < num_pths; i++) {
 		m = nbr_sol(&vpc[pcid]);	
 		if (m != NULL)
 			enq(&vpc[pcid].oq, m);

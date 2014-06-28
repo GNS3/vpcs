@@ -125,8 +125,8 @@ int help_ip(int argc, char **argv)
 
 int help_load(int argc, char **argv)
 {
-	printf( "\n\033[1mload <filename>\033[0m\n"
-		"  Load the configuration/script from the file <filename>.\n"
+	printf( "\n\033[1mload [filename]\033[0m\n"
+		"  Load the configuration/script from the file [filename] (startup.vpc is the default filename).\n"
 		"  When the file is loaded, commands will be displayed before being executed \n"
 		"  if the state of the echo flag is on. See \033[1mset echo\033[0m\n"
 		"  \033[1msleep\033[0m command will ignore \033[1mset echo on\033[0m, ONLY if \033[1msleep\033[0m misses the <text>\n"
@@ -196,7 +196,7 @@ int help_rlogin(int argc, char **argv)
 int help_save(int argc, char **argv)
 {
 	printf( "\n\033[1msave [filename]\033[0m\n"
-		"  Save the configuration to the file 'filename'. (default startup.vpc)\n");
+		"  Save the configuration to the file [filename] (startup.vpc is the default filename).\n");
 
 	return 1;
 }
@@ -221,7 +221,7 @@ int help_set(int argc, char **argv)
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
 		printf( "\n\033[1mset echo [on|off]\033[0m\n"
 			"  Sets the state of the echo flag used when loading script files.\n"
-			"  See \033[1mload <filename>\033[0m.\n");
+			"  See \033[1mload [filename]\033[0m.\n");
 	    	return 1;
 	}
 
@@ -315,7 +315,7 @@ int help_sleep(int argc, char **argv)
 	printf( "\n\033[1msleep [<seconds>] [text]\033[0m\n"
 		"  Print <text> and pause execution of script for <seconds>.\n"
 		"  If <seconds>=0 or missing, pause until a key is pressed. \n"
-		"  See \033[1mload <filename>\033[0m\n");
+		"  See \033[1mload [filename]\033[0m\n");
 	return 1;
 }
 
@@ -347,12 +347,12 @@ int run_help(int argc, char **argv)
 		"help                     Print help\n"
 		"history                  Shortcut for: \033[1mshow history\033[0m. List the command history\n"
 		"ip [arguments]           Configure VPC's IP settings\n"
-		"load <filename>          Load the configuration/script from the file <filename>\n"
+		"load [filename]          Load the configuration/script from the file [filename] (startup.vpc is the default filename).\n"
 		"ping <host> [-options]   Ping the network <host> with ICMP (default) or TCP/UDP\n"
 		"quit                     Quit program\n"
 		"relay [arguments]        Relay packets between two UDP ports\n"
 		"rlogin [<ip>] <port>     Telnet to host relative to HOST PC\n"
-		"save <filename>          Save the configuration to the file <filename>\n"
+		"save [filename]          Save the configuration to the file [filename] (startup.vpc is the default filename).\n"
 		"set [arguments]          Set VPC name, peer ports, dump options, echo on or off\n"
 		"show [arguments]         Print the information of VPCs (default). Try \033[1mshow ?\033[0m\n"
 		"sleep <seconds> [text]   Print <text> and pause the running script for <seconds>\n"

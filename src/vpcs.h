@@ -86,8 +86,8 @@ typedef struct {
 	int mtu;
 } hipv4;
 
-#define MAX_NAMES_LEN	(6)	
-#define MAX_SESSIONS 1000
+#define MAX_NAMES_LEN	(6)
+#define MAX_SESSIONS 1000	
 typedef struct {
 	int id;				/* pc id */
 	char xname[MAX_NAMES_LEN + 1];	/* pc name */
@@ -114,7 +114,7 @@ typedef struct {
 	hipv6 link6;
 } pcs;
 
-pcs vpc[NUM_PTHS];
+pcs vpc[MAX_NUM_PTHS];
 
 #define delay_ms(s) usleep(s * 1000)
 

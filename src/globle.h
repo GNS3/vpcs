@@ -44,7 +44,7 @@
 #define false 0
 #endif
 
-#define NUM_PTHS 9
+#define MAX_NUM_PTHS 9
 
 #ifndef IFNAMESIZ
 #define IFNAMESIZ 12

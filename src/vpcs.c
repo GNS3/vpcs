@@ -51,7 +51,7 @@
 #include "dump.h"
 #include "relay.h"
 
-const char *ver = "0.5";
+const char *ver = "0.5b2";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -77,6 +77,10 @@ int ctrl_c = 0; /* ctrl+c was pressed */
 struct rls *rls = NULL;
 
 int daemon_port = 0;
+
+int num_pths = MAX_NUM_PTHS;  /* number of VPCs */
+
+char *tapname = "tap0";  /* TAP device name (only when 1 VPC is created) */
 
 int macaddr = 0; /* the last byte of ether address */
 
@@ -148,7 +152,7 @@ int main(int argc, char **argv)
 	rhost = inet_addr("127.0.0.1");
 	
 	devtype = DEV_UDP;		
-	while ((c = getopt(argc, argv, "?c:ehm:p:r:s:t:uvF")) != -1) {
+	while ((c = getopt(argc, argv, "?c:ehm:p:r:s:t:uvFi:d:")) != -1) {
 		switch (c) {
 			case 'c':
 				rport_flag = 1;
@@ -183,7 +187,17 @@ int main(int argc, char **argv)
 			case 'F':
 				daemon_bg = 0;
 				break;
-				
+			case 'i':
+				num_pths = arg2int(optarg, 1, 9, 9);
+				break;
+			case 'd':
+				if (num_pths != 1) {
+					usage();
+					exit(0);
+				}
+				tapname = strdup(optarg);
+				break;
+
 			case 'h':
 			case '?':
 				usage();
@@ -215,8 +229,8 @@ int main(int argc, char **argv)
 	welcome();
 
 	srand(time(0));
-	memset(vpc, 0, NUM_PTHS * sizeof(pcs));
-	for (i = 0; i < NUM_PTHS; i++) {
+	memset(vpc, 0, MAX_NUM_PTHS * sizeof(pcs));
+	for (i = 0; i < num_pths; i++) {
 		if (pthread_create(&(vpc[i].rpid), NULL, pth_reader, (void *)&i) != 0) {
 			printf("PC%d error\n", i + 1);
 			fflush(stdout);
@@ -229,7 +243,7 @@ int main(int argc, char **argv)
 	}
 	pthread_create(&timer_pid, NULL, pth_timer_tick, (void *)0);
 	delay_ms(100);
-	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
+    	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
 	pcid = 0;
 
 	delay_ms(50);
@@ -247,7 +261,10 @@ int main(int argc, char **argv)
 		loadhistory(histfile, rls);
 
 	while (1) {
-		snprintf(prompt, sizeof(prompt), "\n\r%s[%d]> ", vpc[pcid].xname, pcid + 1);
+		if (num_pths > 1)
+			snprintf(prompt, sizeof(prompt), "\n\r%s[%d]> ", vpc[pcid].xname, pcid + 1);
+		else
+			snprintf(prompt, sizeof(prompt), "\n\r%s> ", vpc[pcid].xname);
 		ctrl_c = 0;
 		cmd = readline(prompt, rls);
 		if (cmd != NULL) {
@@ -270,8 +287,8 @@ void parse_cmd(char *cmdstr)
 	if (argc == 0)
 		return;
 
-	if (argc == 1 && strlen(argv[0]) == 1 &&
-	    (argv[0][0] - '0') > 0 && (argv[0][0] - '0') <= 9) {
+	if (argc == 1 && strlen(argv[0]) == 1 && num_pths > 1 &&
+	    (argv[0][0] - '0') > 0 && (argv[0][0] - '0') <= num_pths) {
 		if (canEcho && runLoad)
 			printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
 		pcid = argv[0][0] - '0' - 1;
@@ -398,13 +415,16 @@ void *pth_reader(void *devid)
 	pc->ip4.mac[3] = 0x66;
 	pc->ip4.mac[4] = 0x68;
 	pc->ip4.mac[5] = (id + macaddr) & 0xff;
-	
+
 	if (pc->fd == 0)
 		pc->fd = open_dev(id);
 		
 	if (pc->fd <= 0) {
 		if (devtype == DEV_TAP)
-			printf("Create Tap%d error [%s]\n", id, strerror(errno));
+			if (num_pths > 1)
+				printf("Create TAP device tap%d error [%s]\n", id, strerror(errno));
+			else
+				printf("Create TAP device %s error [%s]\n", tapname, strerror(errno));
 		else if (devtype == DEV_UDP)
 			printf("Open port %d error [%s]\n", vpc[id].lport, strerror(errno));
 		return NULL;
@@ -532,7 +552,7 @@ sig_clean(int sig)
 {
 	int i;
 	
-	for (i = 0; i < NUM_PTHS; i++)
+	for (i = 0; i < num_pths; i++)
 		close(vpc[i].fd);
 
 	if (rls != NULL && histfile != NULL) 
@@ -560,7 +580,7 @@ int run_disconnect(int argc, char **argv)
 	
 	if (daemon_port) {
 		pid = getppid();
-		kill(pid, SIGTERM);
+		kill(pid, SIGQUIT);
 	} else
 		printf("NOT daemon mode\n");
 	
@@ -602,17 +622,20 @@ void usage()
 		"    -h         print this help then exit\r\n"
 		"    -v         print version information then exit\r\n"
 		"\r\n"
+		"    -i num     number of vpc instances to start (default is 9)\r\n"
 		"    -p port    run as a daemon listening on the tcp 'port'\r\n"
 		"    -m num     start byte of ether address, default from 0\r\n"
 		"    -r file    load and execute script file\r\n"
 		"               compatible with older versions, DEPRECATED.\r\n"
 		"\r\n"
-		"    -e         tap mode, using /dev/tapx (linux only)\r\n"
+		"    -e         tap mode, using /dev/tapx by default (linux only)\r\n"
 		"    -u         udp mode, default\r\n"
 		"\r\nudp mode options:\r\n"
 		"    -s port    local udp base port, default from 20000\r\n"
 		"    -c port    remote udp base port (dynamips udp port), default from 30000\r\n"
 		"    -t ip      remote host IP, default 127.0.0.1\r\n"
+		"\r\ntap mode options:\r\n"
+		"    -d device  device name, works only when -i is set to 1\r\n"
 		"\r\nhypervisor mode option:\r\n"
 		"    -H port    run as the hypervisor listening on the tcp 'port'\r\n"
 		"\r\n"

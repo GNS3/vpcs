@@ -1,5 +1,5 @@
 
-   Welcome to Virtual PC Simulator, Ver 0.5b0.
+   Welcome to Virtual PC Simulator, Ver 0.5b2.
    
    VPCS is free software, distributed under the terms of the "BSD" licence.
    Source code and license can be found at vpcs.sf.net.
@@ -30,7 +30,8 @@ The line started with '#' or '!' will be discarded.
    Option:
        -h         print this help then exit
        -v         print version information then exit
-   
+
+       -i num     number of vpc instances to start (default is 9)
        -p port    run as a daemon listening on the tcp 'port'
        -m num     start byte of ether address, default from 0
        -r file    load and execute script file
@@ -43,6 +44,9 @@ The line started with '#' or '!' will be discarded.
        -s port    local udp base port, default from 20000
        -c port    remote udp base port (dynamips udp port), default from 30000
        -t ip      remote host IP, default 127.0.0.1
+
+   tap mode options:
+       -d device  device name, works only when -i is set to 1
 
    hypervisor mode option:
     -H port    run as the hypervisor listening on the tcp 'port'
@@ -59,6 +63,17 @@ The line started with '#' or '!' will be discarded.
 Website: http://wiki.freecode.com.cn or http://mirnshi.cublog.cn
    
 History:
+
+   0.5b2   fix: using getenv+access to the real path of VPCS.
+           patch for Debian GNU/kFreeBSD from Daniel Lintott
+           flush out the output buffer while running 'echo ...'
+           increase the maxinum number of tcp sessions and decrease tcp keep alive time
+           fix: arp table, the source ether address is not saved
+   
+   0.5b1   support for a specified number of vpc instances (between 1 and 9)
+           support for TAP device name (only with 1 VPC instance)
+           support default filename (startup.vpc) for load & save commands.
+
    0.5b0   support hypervisor mode
            
    0.4b2   support DNS
@@ -70,7 +85,7 @@ History:
    0.20a   support IPv6 linklocal, stateless autoconfiguration
            new 'ping' with many optins, and implement the tcp state machine
            support load/save the VPCS configuration
-           support save/load the command history automaticlly
+           support save/load the command history automatically
            
    0.16a   Support IPv6
    0.15a   Add configure the host ip using dhcp
