@@ -1,5 +1,5 @@
 
-    欢迎使用 VPCS, 最新版本为 0.5b0.
+    欢迎使用 VPCS, 最新版本为 0.5b2.
 
     VPCS 是免费软件，遵从 BSD 许可的条款分发。
     源代码和许可协议条款可以从 vpcs.sf.net 获取到。
@@ -27,6 +27,7 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
        -h         print this help then exit
        -v         print version information then exit
    
+       -i num     number of vpc instances to start (default is 9)
        -p port    run as a daemon listening on the tcp 'port'
        -m num     start byte of ether address, default from 0
        -r file    load and execute script file
@@ -40,6 +41,9 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
        -c port    remote udp base port (dynamips udp port), default from 30000
        -t ip      remote host IP, default 127.0.0.1
    
+   tap mode options:
+       -d device  device name, works only when -i is set to 1
+
    hypervisor mode option:
     -H port    run as the hypervisor listening on the tcp 'port'
     
@@ -56,6 +60,16 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 站点：http://wiki.freecode.com.cn 或 http://mirnshi.cublog.cn
 
 历史版本：
+   0.5b2   错误修订：使用getenv+access方式获取VPCS的真实路径
+           Debian GNU/kFreeBSD的补丁（Daniel Lintott）
+           运行echo命令时，刷新输出
+           增大tcp会话数，减小tcp保持时间
+           错误修订：源MAC地址未保存到arp表中
+
+   0.5b1   支持设置vpc的启动个数
+           支持设置TAP设备名（限只启动1个VPC）
+           load和save命令支持缺省文件名
+
    0.5b0   支持hypervisor
    
    0.4b2   支持DNS
