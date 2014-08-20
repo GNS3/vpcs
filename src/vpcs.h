@@ -114,6 +114,12 @@ typedef struct {
 	hipv6 link6;
 } pcs;
 
+struct echoctl {
+	int enable;
+	int fgcolor;
+	int bgcolor;
+};
+
 pcs vpc[MAX_NUM_PTHS];
 
 #define delay_ms(s) usleep(s * 1000)

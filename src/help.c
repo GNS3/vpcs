@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -219,27 +219,29 @@ int help_set(int argc, char **argv)
 	
 	if (argc == 3 && !strncmp(argv[1], "echo", strlen(argv[1])) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
-		printf( "\n\033[1mset echo [on|off]\033[0m\n"
-			"  Sets the state of the echo flag used when loading script files.\n"
+		printf( "\n\033[1mset echo [on|off] [color [clear | fgcolor [bgfolor]]\033[0m\n"
+			"  Sets the state of the echo flag used when loading script files,\n"
+			"    and the color of text\n"
+			"  color list: black, red, green, yellow, blue, magenta, cyan, white\n"
 			"  See \033[1mload [filename]\033[0m.\n");
 	    	return 1;
 	}
 
 	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump|]\033[0m\n"
 		"  Set hostname, connection port, dump options and echo on or off\n"
-		"    lport <port>    local port\n"
-		"    rport <port>    remote peer port\n"
-		"    rhost <ip>      remote peer host IPv4 address\n"
-		"    pcname <name>   set the hostname of the current VPC\n"
-		"    echo [on|off]   set echoing on or off during script execution\n"
-		"    dump [options]  set the packet dump flag for this VPC. \n"
-		"                    Options:\n"
-		"                      detail  print protocol\n"
-		"                      mac     print ether address\n"
-		"                      raw     print the first 40 bytes\n"
-		"                      all     all the packets including incoming.\n"
-		"                              must use [detail|mac|raw] as well as 'all'\n"
-		"                      off     clear all the flag\n");
+		"    lport <port>             local port\n"
+		"    rport <port>             remote peer port\n"
+		"    rhost <ip>               remote peer host IPv4 address\n"
+		"    pcname <name>            set the hostname of the current VPC\n"
+		"    echo [on|off|color ... ] set echoing on or off during script execution\n"
+		"    dump [options]           set the packet dump flag for this VPC. \n"
+		"                             Options:\n"
+		"                               detail  print protocol\n"
+		"                               mac     print ether address\n"
+		"                               raw     print the first 40 bytes\n"
+		"                               all     all the packets including incoming.\n"
+		"                                       must use [detail|mac|raw] as well as 'all'\n"
+		"                               off     clear all the flag\n");
         
 	return 1;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -56,7 +56,8 @@ extern int ctrl_c;
 extern int ctrl_z;
 extern u_int time_tick;
 extern u_long ip_masks[33];
-extern int canEcho;
+extern struct echoctl echoctl;
+//int canEcho;
 extern void clear_hist(void);
 extern const char *ver;
 extern struct rls *rls;
@@ -73,6 +74,8 @@ static int show_arp(int argc, char **argv);
 
 static int run_dhcp_new(int renew, int dump);
 static int run_dhcp_release(int dump);
+
+static int str2color(const char *cstr);
 		
 /*
  *          1         2         3         4         5         6
@@ -1370,15 +1373,41 @@ int run_set(int argc, char **argv)
 		if (!strcmp(argv[argc - 1], "?"))
 			return help_set(argc, argv);
 			
-		if (argc != 3) {
+		if (argc < 3) {
 			printf("Incomplete command.\n");
 			return 1;
 		}
 		if (!strcasecmp(argv[2], "on")) {
-			canEcho = 1;
+			echoctl.enable = 1;
 		} else if (!strcasecmp(argv[2], "off")) {
-			canEcho = 0;
+			echoctl.enable = 0;
 		}
+		if (argc > 3 && !strcasecmp(argv[2], "color")) {
+			if (argc == 4) {
+				if (!strcasecmp(argv[3], "clear")) {
+					echoctl.fgcolor = 0;
+					echoctl.bgcolor = 0;
+				} else				
+					echoctl.fgcolor = str2color(argv[3]);
+			}
+			if (argc == 5) {
+				echoctl.fgcolor = str2color(argv[3]);
+				echoctl.bgcolor = str2color(argv[4]) + 10;
+			}
+		} else if (argc > 4 && !strcasecmp(argv[3], "color")) {
+			if (argc == 5) {
+				if (!strcasecmp(argv[3], "clear")) {
+					echoctl.fgcolor = 0;
+					echoctl.bgcolor = 0;
+				} else				
+					echoctl.fgcolor = str2color(argv[4]);
+			}
+			if (argc == 6) {
+				echoctl.fgcolor = str2color(argv[4]);
+				echoctl.bgcolor = str2color(argv[5]) + 10;
+			}
+		}
+		
 	} else
 		printf("Invalid command.\n");
 	return 1;
@@ -1452,8 +1481,18 @@ int run_echo(int argc, char **argv)
 {
 	int i;
 	
+	if (echoctl.fgcolor != 0) {
+		if (echoctl.bgcolor != 0)
+			printf("\033[%d;%dm", echoctl.fgcolor, echoctl.bgcolor);
+		else
+			printf("\033[%dm", echoctl.fgcolor);
+	}
 	for (i = 1; i < argc; i++)
 		printf("%s ", argv[i]);
+
+	if (echoctl.fgcolor != 0)
+		printf("\033[0m");
+	
 //	printf("\n");
 
 	return 1;
@@ -1768,7 +1807,7 @@ static int show_echo(int argc, char **argv)
 {
 	printf("\n");
 	
-	if (canEcho)
+	if (echoctl.enable)
 		printf("Echo On\n");
 	else
 		printf("Echo Off\n");
@@ -1955,4 +1994,18 @@ const char *ip4Info(const int id)
 	return buf;
 }
 
+int str2color(const char *cstr)
+{
+	const char *name[8] = {"black", "red", "green", "yellow", "blue", 
+		"magenta", "cyan", "white"};
+	int i;
+	
+	for (i = 0; i < 8; i++)
+		if (!strncasecmp(cstr, name[i], strlen(name[i])))
+			break;
+	if (i == 8)
+		return 0;
+	else
+		return 30 + i;
+}
 /* end of file */

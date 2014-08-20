@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -51,7 +51,7 @@
 #include "dump.h"
 #include "relay.h"
 
-const char *ver = "0.5b2";
+const char *ver = "0.5b3";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -62,7 +62,8 @@ int rport = 30000;
 int rport_flag = 0;
 u_int rhost = 0; /* remote host */
 
-int canEcho = 0; /* echoing on if 1, off if 0 */
+struct echoctl echoctl;
+//int canEcho = 0; /* echoing on if 1, off if 0 */
 int runLoad = 0; /* work with canEcho */
 
 int runStartup = 0; /* execute startup if 1 */
@@ -149,6 +150,7 @@ int main(int argc, char **argv)
 	int daemon_bg = 1;
 	char *cmd;
 
+	memset(&echoctl, 0, sizeof(struct echoctl));
 	rhost = inet_addr("127.0.0.1");
 	
 	devtype = DEV_UDP;		
@@ -289,7 +291,7 @@ void parse_cmd(char *cmdstr)
 
 	if (argc == 1 && strlen(argv[0]) == 1 && num_pths > 1 &&
 	    (argv[0][0] - '0') > 0 && (argv[0][0] - '0') <= num_pths) {
-		if (canEcho && runLoad)
+		if (echoctl.enable && runLoad)
 			printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
 		pcid = argv[0][0] - '0' - 1;
 		return;
@@ -308,6 +310,13 @@ void parse_cmd(char *cmdstr)
 	
 		p = strchr(cmdstr, ' ');
 		
+		if (echoctl.fgcolor != 0) {
+			if (echoctl.bgcolor != 0)
+				printf("\033[%d;%dm", echoctl.fgcolor, 
+					echoctl.bgcolor);
+			else
+				printf("\033[%dm", echoctl.fgcolor);
+		}
 		if (p != NULL)
 			printf("%s", p + 1);	
 		else {
@@ -315,6 +324,8 @@ void parse_cmd(char *cmdstr)
 			if (p != NULL)
 				printf("%s", p + 1);
 		}
+		if (echoctl.fgcolor != 0)
+			printf("\033[0m");
 		fflush(stdout);
 		return;
 	}
@@ -359,7 +370,7 @@ void parse_cmd(char *cmdstr)
 			}
 		}
 		
-		if (canEcho && runLoad) {
+		if (echoctl.enable && runLoad) {
 			if (!strcmp(cmd->name, "sleep") && 
 			    (argc != 2 || (argc == 2 && !digitstring(argv[1])))) {
 			    	;
