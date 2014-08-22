@@ -247,7 +247,6 @@ const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 		"ICMPv6 neighbor solicitation",
 		"ICMPv6 neighbor advertisement",
 		"ICMPv6 redirect"};
-	
 
 	const char *empty = "";	
 	

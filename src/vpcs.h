@@ -45,7 +45,10 @@ typedef struct {
 typedef struct {
 	u_int svr;
 	u_char smac[6];
+	u_int timetick;
 	u_int lease;
+	u_int renew;
+	u_int rebind;
 	u_int ip;
 	u_int netmask;
 	u_int gw;
@@ -94,13 +97,15 @@ typedef struct {
 	pthread_t rpid;                 /* reader pthread id */
 	pthread_t wpid;                 /* writer pthread id */	
 	int dmpflag;			/* dump flag */
+	int bgjobflag;			/* backgroun job flag */
 	//int sock;			/* a command is running (socket is opened) */
 	int fd;				/* device handle */
 	int rfd;			/* client handle if in the udp mode		 */	
 	int lport;			/* local udp port */
 	int rport;			/* remote udp port */
 	u_int rhost;			/* remote host */
-	struct pq iq;			/* queue	 */
+	struct pq bgiq;			/* background input queue */
+	struct pq iq;			/* queue */
 	struct pq oq;			/* queue */
 	pthread_mutex_t locker;		/* mutex */
 	sesscb mscb;			/* opened by app */

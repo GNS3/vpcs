@@ -50,8 +50,9 @@
 #include "help.h"
 #include "dump.h"
 #include "relay.h"
+#include "dhcp.h"
 
-const char *ver = "0.5b3";
+const char *ver = "0.5b4";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -88,6 +89,7 @@ int macaddr = 0; /* the last byte of ether address */
 static void *pth_reader(void *devid);
 static void *pth_writer(void *devid);
 static void *pth_timer_tick(void *);
+static void *pth_bgjob(void *);
 void parse_cmd(char *cmdstr);
 static void sig_int(int sig);
 static void sig_clean(int sig);
@@ -146,7 +148,7 @@ int main(int argc, char **argv)
 	int i;
 	char prompt[MAX_LEN];
 	int c;
-	pthread_t timer_pid, relay_pid;
+	pthread_t timer_pid, relay_pid, bgjob_pid;
 	int daemon_bg = 1;
 	char *cmd;
 
@@ -246,6 +248,7 @@ int main(int argc, char **argv)
 	pthread_create(&timer_pid, NULL, pth_timer_tick, (void *)0);
 	delay_ms(100);
     	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
+    	pthread_create(&bgjob_pid, NULL, pth_bgjob, (void *)0);
 	pcid = 0;
 
 	delay_ms(50);
@@ -284,16 +287,24 @@ void parse_cmd(char *cmdstr)
 	int argc = 0;
 	int rc = 0;
 	
+	if (cmdstr[0] == '#' || cmdstr[0] == ';')
+		return;
+
 	argc = mkargv(cmdstr, (char **)argv, 20);
 	
 	if (argc == 0)
 		return;
 
 	if (argc == 1 && strlen(argv[0]) == 1 && num_pths > 1 &&
-	    (argv[0][0] - '0') > 0 && (argv[0][0] - '0') <= num_pths) {
-		if (echoctl.enable && runLoad)
-			printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
-		pcid = argv[0][0] - '0' - 1;
+	    (argv[0][0] >= '0' && argv[0][0] <= '9')) {
+	    	if ((argv[0][0] - '0') <= num_pths) {
+			if (echoctl.enable && runLoad)
+				printf("%s[%d] %s\n", vpc[pcid].xname, 
+				    pcid + 1, cmdstr);
+			pcid = argv[0][0] - '0' - 1;
+			
+		} else 
+			printf("\nOnly %d VPCs actived\n", num_pths);
 		return;
 	} 
 	
@@ -446,6 +457,9 @@ void *pth_reader(void *devid)
 	pc->iq.type = 0 + id * 100;
 	init_queue(&pc->oq);
 	pc->oq.type = 1 + id * 100;
+	init_queue(&pc->bgiq);
+	pc->bgiq.type = 2 + id * 100;
+	
 	
 	if (pthread_create(&(pc->wpid), NULL, pth_writer, devid) != 0) {
 		printf("PC%d error\n", id + 1);
@@ -469,6 +483,8 @@ void *pth_reader(void *devid)
 			rc = upv4(pc, m);
 			
 			if (rc == PKT_UP) {
+				if (dhcp_enq(pc, m))
+					continue;
 				if (pc->mscb.sock != 0) {
 					enq(&pc->iq, m);
 				} else
@@ -516,6 +532,39 @@ void *pth_timer_tick(void *dummy)
 		}
 		usleep(100);
 	}
+	return NULL;
+}
+
+void *pth_bgjob(void *dummy)
+{
+	int i;
+	int t, s;
+
+	i = 0;
+	do {
+		if (vpc[i].ip4.dhcp.svr && vpc[i].ip4.dhcp.timetick) {
+			t = time_tick - vpc[i].ip4.dhcp.timetick;
+			s = t - vpc[i].ip4.dhcp.renew;
+			if (t > vpc[i].ip4.dhcp.renew && s < 4) {
+			    	vpc[i].bgjobflag = 1;
+			    	if (dhcp_renew(&vpc[i]))
+			    		vpc[i].ip4.dhcp.timetick = time_tick;
+			    	vpc[i].bgjobflag = 0;
+			    	continue;
+			}
+			s = t - vpc[i].ip4.dhcp.rebind;
+			if (t > vpc[i].ip4.dhcp.rebind && s < 4) {
+			    	vpc[i].bgjobflag = 1;
+			    	if (dhcp_rebind(&vpc[i]))
+			    		vpc[i].ip4.dhcp.timetick = time_tick;
+			    	vpc[i].bgjobflag = 0;
+			    	continue;
+			}
+		}
+		usleep(10000);
+		i = (i + 1) % num_pths;
+	} while (1);
+	
 	return NULL;
 }
 

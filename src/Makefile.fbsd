@@ -28,6 +28,7 @@ OBJS=vpcs.o \
 	relay.o \
 	hv.o
 
+debug: all
 all: vpcs
 
 vpcs: $(OBJS)

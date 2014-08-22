@@ -89,5 +89,10 @@ int isDhcp4_packer(pcs *pc, struct packet *m);
 
 int dmp_dhcp(pcs *pc, const struct packet *m);
 
+int dhcp_renew(pcs *pc);
+int dhcp_rebind(pcs *pc);
+int dhcp_enq(pcs *pc, const struct packet *m);
+
+
 #endif
 /* end of file */

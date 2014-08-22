@@ -65,7 +65,7 @@ int mkargv(char *str, char **argv, int max)
 	p = buf;
 	es = p + strlen(buf);
 	
-	while (p && p < es) {
+	while (p && p < es && n < max) {
 		if (*p == '"') {
 			q = strchr(p + 1, '"');
 			if (!q)

@@ -28,6 +28,8 @@
 #include <string.h>
 #include "help.h"
 
+extern int num_pths;
+
 int help_clear(int argc, char **argv)
 {
 	printf( "\n\033[1mclear [ip|ipv6|arp|neighbor|hist]\033[0m\n"
@@ -227,7 +229,7 @@ int help_set(int argc, char **argv)
 	    	return 1;
 	}
 
-	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump|]\033[0m\n"
+	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump]\033[0m\n"
 		"  Set hostname, connection port, dump options and echo on or off\n"
 		"    lport <port>             local port\n"
 		"    rport <port>             remote peer port\n"
@@ -340,7 +342,7 @@ int run_help(int argc, char **argv)
 	printf ("\n"
 		"?                        Print help\n"
 		"! [command [args]]       Invoke an OS command with the 'args' as its arguments\n"
-		"<digit>                  Switch to the VPC<digit>. <digit> range 1 to 9\n"
+		"<digit>                  Switch to the VPC<digit>. <digit> range 1 to %d\n"
 		"arp                      Shortcut for: \033[1mshow arp\033[0m. Show arp table\n"
 		"clear [arguments]        Clear IPv4/IPv6, arp/neighbor cache, command history\n"
 		"dhcp [-options]          Shortcut for: \033[1mip dhcp\033[0m. Get IPv4 address via DHCP\n"
@@ -360,7 +362,8 @@ int run_help(int argc, char **argv)
 		"sleep <seconds> [text]   Print <text> and pause the running script for <seconds>\n"
 		"trace <host> [-options]  Print the path packets take to network <host>\n"
 		"version                  Shortcut for: \033[1mshow version\033[0m\n\n"
-		"To get command syntax help, please enter '?' as an argument of the command.\n");
+		"To get command syntax help, please enter '?' as an argument of the command.\n",
+		num_pths);
 	return 1;			
 }
 

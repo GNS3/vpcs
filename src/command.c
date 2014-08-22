@@ -654,6 +654,8 @@ static int run_dhcp_new(int renew, int dump)
 	struct in_addr in;
 	u_char mac[6];
 	
+	pc->ip4.dynip = 1;
+	
 	srand(time(0));
 	pc->ip4.dhcp.xid = rand();
 	
@@ -752,8 +754,13 @@ static int run_dhcp_new(int renew, int dump)
 		in.s_addr = pc->ip4.gw;
 		printf(" GW %s\n", inet_ntoa(in));
 	}
-	pc->ip4.dynip = 1;
+	
 	pc->ip4.mtu = MTU;
+	if (pc->ip4.dhcp.renew == 0)
+		pc->ip4.dhcp.renew = pc->ip4.dhcp.lease / 2;
+	if (pc->ip4.dhcp.rebind == 0)
+		pc->ip4.dhcp.rebind = pc->ip4.dhcp.lease * 7 / 8;
+	pc->ip4.dhcp.timetick = time_tick;
 	
 	return 1;
 }
@@ -1366,7 +1373,7 @@ int run_set(int argc, char **argv)
 			return 1;
 		}
 		if (strlen(argv[2]) > MAX_NAMES_LEN)
-			printf("Hostname is too long. (should be less than %d)\n", MAX_NAMES_LEN);
+			printf("Hostname is too long. (Maximum %d characters)\n", MAX_NAMES_LEN);
 		else 
 			strcpy(vpc[pcid].xname, argv[2]);
 	} else if (!strncmp("echo", argv[1], strlen(argv[1]))) {
@@ -1781,6 +1788,13 @@ static int show_ip(int argc, char **argv)
 		if (vpc[id].ip4.dhcp.svr) {
 			in.s_addr = vpc[id].ip4.dhcp.svr;
 			printf("DHCP SERVER : %s\n", inet_ntoa(in));
+			k = time_tick - vpc[id].ip4.dhcp.timetick;
+			k = vpc[id].ip4.dhcp.lease - k;
+			printf("DHCP LEASE  : %u, %u/%u/%u\n", 
+			    k > 0 ? k : 0,
+			    vpc[id].ip4.dhcp.lease,
+			    vpc[id].ip4.dhcp.renew,
+			    vpc[id].ip4.dhcp.rebind);
 		}
 		if (vpc[id].ip4.domain[0]) {
 			printf("DOMAIN NAME : %s\n", vpc[id].ip4.domain);
@@ -1929,6 +1943,7 @@ int run_save(int argc, char **argv)
 
 	fp = fopen(fname, "w");
 	if (fp != NULL) {
+		printf("Saving startup configuration to %s\n", fname);
 		local_ip = inet_addr("127.0.0.1");
 		for (i = 0; i < num_pths; i++) {
 			if (num_pths > 1)

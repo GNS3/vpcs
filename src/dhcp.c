@@ -393,8 +393,6 @@ int isDhcp4_Offer(pcs *pc, struct packet *m)
 	}
 	
 	return 1;
-	
-	return 0;
 }
 
 int isDhcp4_packer(pcs *pc, struct packet *m)
@@ -423,6 +421,8 @@ int isDhcp4_packer(pcs *pc, struct packet *m)
 		p = dh->options;
 		magic = ((long*)(p))[0];
 		if (magic == htonl(0x63825363)) {
+			pc->ip4.dhcp.renew = 0;
+			pc->ip4.dhcp.rebind = 0;
 			p += 4;
 			while (*p != DHO_END && p - dh->options < DHCP_OPTION_LEN) {
 				if (*p == DHO_SUBNET_MASK && *(p + 1) == 4) {
@@ -436,8 +436,16 @@ int isDhcp4_packer(pcs *pc, struct packet *m)
 					p += 6;
 					continue;
 				} else if (*p == DHO_DHCP_LEASE_TIME && *(p + 1) == 4) {
-					pc->ip4.lease += ((int*)(p + 2))[0];
+					pc->ip4.lease = ntohl(((int*)(p + 2))[0]);
 					pc->ip4.dhcp.lease = pc->ip4.lease;
+					p += 6;
+					continue;
+				} else if (*p == DHO_DHCP_RENEWAL_TIME && *(p + 1) == 4) {
+					pc->ip4.dhcp.renew = ntohl(((int*)(p + 2))[0]);
+					p += 6;
+					continue;
+				} else if (*p == DHO_DHCP_REBIND_TIME && *(p + 1) == 4) {
+					pc->ip4.dhcp.rebind = ntohl(((int*)(p + 2))[0]);
 					p += 6;
 					continue;
 				} else if (*p == DHO_DNS) {
@@ -458,6 +466,11 @@ int isDhcp4_packer(pcs *pc, struct packet *m)
 					memcpy(pc->ip4.dhcp.domain, p + 2, *(p + 1));
 					strcpy(pc->ip4.domain, pc->ip4.dhcp.domain);
 					p += *(p + 1) + 2;
+					continue;
+				} else if (*p == DHO_DHCP_SERVER_IDENTIFIER && *(p + 1) == 4) {
+					pc->ip4.dhcp.svr = ((int*)(p + 2))[0];
+					p += 6;
+					continue;
 				} else {
 					p++;		/* skip op code */
 					p += *(p) + 1;	/* add op offset(length) */
@@ -642,5 +655,119 @@ int dmp_dhcp(pcs *pc, const struct packet *m)
 	printf("\n");
 	
 	return 0;	
+}
+
+int dhcp_renew(pcs *pc)
+{
+	struct packet *m;
+	struct packet *p;
+	int i;
+	int ok;
+	
+	pc->ip4.dhcp.xid = rand();	
+	/* request */
+	i = 0;
+	ok = 0;
+	while (i++ < 3 && !ok) {
+		m = dhcp4_request(pc);
+		if (m == NULL) {
+			sleep(1);
+			continue;	
+		}
+
+		enq(&pc->oq, m);
+		sleep(1);
+		
+		while ((p = deq(&pc->bgiq)) != NULL && !ok) {
+			ok = isDhcp4_packer(pc, p);
+			free(p);
+		}
+		
+		i++;
+	}
+	if (ok) {
+		if (pc->ip4.dhcp.renew == 0)
+			pc->ip4.dhcp.renew = pc->ip4.dhcp.lease / 2;
+		if (pc->ip4.dhcp.rebind == 0)
+			pc->ip4.dhcp.rebind = pc->ip4.dhcp.lease * 7 / 8;
+		return 1;
+	}
+	return 0;	
+}
+
+int dhcp_rebind(pcs *pc)
+{
+	int ts[3] = {1, 3, 9};
+	struct packet *m;
+	struct packet *p;
+	int i;
+	int ok;
+	
+	pc->ip4.dhcp.xid = rand();	
+	/* request */
+	i = 0;
+	ok = 0;
+	while (i < 3 && !ok) {
+		m = dhcp4_discover(pc, 0);
+		if (m == NULL) {
+			sleep(1);
+			continue;	
+		}
+		enq(&pc->oq, m);
+		sleep(ts[i]);
+		
+		while ((p = deq(&pc->bgiq)) != NULL && !ok) {
+			ok = isDhcp4_Offer(pc, p);
+			free(p);
+		}
+	}
+	if (!ok)
+		return 0;
+
+	/* request */
+	i = 0;
+	ok = 0;
+	while (i < 3 && !ok) {	
+		m = dhcp4_request(pc);
+		if (m == NULL) {
+			sleep(1);
+			continue;	
+		}
+
+		enq(&pc->oq, m);
+		sleep(1);
+		
+		while ((p = deq(&pc->bgiq)) != NULL && !ok) {
+			ok = isDhcp4_packer(pc, p);
+			free(p);
+		}
+	}
+	if (ok) {
+		if (pc->ip4.dhcp.renew == 0)
+			pc->ip4.dhcp.renew = pc->ip4.dhcp.lease / 2;
+		if (pc->ip4.dhcp.rebind == 0)
+			pc->ip4.dhcp.rebind = pc->ip4.dhcp.lease * 7 / 8;
+		return 1;
+	}
+	return 0;
+}
+
+int dhcp_enq(pcs *pc, const struct packet *m)
+{
+	ethdr *eh;
+	iphdr *ip;
+	udpiphdr *ui;
+	dhcp4_hdr *dh;
+	
+	eh = (ethdr *)(m->data);
+	ip = (iphdr *)(eh + 1);
+	ui = (udpiphdr *)ip;
+	dh = (dhcp4_hdr*)(ui + 1);
+	
+	if (pc->bgjobflag && dh->xid == pc->ip4.dhcp.xid) {
+		enq(&pc->bgiq, (struct packet *)m);
+		return 1;
+	}
+	return 0;
 }
 /* end of file */
