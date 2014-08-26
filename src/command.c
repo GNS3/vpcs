@@ -1942,48 +1942,62 @@ int run_save(int argc, char **argv)
 		strcat(fname, ".vpc");
 
 	fp = fopen(fname, "w");
-	if (fp != NULL) {
-		printf("Saving startup configuration to %s\n", fname);
-		local_ip = inet_addr("127.0.0.1");
-		for (i = 0; i < num_pths; i++) {
-			if (num_pths > 1)
-				fprintf(fp, "%d\n", i + 1);
-
-			sprintf(buf, "VPCS[%d]", i + 1);
-			if (strncmp(vpc[i].xname, buf, 3)) 
-				fprintf(fp, "set pcname %s\n", vpc[i].xname);
-			
-			if (num_pths > 1) {
-				if (vpc[i].lport != (20000 + i))
-					fprintf(fp, "set lport %d\n", vpc[i].lport);
-
-				if (vpc[i].rport != (30000 + i))
-					fprintf(fp, "set rport %d\n", vpc[i].rport);
-				if (vpc[i].rhost != local_ip) {
-					in.s_addr = vpc[i].rhost;
-					fprintf(fp, "set rhost %s\n", inet_ntoa(in));
-				}
-			}
-			if (vpc[i].ip4.dynip == 1) 
-				fputs("dhcp\n", fp);
-			else {
-				p = (char *)ip4Info(i);
-				if (p != NULL) 
-					fprintf(fp, "%s\n", p); 
-				p = (char *)ip6Info(i);
-				if (p != NULL) 
-					fprintf(fp, "%s\n", p);
-			}
-			if (vpc[i].ip6auto == 1)
-				fputs("ip auto\n", fp);
-			printf(".");
-		}
-		if (num_pths > 1)
-			fprintf(fp, "1\n");
-		fclose(fp);
-		printf("  done\n");
-	} else
+	if (fp == NULL) {
 		printf("failed: %s\n", strerror(errno));
+		return 1;
+	}
+		
+	printf("Saving startup configuration to %s\n", fname);
+	local_ip = inet_addr("127.0.0.1");
+	for (i = 0; i < num_pths; i++) {
+		if (num_pths > 1)
+			fprintf(fp, "%d\n", i + 1);
+		sprintf(buf, "VPCS[%d]", i + 1);
+		if (strncmp(vpc[i].xname, buf, 3)) 
+			fprintf(fp, "set pcname %s\n", vpc[i].xname);
+		
+		if (num_pths > 1) {
+			if (vpc[i].lport != (20000 + i))
+				fprintf(fp, "set lport %d\n", vpc[i].lport);
+			if (vpc[i].rport != (30000 + i))
+				fprintf(fp, "set rport %d\n", vpc[i].rport);
+			if (vpc[i].rhost != local_ip) {
+				in.s_addr = vpc[i].rhost;
+				fprintf(fp, "set rhost %s\n", inet_ntoa(in));
+			}
+		}
+		if (vpc[i].ip4.dynip == 1) 
+			fputs("dhcp\n", fp);
+		else {
+			p = (char *)ip4Info(i);
+			if (p != NULL) 
+				fprintf(fp, "%s\n", p); 
+			p = (char *)ip6Info(i);
+			if (p != NULL) 
+				fprintf(fp, "%s\n", p);
+			if (vpc[i].ip4.domain[0])
+				fprintf(fp, "ip domain %s\n", vpc[i].ip4.domain);
+			if (vpc[i].ip4.dns[0]) {
+				in.s_addr = vpc[i].ip4.dns[0];
+				fprintf(fp, "ip dns %s", inet_ntoa(in));
+				if (vpc[i].ip4.dns[1]) {
+					in.s_addr = vpc[i].ip4.dns[1];
+					fprintf(fp, " %s", inet_ntoa(in));
+				}
+				fprintf(fp, "\n");
+			}
+		}
+		if (vpc[i].ip6auto == 1)
+			fputs("ip auto\n", fp);
+		printf(".");
+	}
+
+	if (num_pths > 1)
+		fprintf(fp, "1\n");
+
+	fclose(fp);
+	printf("  done\n");
+
 	return 1;
 }
 

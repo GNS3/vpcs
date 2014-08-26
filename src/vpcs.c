@@ -286,6 +286,8 @@ void parse_cmd(char *cmdstr)
 	char *argv[20];
 	int argc = 0;
 	int rc = 0;
+	char *pcmd;
+	int at = 0;
 	
 	if (cmdstr[0] == '#' || cmdstr[0] == ';')
 		return;
@@ -295,7 +297,7 @@ void parse_cmd(char *cmdstr)
 	if (argc == 0)
 		return;
 
-	if (argc == 1 && strlen(argv[0]) == 1 && num_pths > 1 &&
+	if (argc == 1 && strlen(argv[0]) == 1 && num_pths >= 1 &&
 	    (argv[0][0] >= '0' && argv[0][0] <= '9')) {
 	    	if ((argv[0][0] - '0') <= num_pths) {
 			if (echoctl.enable && runLoad)
@@ -356,8 +358,13 @@ void parse_cmd(char *cmdstr)
 		help_shell(0, NULL);
 		return;
 	}
+	pcmd = argv[0];
+	if (*pcmd == '@') {
+		at = 1;
+		pcmd ++;
+	}
 	for (ep = cmd_entry; ep->name != NULL; ep++) {
-		if(!strncmp(argv[0], ep->name, strlen(argv[0]))) {
+		if(!strncmp(pcmd, ep->name, strlen(pcmd))) {
         		if (cmd != NULL)
         			printf("%s\n", cmd->name);
         		cmd = ep;
@@ -374,7 +381,7 @@ void parse_cmd(char *cmdstr)
 		if (cmd->grpname != NULL) {
 			argc = insert_argv(argc, argv, cmd->grpname);	
 			for (ep = cmd_entry; ep->name != NULL; ep++) {
-				if(!strcmp(argv[0], ep->name)) {
+				if(!strcmp(pcmd, ep->name)) {
 					cmd = ep;
 					break;
 				}
@@ -385,7 +392,7 @@ void parse_cmd(char *cmdstr)
 			if (!strcmp(cmd->name, "sleep") && 
 			    (argc != 2 || (argc == 2 && !digitstring(argv[1])))) {
 			    	;
-			} else
+			} else if (at == 0)
 				printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
 		}
 		if (argc > 1 && cmd->help != NULL && 
