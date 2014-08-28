@@ -99,6 +99,7 @@ typedef struct {
 	pthread_t rpid;                 /* reader pthread id */
 	pthread_t wpid;                 /* writer pthread id */	
 	int dmpflag;			/* dump flag */
+	FILE *dmpfile;			/* dump file pointer */
 	int bgjobflag;			/* backgroun job flag */
 	//int sock;			/* a command is running (socket is opened) */
 	int fd;				/* device handle */

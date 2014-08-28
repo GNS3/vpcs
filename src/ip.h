@@ -407,6 +407,7 @@ typedef struct {
 #define DMP_RAW    2
 #define DMP_DETAIL 4
 #define DMP_ALL    0x80
+#define DMP_FILE   0x1000
 
 struct packet; /* defined in queue.h */
 

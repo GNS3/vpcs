@@ -207,13 +207,14 @@ int help_set(int argc, char **argv)
 {
 	if (argc == 3 && !strncmp(argv[1], "dump", strlen(argv[1])) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
-	    	printf( "\n\033[1mset dump [detail|mac|raw|all|off]\033[0m\n"
+	    	printf( "\n\033[1mset dump [detail|mac|raw|all|file|off]\033[0m\n"
 	    		"  Set the packet dump flag for this VPC\n"
 	    		"    detail  print protocol\n"
 	    		"    mac     print ether address\n"
 			"    raw     print the first 40 bytes\n"
 			"    all     all the packets including incoming\n"
 			"            must use [detail|mac|raw] as well as 'all'\n"
+			"    file    dump packets to file 'vpcs[id]_yyyymmddHHMMSS.pcap'\n"
 			"    off     clear all the flags\n");   
 		
 		return 1;

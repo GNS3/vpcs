@@ -52,7 +52,7 @@
 #include "relay.h"
 #include "dhcp.h"
 
-const char *ver = "0.5b5";
+const char *ver = "0.5b6";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -486,8 +486,12 @@ void *pth_reader(void *devid)
 			m->len = rc;
 			gettimeofday(&(m->ts), (void*)0);
 
-			if (pc->dmpflag & DMP_ALL || !memcmp(m->data, pc->ip4.mac, ETH_ALEN))
+			if (!memcmp(m->data, pc->ip4.mac, ETH_ALEN) ||
+			    pc->dmpflag & DMP_ALL) {
+				if (pc->dmpflag & DMP_FILE)
+					dmp_packet2file(m, pc->dmpfile);
 				dmp_packet(m, pc->dmpflag);
+			}
 			rc = upv4(pc, &m);
 			
 			if (rc == PKT_UP) {
@@ -520,6 +524,9 @@ void *pth_writer(void *devid)
 		
 		pkt = waitdeq(&pc->oq);
 		
+		if (pc->dmpflag & DMP_FILE)
+			dmp_packet2file(pkt, pc->dmpfile);
+
 		dmp_packet(pkt, pc->dmpflag);
 		if (VWrite(pc, pkt->data, pkt->len) != pkt->len)
 			printf("Send packet error\n");

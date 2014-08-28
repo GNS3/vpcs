@@ -49,6 +49,7 @@
 #include "remote.h"
 #include "readline.h"
 #include "help.h"
+#include "dump.h"
 
 extern int pcid;
 extern int devtype;
@@ -1552,6 +1553,7 @@ static int set_dump(int argc, char **argv)
 	int ok = 1;
 	int i = 2;
 	pcs *pc = &vpc[pcid];
+
 	int dmpflag = 0;
 
 	if (argc == 2)
@@ -1566,9 +1568,31 @@ static int set_dump(int argc, char **argv)
 			dmpflag |= DMP_DETAIL;
 		else if (!strncmp(argv[i], "all", strlen(argv[i])))
 			dmpflag |= DMP_ALL;
-		else if (!strncmp(argv[i], "off", strlen(argv[i])))
+		else if (!strncmp(argv[i], "file", strlen(argv[i]))) {
+			if (pc->dmpfile == NULL) {
+				char tfname[1024];
+				time_t t0;
+				struct tm *tm;
+				
+				t0 = time(0);
+				tm = localtime(&t0);
+				
+				sprintf(tfname, "vpcs%d_%4d%02d%02d%02d%02d%02d.pcap", 
+				    pc->id + 1, 
+				    tm->tm_year + 1900, tm->tm_mon + 1,
+				    tm->tm_mday, tm->tm_hour,
+				    tm->tm_min, tm->tm_sec);
+				pc->dmpfile = open_dmpfile(tfname);
+			}
+			dmpflag |= DMP_FILE;	
+		} else if (!strncmp(argv[i], "off", strlen(argv[i]))) {
 			dmpflag = 0;
-		else {
+			if (pc->dmpfile) {
+				close_dmpfile(pc->dmpfile);
+				pc->dmpfile = NULL;
+			}
+			
+		} else {
 			printf("Invalid options\n");
 			ok = 0;
 			break;
@@ -1590,6 +1614,8 @@ static int set_dump(int argc, char **argv)
 			printf(" detail");
 		if (pc->dmpflag & DMP_ALL)
 			printf(" all");
+		if (pc->dmpflag & DMP_FILE)
+			printf(" file");
 		if (pc->dmpflag == 0)
 			printf(" (none)");
 		printf("\n");	
@@ -1692,6 +1718,8 @@ static int show_dump(int argc, char **argv)
 					printf(" detail");
 				if (vpc[i].dmpflag & DMP_ALL)
 					printf(" all");
+				if (vpc[i].dmpflag & DMP_FILE)
+					printf(" file");	
 				if (vpc[i].dmpflag == 0)
 					printf(" (none)");
 				printf("\n");			
@@ -1717,6 +1745,8 @@ static int show_dump(int argc, char **argv)
 		printf(" detail");
 	if (pc->dmpflag & DMP_ALL)
 		printf(" all");
+	if (pc->dmpflag & DMP_FILE)
+		printf(" file");		
 	if (pc->dmpflag == 0)
 		printf(" (none)");
 	printf("\n");	

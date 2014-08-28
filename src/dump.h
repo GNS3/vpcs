@@ -27,8 +27,32 @@
 #ifndef _DUMP_H_
 #define _DUMP_H_
 
+#include <sys/types.h>
+
+
 #include "queue.h"
 
+typedef struct pcap_hdr_s {
+        u_int magic_number;     /* magic number */
+        u_short version_major;  /* major version number */
+        u_short version_minor;  /* minor version number */
+        u_int  thiszone;        /* GMT to local correction */
+        u_int sigfigs;          /* accuracy of timestamps */
+        u_int snaplen;          /* max length of captured packets, in octets */
+        u_int network;          /* data link type */
+} pcap_hdr_t;
+
+typedef struct pcaprec_hdr_s {
+        u_int ts_sec;         /* timestamp seconds */
+        u_int ts_usec;        /* timestamp microseconds */
+        u_int incl_len;       /* number of octets of packet saved in file */
+        u_int orig_len;       /* actual length of packet */
+} pcaprec_hdr_t;
+
 int dmp_packet(const struct packet *m, const int flag);
+
+FILE *open_dmpfile(const char *fname);
+void close_dmpfile(FILE *fp);
+int dmp_packet2file(const struct packet *m, FILE *fp);
 
 #endif

@@ -535,3 +535,51 @@ dmp_dns_timestr(u_int s)
 	return buf;
 }
 
+FILE *
+open_dmpfile(const char *fname)
+{
+	FILE *fp;
+	pcap_hdr_t phdr;
+	
+	fp = fopen(fname, "ab");
+	if (!fp)
+		return NULL;
+        		
+	phdr.magic_number = 0xa1b2c3d4;
+	phdr.version_major = 2;
+	phdr.version_minor = 4;
+	phdr.thiszone =  0;
+	phdr.sigfigs = 0;
+	phdr.snaplen = 0xffff;
+	phdr.network = 1;
+	
+	fwrite(&phdr, sizeof(phdr), 1, fp);
+	fflush(fp);
+	return fp;
+}
+
+void 
+close_dmpfile(FILE *fp)
+{
+	fclose(fp);
+}
+
+int 
+dmp_packet2file(const struct packet *m, FILE *fp)
+{
+	pcaprec_hdr_t phdr;
+	struct timeval ts;
+	
+	gettimeofday(&(ts), (void*)0);
+	
+	phdr.ts_sec = ts.tv_sec;
+	phdr.ts_usec = ts.tv_usec;
+	phdr.incl_len = m->len;
+	phdr.orig_len = m->len;
+	
+	fwrite(&phdr, sizeof(phdr), 1, fp);
+	fwrite(m->data, m->len, 1, fp);
+	fflush(fp);
+	
+	return 0;
+}

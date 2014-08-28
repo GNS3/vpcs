@@ -92,10 +92,13 @@ int upv4(pcs *pc, struct packet **m0)
 				*m0 = m;
 			ip = (iphdr *)(m->data + sizeof(ethdr));
 		}
-	
+		
 		/* ping me, reply */
 		if (ip->proto == IPPROTO_ICMP) {
 			icmphdr *icmp = (icmphdr *)(ip + 1);
+			
+			if (ip->dip != pc->ip4.ip)
+				return PKT_DROP;
 			
 			if (icmp->type == ICMP_ECHO) {
 				struct packet *p = icmpReply(m, ICMP_ECHOREPLY);
@@ -120,6 +123,9 @@ int upv4(pcs *pc, struct packet **m0)
 			if (ui->ui_sport == htons(67) && ui->ui_dport == htons(68)) 
 				return PKT_UP;
 			
+			if (ip->dip != pc->ip4.ip)
+				return PKT_DROP;
+				
 			/* dns response */
 			if (ui->ui_sport == htons(53))
 				return PKT_UP;
@@ -146,6 +152,8 @@ int upv4(pcs *pc, struct packet **m0)
 			/* anyway tell caller to drop this packet */
 			return PKT_DROP;
 		} else if (ip->proto == IPPROTO_TCP) {
+			if (ip->dip != pc->ip4.ip)
+				return PKT_DROP;
 			return tcp(pc, m);	
 		}	
 
