@@ -223,14 +223,14 @@ int run_ping(int argc, char **argv)
 		return help_ping(argc, argv);
 	}
 	
-	pc->mscb.frag = 0;
+	pc->mscb.frag = pc->ip4.flags & IPF_FRAG;
 	pc->mscb.mtu = pc->ip4.mtu;
 	pc->mscb.waittime = 1000;
 	pc->mscb.ipid = time(0) & 0xffff;
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_ICMP;
 	pc->mscb.ttl = TTL;
-	pc->mscb.dsize = 64;
+	pc->mscb.dsize = PAYLOAD56;
 	pc->mscb.sport = (random() % (65000 - 1024)) + 1024;
 	pc->mscb.dport = 7;
 	pc->mscb.sip = pc->ip4.ip;
@@ -426,7 +426,7 @@ redirect:
 			struct timeval ts0, ts;
 			u_int usec;
 			int k;
-			int dsize = pc->mscb.dsize;
+			int dsize;
 			int traveltime = 1;
 
 			if (i > 1)
@@ -437,6 +437,9 @@ redirect:
 				del_pkt(m);
 			/* connect the remote */
 			gettimeofday(&(ts), (void*)0);
+			
+			dsize = pc->mscb.dsize;
+			pc->mscb.dsize = PAYLOAD56;
 			k = tcp_open(4);
 			
 			/* restore data size */
@@ -495,7 +498,10 @@ redirect:
 			if (k != 2)
 				delay_ms(traveltime);
 			gettimeofday(&(ts), (void*)0);	
+			dsize = pc->mscb.dsize;
+			pc->mscb.dsize = PAYLOAD56;
 			k = tcp_close(4);
+			pc->mscb.dsize = dsize;
 			if (k == 0) {
 				printf("Close     %d@%s timeout\n", pc->mscb.dport, argv[1]);
 				continue;
@@ -552,8 +558,9 @@ redirect:
 					if ((pc->mscb.proto == IPPROTO_ICMP && pc->mscb.icmptype == ICMP_ECHOREPLY) ||
 					    (pc->mscb.proto == IPPROTO_UDP && respok == IPPROTO_UDP) ||
 					    (pc->mscb.proto == IPPROTO_TCP && respok == IPPROTO_TCP)) {
-						printf("%s %s=%d ttl=%d time=%.3f ms\n", inet_ntoa(in), 
-						    proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
+						printf("%d bytes from %s %s=%d ttl=%d time=%.3f ms\n", 
+						    pc->mscb.rdsize, inet_ntoa(in), proto_seq, i++, 
+						    pc->mscb.rttl, usec / 1000.0);
 						break;
 					}
 						
@@ -1415,6 +1422,19 @@ int run_set(int argc, char **argv)
 			}
 		}
 		
+	} else if (!strncmp("ipfrag", argv[1], strlen(argv[1]))) {
+		if (!strcmp(argv[argc - 1], "?"))
+			return help_set(argc, argv);
+			
+		if (argc < 3) {
+			printf("Incomplete command.\n");
+			return 1;
+		}
+		if (!strcasecmp(argv[2], "on")) {
+			pc->ip4.flags |= IPF_FRAG;
+		} else if (!strcasecmp(argv[2], "off")) {
+			pc->ip4.flags &= ~IPF_FRAG;
+		}
 	} else
 		printf("Invalid command.\n");
 	return 1;

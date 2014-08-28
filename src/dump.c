@@ -166,15 +166,18 @@ static void dmp_ip(void *dat)
 	printf("IPv%d, id: %x, length: %d, ttl: %d, sum: %4.4x", iph->ver, 
 	    ntohs(iph->id), ntohs(iph->len), iph->ttl, ntohs(iph->cksum));
 	
-	if (ntohs(iph->frag) == IPDF)
+	if ((ntohs(iph->frag) & IP_DF) == IP_DF)
 		printf(", DF");
-	if (ntohs(iph->frag) == IPMF)
-		printf(", MF");
+	if (ntohs(iph->frag) & (IP_MF | IP_OFFMASK))
+		printf(", MF/%d", (ntohs(iph->frag) << 3) & 0xffff);
 		
 	in.s_addr = iph->sip;
 	printf("\nAddress: %s -> ", inet_ntoa(in));
 	in.s_addr = iph->dip;
 	printf("%s\n", inet_ntoa(in));
+	
+	if ((ntohs(iph->frag) << 3) & 0xffff)
+		return;
 	
 	if (iph->proto == IPPROTO_ICMP) {
 		printf("Proto: icmp, ");

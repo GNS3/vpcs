@@ -574,8 +574,11 @@ int tcp(pcs *pc, struct packet *m)
 		} else {
 			cb->timeout = time_tick;
 			p = tcpReply(m, cb);
-			if (p != NULL)
+			if (p != NULL) {
+				if (pc->ip4.flags & IPF_FRAG)
+					p = ipfrag(p, pc->ip4.mtu);
 				enq(&pc->oq, p);
+			}
 			
 			/* send FIN after ACK if got FIN */
 			if ((cb->rflags & TH_FIN) == TH_FIN && 

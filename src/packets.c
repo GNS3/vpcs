@@ -36,15 +36,25 @@
 #include "vpcs.h"
 #include "utils.h"
 
+#define IPFRG_MAXHASH  (1 << 10)
+#define IPFRG_HASHMASK (IPFRG_MAXHASH - 1)
+#define IPFRG_HASH(x,y) \
+        (((((x) & 0xF) | ((((x) >> 8) & 0xF) << 4)) ^ (y)) & IPFRG_HASHMASK)
+        
 static struct packet *arp(pcs *pc, u_int dip);
-
 static struct packet *udpReply(struct packet *m0);
 static struct packet *icmpReply(struct packet *m0, char icmptype);
 static void save_eaddr(pcs *pc, u_int addr, u_char *mac);
 extern int upv6(pcs *pc, struct packet *m);
 extern int tcp(pcs *pc, struct packet *m);
 
+static void free_ipfrag(struct ipfrag_head *head, struct ipfrag *fp);
+static void free_packet(struct packet *m);
+static struct ipfrag *new_ipfrag(struct packet *m, iphdr *ip);
+static struct packet *defrag_pkt(struct packet **);
+
 extern u_int time_tick;
+static struct ipfrag_head ipfrag_hash[IPFRG_MAXHASH];
 
 /*
  * ipv4 stack
@@ -53,8 +63,9 @@ extern u_int time_tick;
  *       PKT_ENQ, in out queue
  *       PKT_DROP, drop the packet
  */
-int upv4(pcs *pc, struct packet *m)
+int upv4(pcs *pc, struct packet **m0)
 {
+	struct packet *m = *m0;
 	ethdr *eh = (ethdr *)(m->data);
 	u_int *si, *di;
 	
@@ -62,29 +73,41 @@ int upv4(pcs *pc, struct packet *m)
 		return upv6(pc, m);
 		
 	/* not ipv4 or arp */
-	if ((eh->type != htons(ETHERTYPE_IP)) && (eh->type != htons(ETHERTYPE_ARP))) 
+	if ((eh->type != htons(ETHERTYPE_IP)) && 
+	    (eh->type != htons(ETHERTYPE_ARP))) 
 		return PKT_DROP;
 		
 	if (etherIsMulticast(eh->src)) 
 		return PKT_DROP;
 
 	if (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 &&
-		((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
+	    ((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
 		iphdr *ip = (iphdr *)(eh + 1);
 		
+		if (ip->frag & (IP_MF | IP_OFFMASK)) {
+			m = ipreass(m);
+			if (m == NULL)
+				return PKT_ENQ;
+			else
+				*m0 = m;
+			ip = (iphdr *)(m->data + sizeof(ethdr));
+		}
+	
 		/* ping me, reply */
 		if (ip->proto == IPPROTO_ICMP) {
 			icmphdr *icmp = (icmphdr *)(ip + 1);
 			
 			if (icmp->type == ICMP_ECHO) {
 				struct packet *p = icmpReply(m, ICMP_ECHOREPLY);
-				if (p != NULL)
+				if (p != NULL) {
+					if (pc->ip4.flags & IPF_FRAG) {
+						p = ipfrag(p, pc->ip4.mtu);
+					}
 					enq(&pc->oq, p);
-
+				}
 				return PKT_ENQ;
 			}
 			/* other type will be sent to application */
-			
 		} else if (ip->proto == IPPROTO_UDP) {
 			udpiphdr *ui;
 			char *data = NULL;
@@ -112,8 +135,13 @@ int upv4(pcs *pc, struct packet *m)
 					p = icmpReply(m, ICMP_UNREACH);
 				else
 					p = udpReply(m);
-				if (p != NULL)
+				
+				if (p != NULL) {
+					if (pc->ip4.flags & IPF_FRAG) {
+						p = ipfrag(p, pc->ip4.mtu);
+					}
 					enq(&pc->oq, p);
+				}
 			}			
 			/* anyway tell caller to drop this packet */
 			return PKT_DROP;
@@ -200,6 +228,7 @@ int response(struct packet *m, sesscb *sesscb)
 		sesscb->icmpcode = icmp->code;
 		sesscb->rttl = ip->ttl;
 		sesscb->rdip = ip->sip;
+		sesscb->rdsize = ntohs(ip->len)  - (ip->ihl << 2);
 		if (ntohs(icmp->seq) == sesscb->sn) {
 			return IPPROTO_ICMP;
 		}
@@ -210,6 +239,7 @@ int response(struct packet *m, sesscb *sesscb)
 		udpiphdr *ui = (udpiphdr *)ip;	
 		char *data = ((char*)(ui + 1));
 		if (memcmp(data, eh->dst, 6) == 0) {
+			sesscb->rdsize = ntohs(ip->len)  - (ip->ihl << 2);
 			sesscb->rttl = ip->ttl;
 			return IPPROTO_UDP;
 		}
@@ -225,8 +255,10 @@ int response(struct packet *m, sesscb *sesscb)
 		sesscb->rack = ntohl(ti->ti_ack);
 		sesscb->rflags = ti->ti_flags;
 		sesscb->rttl = ip->ttl;
-		sesscb->rdsize = ntohs(ip->len) - sizeof(iphdr) - (ti->ti_off << 2);
 		sesscb->data = NULL;
+		sesscb->rdsize = ntohs(ip->len) - (ip->ihl << 2) - 
+		    (ti->ti_off << 2);
+		
 		
 		/* try to get MSS from options */
 		if (sesscb->flags == TH_SYN && sesscb->rflags == (TH_SYN | TH_ACK) && 
@@ -296,12 +328,10 @@ struct packet *packet(sesscb *sesscb)
 {
 	ethdr *eh;
 	iphdr *ip;
-	
 	int i;
 	struct packet *m;
 	int dlen = 0; /* the size of payload */
 	int hdr_len = 0;
-	int frag = 0;
 	char b[9];
 	
 	dlen = sesscb->dsize;
@@ -330,10 +360,7 @@ struct packet *packet(sesscb *sesscb)
 			hdr_len = sizeof(iphdr) + sizeof(tcphdr);
 			break;
 	}
-	
-	if (dlen > sesscb->mtu - hdr_len)
-		dlen = sesscb->mtu - hdr_len;
-	
+		
 	m = new_pkt(sizeof(ethdr) + hdr_len + dlen);
 	
 	if (m == NULL)
@@ -346,10 +373,8 @@ struct packet *packet(sesscb *sesscb)
 	ip->ihl = sizeof *ip >> 2;
 	ip->len = htons(hdr_len + dlen);
 	ip->id = htons(sesscb->ipid++);
-	if (!frag)
-		ip->frag = htons(0x4000);
-	else
-		ip->frag = htons(0x2000);
+	if (!sesscb->frag)
+		ip->frag = htons(IP_DF);
 	ip->ttl = sesscb->ttl;
 	ip->proto = sesscb->proto;
 	ip->sip = sesscb->sip;
@@ -473,10 +498,15 @@ struct packet *packet(sesscb *sesscb)
 		ti->ti_sum = cksum((u_short*)ti, hdr_len + dlen);
 		bcopy(b, ((struct ipovly *)ip)->ih_x1, 9);
 	}
-	ip->cksum = 0;
-	ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
 	
 	encap_ehead(m->data, sesscb->smac, sesscb->dmac, ETHERTYPE_IP);
+	
+	/* maybe fragmentation failed, let's do cksum first */
+	ip->cksum = 0;
+	ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
+		
+	if (sesscb->frag)
+		ipfrag(m, sesscb->mtu);
 	
 	return m;
 }
@@ -509,7 +539,6 @@ struct packet *arp(pcs *pc, u_int dip)
 
 	memcpy(ah->dea, broadcast, ETH_ALEN);
 	memcpy(ah->sea, pc->ip4.mac, ETH_ALEN);
-	
 	
 	encap_ehead(m->data, pc->ip4.mac, broadcast, ETHERTYPE_ARP);
 	
@@ -589,15 +618,15 @@ struct packet *icmpReply(struct packet *m0, char icmptype)
 	if (icmptype == ICMP_UNREACH) {
 		int len, len0;
     	
-    	eh = (ethdr *)(m0->data);
+		eh = (ethdr *)(m0->data);
 		ip = (iphdr *)(eh + 1);
 		
-    	len0 = ntohs(ip->len);
-    	if (len0 > 44)
-    		len0 = 44;
-    		
-    	len = sizeof(ethdr) + sizeof(iphdr) + sizeof(icmphdr) + len0;
-    	
+		len0 = ntohs(ip->len);
+		if (len0 > 44)
+			len0 = 44;
+
+		len = sizeof(ethdr) + sizeof(iphdr) + sizeof(icmphdr) + len0;
+
 		m = new_pkt(len);
 		if (m == NULL)
 			return NULL;
@@ -664,6 +693,302 @@ save_eaddr(pcs *pc, u_int addr, u_char *mac)
 		}
 		i++;
 	}
+}
+
+struct packet *
+ipfrag(struct packet *m0, int mtu)
+{
+	struct packet *m = NULL, *mh = NULL;
+	iphdr *ip = NULL, *ip0 = NULL;
+	int hlen, len, off, elen, flen, last;
+	int nfrags;
+	
+	elen = sizeof(ethdr) + sizeof(iphdr);
+	
+	ip0 = (iphdr *)(m0->data + sizeof(ethdr));
+	if (ntohs(ip0->len) <= mtu)
+		return m0;
+		
+	hlen = ip0->ihl << 2;
+	len = (mtu - hlen) & ~7; /* payload in fragment */
+	ip0->len = ntohs(ip0->len);
+
+	/* too small, let it alone */
+	if (len < 8)
+		return m0;
+	
+	flen = len;
+	off = hlen + len;
+	
+	mh = m0;
+	last = 0;
+	for (nfrags = 1; off < ip0->len; off += len, nfrags++) {
+		if (off + len >= ip0->len) {
+			last = 1;
+			m = new_pkt(elen + ip0->len - off);
+		} else
+			m = new_pkt(elen + len);
+
+		if (m == NULL) 
+			goto ipfrag_err;
+
+		/* ether and ip head */
+		memcpy(m->data, m0->data, elen);
+		memcpy(m->data + elen, m0->data + sizeof(ethdr) + off, len);
+		ip = (iphdr *)(m->data + sizeof(ethdr));
+		ip->frag = ((off -hlen) >> 3);
+	
+		if (!last) {
+			ip->frag |= IP_MF;
+			ip->len = htons(len + sizeof(iphdr));
+		} else
+			ip->len = htons(sizeof(iphdr) + ip0->len - off);		
+		ip->frag = htons(ip->frag);
+		ip->cksum = 0;
+		ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
+		m->next = NULL;
+		mh->next = m;
+		mh = m;
+	}
+	m0->len = elen + flen;
+	ip0->len = htons(len + sizeof(iphdr));
+	ip0->frag = htons(IP_MF);
+	ip0->cksum = 0;
+	ip0->cksum = cksum((u_short *)ip0, sizeof(iphdr));
+
+	return m0;
+	
+ipfrag_err:
+	for (m = mh->next; m; m = mh) {
+		mh = m->next;
+		del_pkt(m);
+	}
+	
+	return m0;
+}
+
+/* 
+ * return NULL, the packet is a piece, expired, or invalid.
+ * return packet, all of pieces have been arrived and reassembled.
+ */
+struct packet *
+ipreass(struct packet *m)
+{
+	ethdr *eh = (ethdr *)(m->data);
+	iphdr *ip = (iphdr *)(eh + 1);
+	iphdr *ip0;
+	struct ipfrag *fp = NULL;
+	struct ipfrag_head *qh;
+	struct packet *m0 = NULL, *m2 = NULL;
+	u_short hash, off, off0;
+	int next;
+
+	
+	hash = IPFRG_HASH(ip->sip, ip->id);
+	qh = &ipfrag_hash[hash];
+	
+	pthread_mutex_lock(&(qh->locker));
+	
+	ip->frag = ntohs(ip->frag);
+	for (fp = qh->head; fp; fp = fp->next) {
+		if (time_tick - fp->expired > 30) {
+			free_packet(fp->m);
+			free_ipfrag(qh, fp);
+			continue;
+		}
+		
+		if (ip->id != fp->id || 
+		    ip->sip != fp->sip ||
+		    ip->dip != fp->dip ||
+		    ip->proto != fp->proto)
+			continue;
+		
+		/* a fragment is existed */
+	    	if ((ip->frag & IP_MF) == IP_MF)
+			fp->flags |= FF_HEAD;
+		else if ((ip->frag & (~IP_OFFMASK)) == 0)
+			fp->flags |= FF_TAIL;
+
+		off = ip->frag << 3;
+		if (off == 0 && (ip->frag & IP_MF)) {
+			if (!ip->len || (ip->len & 0x7) != 0) {
+				del_pkt(m);
+				free_packet(fp->m);
+			 	free_ipfrag(qh, fp);
+				goto ret_null;
+			}
+			m->next = fp->m;
+			fp->m = m;
+		} else {
+			/* Find a segment, insertion sort on singly linked list
+			 */
+			m2 = NULL;
+			for (m0 = fp->m; m0; m2 = m0, m0 = m0->next) {
+				ip0 = (iphdr *)(m0->data + sizeof(ethdr));
+				off0 = ip0->frag << 3;
+				if (off0 > off)
+					break;	
+			}
+			if (m2) {
+				m->next = m2->next;
+				m2->next = m;
+			} else {
+				m->next = fp->m;
+				fp->m = m;
+			}
+		}	
+		fp->nfrags++;
+		/* too many fragments */
+		if (fp->nfrags > 16) {
+			free_packet(fp->m);
+		 	free_ipfrag(qh, fp);
+			goto ret_null;
+		}
+		/* the head and tail are arrived, scan the chain 
+		 * Note: overlap is invalid here.
+		 */
+		if (fp->flags == (FF_TAIL | FF_HEAD)) {		
+			for (next = 0, m0 = fp->m; m0; m0 = m0->next) {
+				ip0 = (iphdr *)(m0->data + sizeof(ethdr));
+				off0 = ip0->frag << 3;			
+				if (next < off0)
+					goto ret_null;			
+				/* the last fragment */
+				if ((ip0->len & 0x7) != 0) {					
+					m = fp->m;
+					free_ipfrag(qh, fp);
+					/* copy to single packet buffer
+					 * free the old buffer
+					 */	
+					m = defrag_pkt(&m);
+					goto ret;
+				}
+				next += ip0->len;
+			}
+		}
+		goto ret_null;
+	}
+	/* new fragment */
+	fp = new_ipfrag(m, ip);	
+	if (qh->head == NULL) {
+		qh->head = fp;
+		qh->tail = fp;
+	} else {
+		fp->prev = qh->tail;
+		qh->tail->next = fp;
+		qh->tail = fp;
+	}
+	
+ret_null:
+	pthread_mutex_unlock(&(qh->locker));	
+	return NULL;
+
+ret:		
+	pthread_mutex_unlock(&(qh->locker));
+	return m;	
+}
+
+static struct packet *defrag_pkt(struct packet **m0)
+{
+	struct packet *m, *mh, *m2;
+	iphdr *ip;
+	int len;
+	int elen;
+	int off;
+	
+	mh = *m0;	
+	len = 0;
+	while (mh) {
+		ip = (iphdr *)(mh->data + sizeof(ethdr));
+				
+		len += ntohs(ip->len) - sizeof(iphdr);
+		mh = mh->next;
+	}		
+	m = new_pkt(len + sizeof(iphdr) + sizeof(ethdr));
+	if (m == NULL)
+		return mh;
+
+	mh = *m0;
+	memcpy(m->data, mh->data, mh->len);
+	ip = (iphdr *)(m->data + sizeof(ethdr));
+	ip->len = ntohs(len + sizeof(iphdr));
+	off = mh->len;
+	elen = sizeof(ethdr) + sizeof(iphdr);
+	m2 = mh;
+	mh = mh->next;
+	del_pkt(m2);
+	while (mh) {
+		len = mh->len - elen;
+		memcpy(m->data + off, mh->data + elen, len);
+		off += len;
+		m2 = mh;
+		mh = mh->next;
+		del_pkt(m2);
+	}
+	ip->frag = 0;
+	ip->cksum = 0;
+	ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
+	
+	return m;
+}
+
+static void
+free_packet(struct packet *m)
+{
+	struct packet *m0;
+	
+	while (m) {
+		m0 = m->next;
+		del_pkt(m);
+		m = m0;
+	}
+}
+
+static void
+free_ipfrag(struct ipfrag_head *qh, struct ipfrag *fp)
+{
+	if (fp == qh->head)
+		qh->head = fp->next;
+	else
+		fp->prev->next = fp->next;
+	free(fp);
+}
+
+static struct ipfrag *
+new_ipfrag(struct packet *m, iphdr *ip)
+{
+	struct ipfrag *fp;
+	
+	fp = (struct ipfrag *)malloc(sizeof(struct ipfrag));
+	if (!fp)
+		return NULL;
+
+	memset(fp, 0, sizeof(struct ipfrag));
+	
+	fp->expired = time_tick;
+	fp->nfrags = 1;
+	fp->proto = ip->proto;
+	fp->id = ip->id;
+	fp->sip = ip->sip;
+	fp->dip = ip->dip;
+	fp->m = m;
+	m->next = NULL;
+	if ((ip->frag & IP_MF) == IP_MF)
+		fp->flags = FF_HEAD;
+	else if ((ip->frag & (~IP_OFFMASK)) == 0)
+		fp->flags = FF_TAIL;
+		
+	return fp;
+}
+
+void init_ipfrag(void)
+{
+	int i;
+	
+	memset(ipfrag_hash, 0, sizeof(struct ipfrag_head) * IPFRG_MAXHASH);
+	for (i = 0; i < IPFRG_MAXHASH; i++)
+		pthread_mutex_init(&(ipfrag_hash[i].locker), NULL);
+	
 }
 
 #if 0

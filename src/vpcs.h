@@ -87,6 +87,8 @@ typedef struct {
 	u_int dns[2];		/* dns server */
 	char domain[64];	/* search domain name */
 	int mtu;
+	int flags;
+#define IPF_FRAG 0x1
 } hipv4;
 
 #define MAX_NAMES_LEN	(6)

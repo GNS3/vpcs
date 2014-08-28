@@ -68,6 +68,9 @@ struct iphdr {
 	u_short len;		/* ip packet length */
 	u_short id;		/* identification */
 	u_short frag;		/* fragment offset field */
+#define IP_DF 0x4000
+#define IP_MF 0x2000
+#define IP_OFFMASK 0x1fff
 	u_char  ttl;		/* time to live */
 #define TTL	64
 	u_char  proto;		/* protocol */
@@ -76,9 +79,6 @@ struct iphdr {
 	u_int   dip;		/* source and dest address */
 };
 typedef struct iphdr iphdr;
-
-#define IPDF 0x4000
-#define IPMF 0x2000
 
 #ifndef IPPROTO_ICMP
 #define IPPROTO_ICMP 1

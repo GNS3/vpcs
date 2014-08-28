@@ -30,8 +30,35 @@
 #include "vpcs.h"
 #include "ip.h"
 
+struct ipfrag {
+	struct ipfrag *prev;
+	struct ipfrag *next;
+	u_int  expired;
+	u_int  flags:4,         /* first and last fragments */
+	       nfrags:4;        /* count of fragments */
+#define FF_HEAD 1
+#define FF_TAIL  2
+	u_char  proto;            /* protocol of this fragment */
+	u_short id;           /* sequence id for reassembly */
+	u_int sip;
+	u_int dip;
+	struct packet *m;          /* to ip headers of fragments */
+};
+
+struct ipfrag_head {
+	struct ipfrag *head;
+	struct ipfrag *tail;
+	pthread_mutex_t locker;
+};
+
+#define PAYLOAD56 56
+
+void init_ipfrag(void);
+struct packet *ipreass(struct packet *m);
+struct packet *ipfrag(struct packet *m0, int mtu);
+
 struct packet *packet(sesscb *sesscb);
-int upv4(pcs *pc, struct packet *pkt);
+int upv4(pcs *pc, struct packet **pkt);
 int response(struct packet *pkt, sesscb *sesscb);
 int arpResolve(pcs *pc, u_int ip, u_char *dmac);
 int host2ip(pcs *pc, const char *name, u_int *ip);

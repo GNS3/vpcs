@@ -231,6 +231,7 @@ int help_set(int argc, char **argv)
 
 	printf( "\n\033[1mset [lport|rport|rhost|pcname|echo|dump]\033[0m\n"
 		"  Set hostname, connection port, dump options and echo on or off\n"
+		"    ipfrag [on|off]          set ip fragmentation on or off\n"
 		"    lport <port>             local port\n"
 		"    rport <port>             remote peer port\n"
 		"    rhost <ip>               remote peer host IPv4 address\n"

@@ -89,7 +89,6 @@ struct packet *enq(struct pq *pq, struct packet *m)
 	
 	lock_q(pq);
 
-	m->next = NULL;
 	gettimeofday(&(m->ts), (void*)0);
 	
 	if (pq->q == NULL)
@@ -97,11 +96,12 @@ struct packet *enq(struct pq *pq, struct packet *m)
 	else {
 		q = pq->q;
 		while (q->next != NULL) q = q->next;
-		q->next = m;
+		q->next = m;	
 	}
-
-	pq->size ++;
-	
+	while (m) {
+		pq->size ++;
+		m = m->next;
+	}
 	pthread_cond_signal(&(pq->cond));
 
 	ulock_q(pq);

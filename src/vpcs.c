@@ -52,7 +52,7 @@
 #include "relay.h"
 #include "dhcp.h"
 
-const char *ver = "0.5b4";
+const char *ver = "0.5b5";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -444,7 +444,8 @@ void *pth_reader(void *devid)
 	pc->ip4.mac[3] = 0x66;
 	pc->ip4.mac[4] = 0x68;
 	pc->ip4.mac[5] = (id + macaddr) & 0xff;
-
+	pc->ip4.flags |= IPF_FRAG;
+	
 	if (pc->fd == 0)
 		pc->fd = open_dev(id);
 		
@@ -487,7 +488,7 @@ void *pth_reader(void *devid)
 
 			if (pc->dmpflag & DMP_ALL || !memcmp(m->data, pc->ip4.mac, ETH_ALEN))
 				dmp_packet(m, pc->dmpflag);
-			rc = upv4(pc, m);
+			rc = upv4(pc, &m);
 			
 			if (rc == PKT_UP) {
 				if (dhcp_enq(pc, m))
