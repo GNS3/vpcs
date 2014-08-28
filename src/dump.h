@@ -54,5 +54,6 @@ int dmp_packet(const struct packet *m, const int flag);
 FILE *open_dmpfile(const char *fname);
 void close_dmpfile(FILE *fp);
 int dmp_packet2file(const struct packet *m, FILE *fp);
+int dmp_buffer2file(const char *m, int len, FILE *fp);
 
 #endif

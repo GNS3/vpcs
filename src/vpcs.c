@@ -489,9 +489,10 @@ void *pth_reader(void *devid)
 			if (!memcmp(m->data, pc->ip4.mac, ETH_ALEN) ||
 			    pc->dmpflag & DMP_ALL) {
 				if (pc->dmpflag & DMP_FILE)
-					dmp_packet2file(m, pc->dmpfile);
+					dmp_packet2file(m, pc->dmpfile);					
 				dmp_packet(m, pc->dmpflag);
 			}
+			
 			rc = upv4(pc, &m);
 			
 			if (rc == PKT_UP) {

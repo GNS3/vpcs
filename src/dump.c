@@ -538,10 +538,20 @@ dmp_dns_timestr(u_int s)
 FILE *
 open_dmpfile(const char *fname)
 {
+	char tfname[1024];
 	FILE *fp;
 	pcap_hdr_t phdr;
-	
-	fp = fopen(fname, "ab");
+	time_t t0;
+	struct tm *tm;
+				
+	t0 = time(0);
+	tm = localtime(&t0);
+		
+	snprintf(tfname, sizeof(tfname), "%s_%4d%02d%02d%02d%02d%02d.pcap", 
+	    fname, tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, 
+	    tm->tm_hour, tm->tm_min, tm->tm_sec);
+				    
+	fp = fopen(tfname, "ab");
 	if (!fp)
 		return NULL;
         		
@@ -582,4 +592,28 @@ dmp_packet2file(const struct packet *m, FILE *fp)
 	fflush(fp);
 	
 	return 0;
+}
+
+int 
+dmp_buffer2file(const char *m, int len, FILE *fp)
+{
+	pcaprec_hdr_t phdr;
+	struct timeval ts;
+	
+	gettimeofday(&(ts), (void*)0);
+	
+	phdr.ts_sec = ts.tv_sec;
+	phdr.ts_usec = ts.tv_usec;
+	phdr.incl_len = len;
+	phdr.orig_len = len;
+	
+	if (!fp)
+		return 0;
+
+	fwrite(&phdr, sizeof(phdr), 1, fp);
+	fwrite(m, len, 1, fp);
+	fflush(fp);
+	
+	return 0;	
+	
 }

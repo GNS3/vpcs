@@ -34,6 +34,7 @@
 #include "vpcs.h"
 #include "dev.h"
 #include "relay.h"
+#include "dump.h"
 
 struct node {
 	u_int32_t ip;
@@ -49,6 +50,8 @@ struct peerlist {
 static struct peerlist *peerlist = NULL;
 static int relay_fd = 0;
 static int relay_port = 0;
+static FILE *relay_dumpfile = NULL;
+static int relaydump = 0;
 
 int run_relay(int argc, char **argv)
 {
@@ -59,6 +62,25 @@ int run_relay(int argc, char **argv)
 	char *p;
 	int i, j;
 	
+	if (argc == 3 && !strcmp(argv[1], "dump")) {
+		if (!strcasecmp(argv[2], "on"))
+			relaydump = 1;
+		else if (!strcasecmp(argv[2], "off"))
+			relaydump = 0;
+		if (relaydump)
+			printf("dump on\n");
+		else
+			printf("dump off\n");
+		return 0;
+	}
+	
+	if (argc == 2 && !strcmp(argv[1], "dump")) {
+		if (relaydump)
+			printf("dump on\n");
+		else
+			printf("dump off\n");
+		return 0;
+	}
 	if (argc == 3 && !strcmp(argv[1], "port")) {
 		port = atoi(argv[2]);
 		if (port > 1024 && port < 65534)
@@ -286,7 +308,17 @@ void *pth_relay(void *dummy)
 		size = sizeof(struct sockaddr_in);
 		n = recvfrom(relay_fd, buf, len, 0, 
 		    (struct sockaddr *)&peeraddr, &size);
-		    
+		
+		if (relaydump && relay_dumpfile == NULL)
+			relay_dumpfile = open_dmpfile("relay");
+
+		if (relaydump)
+			dmp_buffer2file(buf, len, relay_dumpfile);
+		else if (relay_dumpfile) {
+			close_dmpfile(relay_dumpfile);
+			relay_dumpfile = NULL;
+		}
+			
 		bzero(&addr, sizeof(addr));
 		addr.sin_family = AF_INET;
 		peerhost = peerlist;

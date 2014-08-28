@@ -53,6 +53,7 @@ int help_relay(int argc, char **argv)
 {
 	printf( "\n\033[1mrelay [arguments]\033[0m\n"
 		"  arguments:\n"
+		"    dump [on|off]                dump relay packets to file\n"
 		"    port <port>                  set relay hub port\n"
 		"    show                         show the relay rules\n"
 		"    add [ip1:]port1 [ip2:]port2  relay the packets between port1 and port2\n"

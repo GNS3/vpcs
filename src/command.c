@@ -1571,27 +1571,18 @@ static int set_dump(int argc, char **argv)
 		else if (!strncmp(argv[i], "file", strlen(argv[i]))) {
 			if (pc->dmpfile == NULL) {
 				char tfname[1024];
-				time_t t0;
-				struct tm *tm;
-				
-				t0 = time(0);
-				tm = localtime(&t0);
-				
-				sprintf(tfname, "vpcs%d_%4d%02d%02d%02d%02d%02d.pcap", 
-				    pc->id + 1, 
-				    tm->tm_year + 1900, tm->tm_mon + 1,
-				    tm->tm_mday, tm->tm_hour,
-				    tm->tm_min, tm->tm_sec);
-				pc->dmpfile = open_dmpfile(tfname);
+				sprintf(tfname, "vpcs%d", pc->id + 1);
+				pc->dmpfile = open_dmpfile(tfname);	
 			}
 			dmpflag |= DMP_FILE;	
 		} else if (!strncmp(argv[i], "off", strlen(argv[i]))) {
 			dmpflag = 0;
+			/* give pthread reader/writer a little time */
+			usleep(1000);
 			if (pc->dmpfile) {
 				close_dmpfile(pc->dmpfile);
 				pc->dmpfile = NULL;
 			}
-			
 		} else {
 			printf("Invalid options\n");
 			ok = 0;
