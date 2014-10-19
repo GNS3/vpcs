@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -517,9 +517,10 @@ int tcp(pcs *pc, struct packet *m)
 		rcb.flags = TH_RST | TH_FIN | TH_ACK;
 		
 		p = tcpReply(m, &rcb);
-		if (p != NULL)
+		if (p != NULL) {
+			fix_dmac(pc, p);
 			enq(&pc->oq, p);
-		else
+		} else
 			printf("reply error\n");
 		
 		/* drop the request packet */
@@ -575,6 +576,7 @@ int tcp(pcs *pc, struct packet *m)
 			cb->timeout = time_tick;
 			p = tcpReply(m, cb);
 			if (p != NULL) {
+				fix_dmac(pc, p);
 				if (pc->ip4.flags & IPF_FRAG)
 					p = ipfrag(p, pc->ip4.mtu);
 				enq(&pc->oq, p);
@@ -584,8 +586,10 @@ int tcp(pcs *pc, struct packet *m)
 			if ((cb->rflags & TH_FIN) == TH_FIN && 
 			    cb->flags == (TH_ACK | TH_FIN)) {
 				p = tcpReply(m, cb);
-				if (p != NULL)
+				if (p != NULL) {
+					fix_dmac(pc, p);
 					enq(&pc->oq, p);
+				}
 			}
 		}
 	}
@@ -695,9 +699,10 @@ int tcp6(pcs *pc, struct packet *m)
 		rcb.seq = time(0);
 		
 		p = tcp6Reply(m, &rcb);
-		if (p != NULL)
+		if (p != NULL) {
+			fix_dmac6(pc, p);
 			enq(&pc->oq, p);
-		else
+		} else
 			printf("reply error\n");
 		
 		/* drop the request packet */
@@ -751,14 +756,18 @@ int tcp6(pcs *pc, struct packet *m)
 		} else {
 			cb->timeout = time_tick;
 			p = tcp6Reply(m, cb);
-			if (p != NULL)
+			if (p != NULL) {
+				fix_dmac6(pc, p);
 				enq(&pc->oq, p);
+			}
 			
 			/* send FIN after ACK if got FIN */	
 			if ((cb->rflags & TH_FIN) == TH_FIN && cb->flags == (TH_ACK | TH_FIN)) {	
 				p = tcp6Reply(m, cb);
-				if (p != NULL)
+				if (p != NULL) {
+					fix_dmac6(pc, p);
 					enq(&pc->oq, p);
+				}
 			}
 		}
 	}

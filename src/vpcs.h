@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -80,7 +80,7 @@ typedef struct {
 	u_int ip;		/* local host ip */
 	int cidr;		/* local host ip netmask */
 	u_char mac[6];		/* local host mac */
-	u_long gw;		/* default gateway ip */
+	u_int gw;		/* default gateway ip */
 	u_char gmac[6];		/* destination host mac */
 	dhcp dhcp;				
 	u_int lease;		/* dhcp lease time */

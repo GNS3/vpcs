@@ -52,7 +52,7 @@
 #include "relay.h"
 #include "dhcp.h"
 
-const char *ver = "0.5b6";
+const char *ver = "0.5b7";
 /* track the binary */
 static const char *ident = "$Id$";
 

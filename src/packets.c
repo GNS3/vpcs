@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -66,6 +66,7 @@ static struct ipfrag_head ipfrag_hash[IPFRG_MAXHASH];
 int upv4(pcs *pc, struct packet **m0)
 {
 	struct packet *m = *m0;
+	struct packet *p = NULL;
 	ethdr *eh = (ethdr *)(m->data);
 	u_int *si, *di;
 	
@@ -100,17 +101,19 @@ int upv4(pcs *pc, struct packet **m0)
 			if (ip->dip != pc->ip4.ip)
 				return PKT_DROP;
 			
-			if (icmp->type == ICMP_ECHO) {
-				struct packet *p = icmpReply(m, ICMP_ECHOREPLY);
-				if (p != NULL) {
-					if (pc->ip4.flags & IPF_FRAG) {
-						p = ipfrag(p, pc->ip4.mtu);
-					}
-					enq(&pc->oq, p);
-				}
-				return PKT_ENQ;
-			}
 			/* other type will be sent to application */
+			if (icmp->type != ICMP_ECHO)
+				return PKT_UP;
+
+			p = icmpReply(m, ICMP_ECHOREPLY);
+			if (p != NULL) {
+				fix_dmac(pc, p);
+				if (pc->ip4.flags & IPF_FRAG) {
+					p = ipfrag(p, pc->ip4.mtu);
+				}
+				enq(&pc->oq, p);
+			}
+			return PKT_ENQ;
 		} else if (ip->proto == IPPROTO_UDP) {
 			udpiphdr *ui;
 			char *data = NULL;
@@ -143,6 +146,7 @@ int upv4(pcs *pc, struct packet **m0)
 					p = udpReply(m);
 				
 				if (p != NULL) {
+					fix_dmac(pc, p);
 					if (pc->ip4.flags & IPF_FRAG) {
 						p = ipfrag(p, pc->ip4.mtu);
 					}
@@ -607,17 +611,17 @@ struct packet *icmpReply(struct packet *m0, char icmptype)
 		
 		icmp->type = ICMP_ECHOREPLY;
 		icmp->cksum = cksum_fixup(icmp->cksum, ICMP_ECHO, ICMP_ECHOREPLY, 0);
-		
+
 		ip->dip ^= ip->sip;
 		ip->sip ^= ip->dip;
 		ip->dip ^= ip->sip;
 
 		ip->ttl = TTL;
-				
+		
 		ip->cksum = cksum_fixup(cksum_fixup(cksum_fixup(ip->cksum, 
 		    old_ttl, ip->ttl, 0), ICMP_ECHO, ICMP_ECHOREPLY, 0),
 		    old_sum, icmp->cksum, 0);
-    	
+	
 		swap_ehead(m->data);
 		
 		return m;	
@@ -701,6 +705,23 @@ save_eaddr(pcs *pc, u_int addr, u_char *mac)
 		}
 		i++;
 	}
+}
+
+void
+fix_dmac(pcs *pc, struct packet *m)
+{
+	ethdr *eh = NULL;
+	iphdr *ip = NULL;
+	u_char mac[6];
+	
+	eh = (ethdr *)(m->data);
+	ip = (iphdr *)(eh + 1);
+	
+	if (sameNet(ip->dip, pc->ip4.ip, pc->ip4.cidr))
+		return;
+		
+	if (arpResolve(pc, pc->ip4.gw, mac))
+		memcpy(eh->dst, mac, sizeof(mac));
 }
 
 struct packet *

@@ -50,6 +50,7 @@
 #include "readline.h"
 #include "help.h"
 #include "dump.h"
+#include "relay.h"
 
 extern int pcid;
 extern int devtype;
@@ -2032,6 +2033,8 @@ int run_save(int argc, char **argv)
 			fputs("ip auto\n", fp);
 		printf(".");
 	}
+
+	save_relay(fp);
 
 	if (num_pths > 1)
 		fprintf(fp, "1\n");

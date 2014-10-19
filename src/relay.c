@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -285,6 +285,26 @@ int run_relay(int argc, char **argv)
 	return 0;
 }
 
+void save_relay(FILE *fp)
+{
+	struct peerlist *peerhost = NULL;
+	struct in_addr in;
+
+	peerhost = peerlist;
+	if (!peerhost || peerhost->nodea.port == 0)
+		return;
+
+	fprintf(fp, "relay port %d\n", relay_port);
+
+	while (peerhost) {
+		in.s_addr = peerhost->nodea.ip;
+		fprintf(fp, "relay add %s:%d ", inet_ntoa(in), ntohs(peerhost->nodea.port)); 
+		in.s_addr = peerhost->nodeb.ip;
+		fprintf(fp, "%s:%d\n", inet_ntoa(in), ntohs(peerhost->nodeb.port));
+		peerhost = peerhost->next;
+	}
+}
+
 void *pth_relay(void *dummy)
 {
 	char buf[1500];
@@ -313,7 +333,7 @@ void *pth_relay(void *dummy)
 			relay_dumpfile = open_dmpfile("relay");
 
 		if (relaydump)
-			dmp_buffer2file(buf, len, relay_dumpfile);
+			dmp_buffer2file(buf, n, relay_dumpfile);
 		else if (relay_dumpfile) {
 			close_dmpfile(relay_dumpfile);
 			relay_dumpfile = NULL;

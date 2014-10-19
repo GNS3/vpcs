@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -57,6 +57,8 @@ int tr6Reply(struct packet *m, ip6 *mip, ip6 *dip);
 
 u_char *nbDiscovery(pcs *pc, ip6 *dst);
 struct packet* nbr_sol(pcs *pc);
+
+void fix_dmac6(pcs *pc, struct packet *m);
 
 #endif
 

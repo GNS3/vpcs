@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -32,6 +32,7 @@
 
 int run_relay(int argc, char **argv);
 void *pth_relay(void *dummy);
+void save_relay(FILE *fp);
 
 #endif
 /* end of file */

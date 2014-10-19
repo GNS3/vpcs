@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -144,6 +144,7 @@ int upv6(pcs *pc, struct packet *m)
 			icmp->cksum = cksum_fixup(icmp->cksum, 
 			    ICMP6_ECHO_REQUEST, ICMP6_ECHO_REPLY, 0);
 			swap_ehead(m->data);
+			fix_dmac6(pc, m);
 			enq(&pc->oq, m);
 			
 			return PKT_ENQ;	
@@ -266,8 +267,10 @@ int upv6(pcs *pc, struct packet *m)
 				p = icmp6Reply(m);
 			else
 				p = udp6Reply(m);
-			if (p != NULL)
+			if (p != NULL) {
+				fix_dmac6(pc, p);
 				enq(&pc->oq, p);
+			}
 		}
 
 		/* anyway tell caller to drop this packet */
@@ -889,6 +892,20 @@ int nb_adv(pcs *pc, struct packet *m, ip6 *dst)
 	}
 
 	return i;
+}
+
+void fix_dmac6(pcs *pc, struct packet *m)
+{
+	u_char *p;
+	ethdr *eh;
+	ip6hdr *ip;
+	
+	eh = (ethdr *)(m->data);	
+	ip = (ip6hdr *)(eh + 1);
+	
+	p = nbDiscovery(pc, &pc->mscb.dip6);
+	if (p)
+		memcpy(eh->dst, p, 6);
 }
 
 /* end of file */
