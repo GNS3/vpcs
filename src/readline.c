@@ -236,9 +236,9 @@ int _readline(struct rls *rls)
 					flags = 1;
 					ihist = rls->hist_total;
 					if (rls->pos != 0)
-						strcpy(rls->history[rls->maxhistnum], rls->kbuffer);
+						strcpy(rls->history[rls->maxhistnum - 1], rls->kbuffer);
 					else
-						rls->history[rls->maxhistnum][0] = '\0';
+						rls->history[rls->maxhistnum - 1][0] = '\0';
 				}
 				if (ihist == 0)
 					continue;
@@ -472,7 +472,7 @@ int findhistory(struct rls *rls, int start)
 	int len, i;
 	
 	/* no pattern */
-	len = strlen(rls->history[rls->maxhistnum]);
+	len = strlen(rls->history[rls->maxhistnum - 1]);
 	if (len == 0) {
 		if (start >= 0) {
 			start++;
@@ -486,14 +486,14 @@ int findhistory(struct rls *rls, int start)
 		if (start >= 0) {
 			start++;
 			for (i = start; i < rls->hist_total; i++)
-				if (!strncmp(rls->history[rls->maxhistnum], rls->history[i], len))
+				if (!strncmp(rls->history[rls->maxhistnum - 1], rls->history[i], len))
 					return i;
 			return -1;
 		} else {
 			start = 0 - start;
 			start --;
 			for (i = start; i >= 0; i--)
-				if (!strncmp(rls->history[rls->maxhistnum], rls->history[i], len))
+				if (!strncmp(rls->history[rls->maxhistnum - 1], rls->history[i], len))
 					return i;
 			return -1;
 		}
