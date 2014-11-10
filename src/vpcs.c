@@ -52,7 +52,7 @@
 #include "relay.h"
 #include "dhcp.h"
 
-const char *ver = "0.5b7";
+const char *ver = "0.6";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -445,6 +445,7 @@ void *pth_reader(void *devid)
 	pc->ip4.mac[4] = 0x68;
 	pc->ip4.mac[5] = (id + macaddr) & 0xff;
 	pc->ip4.flags |= IPF_FRAG;
+	pc->mtu = 1500;
 	
 	if (pc->fd == 0)
 		pc->fd = open_dev(id);
