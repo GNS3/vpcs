@@ -578,7 +578,7 @@ int tcp(pcs *pc, struct packet *m)
 			if (p != NULL) {
 				fix_dmac(pc, p);
 				if (pc->ip4.flags & IPF_FRAG)
-					p = ipfrag(p, pc->ip4.mtu);
+					p = ipfrag(p, pc->mtu);
 				enq(&pc->oq, p);
 			}
 			

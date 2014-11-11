@@ -33,6 +33,8 @@
 
 #define MAX_LEN  (128)
 
+static int search_pairs(const char *s, char **lf, char **rt);
+
 char *getkv(char *str)
 {
 	static char buf[MAX_LEN];
@@ -160,6 +162,88 @@ int arg2int(const char* arg, int min, int max, int defval)
 		return defval;
 	
 	return r;
+}
+
+/* Highlight {Hword}
+ * Underline {Uword}
+ * Color     {Nword}, N from 1 to 9
+*/
+
+void esc_prn(const char *fmt, ...)
+{
+	char *buf;
+	char *tmp;
+	char *p;
+	char *lf, *rt;
+	va_list ap;
+
+	buf = malloc(4096);
+	if (!buf)
+		return;
+	tmp = malloc(4096);
+	if (!tmp) {
+		free(buf);
+		return;
+	}
+	
+	va_start(ap, fmt);
+	vsprintf(tmp, fmt, ap);
+	va_end(ap);
+	
+	p = tmp;
+	buf[0] = '\0';
+	while (1) {
+		if (search_pairs(p, &lf, &rt) == 0)
+			break;
+		strncat(buf, p, lf - p);
+		lf++;
+		switch (*lf) {
+			case 'H':
+				strcat(buf, "\033[1m");
+				break;
+			case 'U':
+				strcat(buf, "\033[4m");
+			default:
+				break;
+		}
+		lf++;
+		strncat(buf, lf, rt - lf);
+		strcat(buf, "\033[0m");
+		p = rt + 1;
+	}
+
+	if (p)
+		strcat(buf, p);
+
+	printf("%s", buf);
+	free(tmp);
+	free(buf);
+}
+
+static int search_pairs(const char *s, char **lf, char **rt)
+{
+	char *p, *q, *r;
+	
+	p = strchr(s, '{');
+	if (!p)
+		return 0;		
+	if (*(p + 1)) {
+		q = strchr(p + 1, '}');
+		r = strchr(p + 1, '{');
+		if (!q)
+			return 0;
+		
+		/* nesting is not allowed */		
+		if (r && r < q)
+			return 0;
+		
+		*lf = p;
+		*rt = q;
+		
+		return 1;
+	}
+	
+	return 0;
 }
 #if 0
 void preh(u_char *e)

@@ -48,6 +48,8 @@ int help_shut(int argc, char **argv);
 int help_sleep(int argc, char **argv);
 int help_version(int argc, char **argv);
 
+#define EHL(x) "\033[1m"x"\033[0m"
+#define EUL(x) "\033[4m"x"\033[0m"
 
 #endif
 /* end of file */

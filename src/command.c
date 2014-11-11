@@ -68,6 +68,9 @@ extern int runStartup;
 extern const char *default_startupfile;
 extern int num_pths;
 
+static const char *color_name[8] = {
+	"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"};
+
 static int set_dump(int argc, char **argv);
 static int show_dump(int argc, char **argv);
 static int show_ip(int argc, char **argv);
@@ -225,8 +228,8 @@ int run_ping(int argc, char **argv)
 		return help_ping(argc, argv);
 	}
 	
-	pc->mscb.frag = pc->ip4.flags & IPF_FRAG;
-	pc->mscb.mtu = pc->ip4.mtu;
+	pc->mscb.frag = IPF_FRAG;
+	pc->mscb.mtu = pc->mtu;
 	pc->mscb.waittime = 1000;
 	pc->mscb.ipid = time(0) & 0xffff;
 	pc->mscb.seq = time(0);
@@ -250,7 +253,7 @@ int run_ping(int argc, char **argv)
 					
 		switch (c) {
 			case 'D':
-				pc->mscb.frag = 1;
+				pc->mscb.frag = ~IPF_FRAG;
 				break;
 			case 'u':
 				if (i < argc)
@@ -370,7 +373,7 @@ int run_ping(int argc, char **argv)
 		pc->mscb.winsize = 0xb68; /* 1460 * 4 */
 
 	if (strchr(argv[1], ':') != NULL) {
-		pc->mscb.mtu = pc->ip6.mtu;
+		pc->mscb.mtu = pc->mtu;
 		return run_ping6(argc, argv);
 	}	
 	pc->mscb.dip = inet_addr(argv[1]);
@@ -541,7 +544,7 @@ redirect:
 			while (!timeout(tv, pc->mscb.waittime) && !respok && !ctrl_c) {
 				delay_ms(1);
 				respok = 0;
-				
+
 				while ((p = deq(&pc->iq)) != NULL && !respok && !ctrl_c) {
 
 					pc->mscb.icmptype = pc->mscb.icmpcode = 0; 
@@ -551,7 +554,7 @@ redirect:
 					    p->ts.tv_usec - tv.tv_usec;
 
 					del_pkt(p);
-					
+
 					if (respok == 0)
 						continue;
 					
@@ -571,14 +574,14 @@ redirect:
 						
 						if (pc->mscb.icmptype == ICMP_REDIRECT && 
 						    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
-						    	din.s_addr = pc->ip4.gw;	
-						    	printf("Redirect Network, gateway %s",  inet_ntoa(din));
-						    	din.s_addr = pc->mscb.rdip;
-						    	printf(" -> %s\n", inet_ntoa(din));
-						    	
-						    	gwip = pc->mscb.rdip;
-						    	delay_ms(100);
-						    	goto redirect;
+						din.s_addr = pc->ip4.gw;	
+						printf("Redirect Network, gateway %s",  inet_ntoa(din));
+						din.s_addr = pc->mscb.rdip;
+						printf(" -> %s\n", inet_ntoa(din));
+						
+						gwip = pc->mscb.rdip;
+						delay_ms(100);
+						goto redirect;
 						}
 						din.s_addr = pc->mscb.rdip;
 						printf("*%s %s=%d ttl=%d time=%.3f ms", 
@@ -764,7 +767,7 @@ static int run_dhcp_new(int renew, int dump)
 		printf(" GW %s\n", inet_ntoa(in));
 	}
 	
-	pc->ip4.mtu = MTU;
+	pc->mtu = MTU;
 	if (pc->ip4.dhcp.renew == 0)
 		pc->ip4.dhcp.renew = pc->ip4.dhcp.lease / 2;
 	if (pc->ip4.dhcp.rebind == 0)
@@ -863,20 +866,7 @@ int run_ipconfig(int argc, char **argv)
 	if (!strncmp("auto", argv[1], strlen(argv[1])))
 		return ipauto6();
 
-	if (!strncmp("mtu", argv[1], strlen(argv[1]))) {
-		if (argc == 2 || argc > 3 || 
-		    (argc == 3 && !digitstring(argv[2]))) {
-		    	argc = 3;
-		    	argv[2] = "?";
-			return help_ip(argc, argv);
-		}
-		i = atoi(argv[2]);
-		if (i < 576) {
-			printf("Invalid MTU, should bigger than 576\n");
-		} else
-			pc->ip4.mtu = i;
-		return 1;
-	}
+
 	
 	if (!strncmp("domain", argv[1], strlen(argv[1]))) {
 		if (argc != 3) {
@@ -1024,7 +1014,7 @@ int run_ipconfig(int argc, char **argv)
 	pc->ip4.ip = rip;
 	pc->ip4.gw = gip;
 	pc->ip4.cidr = icidr;
-	pc->ip4.mtu = MTU;
+	pc->mtu = MTU;
 	
 	/* set tap ip address */
 	if (DEV_TAP == devtype) {
@@ -1068,7 +1058,7 @@ int run_tracert(int argc, char **argv)
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_UDP;
 	pc->mscb.dsize = 64;
-	pc->mscb.mtu = pc->ip4.mtu;
+	pc->mscb.mtu = pc->mtu;
 	pc->mscb.sport = rand() & 0xfff1;
 	pc->mscb.dport = pc->mscb.sport + 1;
 	pc->mscb.sip = pc->ip4.ip;
@@ -1081,7 +1071,7 @@ int run_tracert(int argc, char **argv)
 	}
 	
 	if (strchr(argv[1], ':')) {
-		pc->mscb.mtu = pc->ip6.mtu;
+		pc->mscb.mtu = pc->mtu;
 		return run_tracert6(argc, argv);
 	}
 	
@@ -1336,6 +1326,21 @@ int run_set(int argc, char **argv)
 		return set_dump(argc, argv);
 	}
 	
+	if (!strncmp("mtu", argv[1], strlen(argv[1]))) {
+		if (argc == 2 || argc > 3 || 
+		    (argc == 3 && !digitstring(argv[2]))) {
+		    	argc = 3;
+		    	argv[2] = "?";
+			return help_set(argc, argv);
+		}
+		value = atoi(argv[2]);
+		if (value < 576) {
+			printf("Invalid MTU, should bigger than 576\n");
+		} else
+			pc->mtu = value;
+		return 1;
+	}
+	
 	if (!strncmp("lport", argv[1], strlen(argv[1]))) {
 		if (argc != 3) {
 			printf("Incomplete command.\n");
@@ -1424,19 +1429,6 @@ int run_set(int argc, char **argv)
 			}
 		}
 		
-	} else if (!strncmp("ipfrag", argv[1], strlen(argv[1]))) {
-		if (!strcmp(argv[argc - 1], "?"))
-			return help_set(argc, argv);
-			
-		if (argc < 3) {
-			printf("Incomplete command.\n");
-			return 1;
-		}
-		if (!strcasecmp(argv[2], "on")) {
-			pc->ip4.flags |= IPF_FRAG;
-		} else if (!strcasecmp(argv[2], "off")) {
-			pc->ip4.flags &= ~IPF_FRAG;
-		}
 	} else
 		printf("Invalid command.\n");
 	return 1;
@@ -1849,7 +1841,7 @@ static int show_ip(int argc, char **argv)
 		printf("LPORT       : %d\n", vpc[id].lport);
 		in.s_addr = vpc[id].rhost;
 		printf("RHOST:PORT  : %s:%d\n", inet_ntoa(in), vpc[id].rport);
-		printf("MTU:        : %d\n", vpc[id].ip4.mtu);
+		printf("MTU:        : %d\n", vpc[id].mtu);
 		return 1;
 	}
 
@@ -1863,12 +1855,18 @@ static int show_echo(int argc, char **argv)
 {
 	printf("\n");
 	
-	if (echoctl.enable)
-		printf("Echo On\n");
-	else
-		printf("Echo Off\n");
+	esc_prn("Echo {H%s}\n", (echoctl.enable) ? "On" : "Off");
+	printf("Foreground color: %s\n", 
+	    (echoctl.fgcolor >= 30 && echoctl.fgcolor <= 37) ?
+	    color_name[echoctl.fgcolor - 30] :
+	    "default");
+
+	printf("Background color: %s\n", 
+	    (echoctl.bgcolor >= 40 && echoctl.bgcolor <= 47) ?
+	    color_name[echoctl.bgcolor - 40] :
+	    "default");
 	
-	return 1;	
+	return 1;
 }
 
 int run_ver(int argc, char **argv)
@@ -2008,6 +2006,7 @@ int run_save(int argc, char **argv)
 				fprintf(fp, "set rhost %s\n", inet_ntoa(in));
 			}
 		}
+
 		if (vpc[i].ip4.dynip == 1) 
 			fputs("dhcp\n", fp);
 		else {
@@ -2029,8 +2028,13 @@ int run_save(int argc, char **argv)
 				fprintf(fp, "\n");
 			}
 		}
+		
 		if (vpc[i].ip6auto == 1)
 			fputs("ip auto\n", fp);
+		
+		if (vpc[i].mtu != 1500)
+			fprintf(fp, "set mtu %d\n", vpc[i].mtu);
+		
 		printf(".");
 	}
 
@@ -2069,12 +2073,10 @@ const char *ip4Info(const int id)
 
 int str2color(const char *cstr)
 {
-	const char *name[8] = {"black", "red", "green", "yellow", "blue", 
-		"magenta", "cyan", "white"};
 	int i;
 	
 	for (i = 0; i < 8; i++)
-		if (!strncasecmp(cstr, name[i], strlen(name[i])))
+		if (!strncasecmp(cstr, color_name[i], strlen(color_name[i])))
 			break;
 	if (i == 8)
 		return 0;

@@ -169,19 +169,19 @@ int run_relay(int argc, char **argv)
 			    (peerhost->nodea.port == peer.nodea.port)) ||
 			    ((peerhost->nodeb.ip == peer.nodea.ip) && 
 			    (peerhost->nodeb.port == peer.nodea.port))) {
-			  	in.s_addr = peer.nodea.ip;
-			  	port = peer.nodea.port;
-			    	j = 1;
-			    	break;
+				in.s_addr = peer.nodea.ip;
+				port = peer.nodea.port;
+				j = 1;
+				break;
 			}
 			if (((peerhost->nodea.ip == peer.nodeb.ip) && 
 			    (peerhost->nodea.port == peer.nodeb.port)) ||
 			    ((peerhost->nodeb.ip == peer.nodeb.ip) && 
 			    (peerhost->nodeb.port == peer.nodeb.port))) {
-			  	in.s_addr = peer.nodeb.ip;
-			  	port = peer.nodeb.port;
-			    	j = 1;
-			    	break;
+				in.s_addr = peer.nodeb.ip;
+				port = peer.nodeb.port;
+				j = 1;
+				break;
 			}
 			peerhost = peerhost->next;
 		}
@@ -269,9 +269,9 @@ int run_relay(int argc, char **argv)
 			    (peerhost->nodea.port == peer.nodea.port) &&
 			    (peerhost->nodeb.ip == peer.nodeb.ip) && 
 			    (peerhost->nodea.port == peer.nodea.port)) {
-			    	if (tpeer == peerlist)
-			    		peerlist = peerhost->next;
-			    	else	
+				if (tpeer == peerlist)
+					peerlist = peerhost->next;
+				else	
 					tpeer->next = peerhost->next;
 				free(peerhost);
 				break;

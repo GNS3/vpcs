@@ -621,8 +621,8 @@ int show_ipv6(int argc, char **argv)
 					
 				}
 				buf[j - 1] = ' ';
-				if (vpc[i].ip6.mtu)
-					j += sprintf(buf + j, " %4.4d", vpc[i].ip6.mtu);
+				if (vpc[i].mtu)
+					j += sprintf(buf + j, " %4.4d", vpc[i].mtu);
 				else
 					j += sprintf(buf + j, "     ");
 				//buf[j] = ' ';
@@ -666,8 +666,8 @@ int show_ipv6(int argc, char **argv)
 		in.s_addr = vpc[id].rhost;
 		printf("RHOST:PORT        : %s:%d\n", inet_ntoa(in), vpc[id].rport);
 		printf("MTU:              : ");
-		if (vpc[id].ip6.mtu)
-			printf("%d", vpc[id].ip6.mtu);
+		if (vpc[id].mtu)
+			printf("%d", vpc[id].mtu);
 		printf("\n");
 		return 1;
 	}

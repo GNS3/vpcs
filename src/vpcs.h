@@ -72,7 +72,6 @@ typedef struct {
 #define IP6TYPE_EUI64 1
 #define IP6TYPE_LOCALLINK 2
 	u_char gmac[6];			/* destination host mac */
-	int mtu;
 } hipv6;
 	
 typedef struct {
@@ -86,7 +85,6 @@ typedef struct {
 	u_int lease;		/* dhcp lease time */
 	u_int dns[2];		/* dns server */
 	char domain[64];	/* search domain name */
-	int mtu;
 	int flags;
 #define IPF_FRAG 0x1
 } hipv4;
@@ -101,7 +99,6 @@ typedef struct {
 	int dmpflag;			/* dump flag */
 	FILE *dmpfile;			/* dump file pointer */
 	int bgjobflag;			/* backgroun job flag */
-	//int sock;			/* a command is running (socket is opened) */
 	int fd;				/* device handle */
 	int rfd;			/* client handle if in the udp mode		 */	
 	int lport;			/* local udp port */
@@ -120,6 +117,7 @@ typedef struct {
 	int ip6auto;
 	hipv6 ip6;
 	hipv6 link6;
+	int mtu;
 } pcs;
 
 struct echoctl {

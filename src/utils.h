@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -28,6 +28,7 @@
 #define _UTILS_H_
 
 #include <sys/time.h>
+#include <stdarg.h>
 
 char *getkv(char *str);
 int mkargv(char *str, char **argv, int max);
@@ -37,6 +38,7 @@ int timeout(struct timeval tv, int mseconds);
 
 int digitstring(const char *s);
 char *ttrim(char *s);
+void esc_prn(const char *fmt, ...);
 
 int arg2int(const char* arg, int min, int max, int defalt);
 

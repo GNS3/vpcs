@@ -228,7 +228,7 @@ int upv6(pcs *pc, struct packet *m)
 
 					pc->ip6.type = IP6TYPE_EUI64;
 					if (mtu != 0)
-						pc->ip6.mtu = mtu;
+						pc->mtu = mtu;
 					mtu = 0;
 				} 
 				if (sameNet6((char *)pc->ip6.ip.addr8, p + 16, pc->ip6.cidr)) {
@@ -898,10 +898,8 @@ void fix_dmac6(pcs *pc, struct packet *m)
 {
 	u_char *p;
 	ethdr *eh;
-	ip6hdr *ip;
 	
 	eh = (ethdr *)(m->data);	
-	ip = (ip6hdr *)(eh + 1);
 	
 	p = nbDiscovery(pc, &pc->mscb.dip6);
 	if (p)

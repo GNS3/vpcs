@@ -99,7 +99,7 @@ reqry:
 	  	cb.data = data;
 	  	cb.dsize = dlen;
 	  	cb.proto = IPPROTO_UDP;
-	  	cb.mtu = pc->ip4.mtu;
+	  	cb.mtu = pc->mtu;
 	  	cb.ipid =  time(0) & 0xffff;
 	  	cb.ttl = TTL;
 	  	cb.sip = pc->ip4.ip;

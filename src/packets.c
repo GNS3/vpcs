@@ -43,7 +43,7 @@
         
 static struct packet *arp(pcs *pc, u_int dip);
 static struct packet *udpReply(struct packet *m0);
-static struct packet *icmpReply(struct packet *m0, char icmptype);
+static struct packet *icmpReply(struct packet *m0, char icmptype, char icmpcode);
 static void save_eaddr(pcs *pc, u_int addr, u_char *mac);
 extern int upv6(pcs *pc, struct packet *m);
 extern int tcp(pcs *pc, struct packet *m);
@@ -84,8 +84,20 @@ int upv4(pcs *pc, struct packet **m0)
 	if (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 &&
 	    ((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
 		iphdr *ip = (iphdr *)(eh + 1);
-		
-		if (ip->frag & (IP_MF | IP_OFFMASK)) {
+
+		if (ntohs(ip->len) > pc->mtu) {
+			p = icmpReply(m, ICMP_UNREACH, ICMP_UNREACH_NEEDFRAG);
+			if (p) {
+				fix_dmac(pc, p);
+				if (pc->ip4.flags & IPF_FRAG) {
+					p = ipfrag(p, pc->mtu);
+				}
+				enq(&pc->oq, p);
+			}
+			return PKT_ENQ;
+		}
+
+		if (ntohs(ip->frag) & (IP_MF | IP_OFFMASK)) {
 			m = ipreass(m);
 			if (m == NULL)
 				return PKT_ENQ;
@@ -93,23 +105,23 @@ int upv4(pcs *pc, struct packet **m0)
 				*m0 = m;
 			ip = (iphdr *)(m->data + sizeof(ethdr));
 		}
-		
+
 		/* ping me, reply */
 		if (ip->proto == IPPROTO_ICMP) {
 			icmphdr *icmp = (icmphdr *)(ip + 1);
-			
+
 			if (ip->dip != pc->ip4.ip)
 				return PKT_DROP;
-			
+
 			/* other type will be sent to application */
 			if (icmp->type != ICMP_ECHO)
 				return PKT_UP;
 
-			p = icmpReply(m, ICMP_ECHOREPLY);
+			p = icmpReply(m, ICMP_ECHOREPLY, 0);
 			if (p != NULL) {
 				fix_dmac(pc, p);
 				if (pc->ip4.flags & IPF_FRAG) {
-					p = ipfrag(p, pc->ip4.mtu);
+					p = ipfrag(p, pc->mtu);
 				}
 				enq(&pc->oq, p);
 			}
@@ -141,14 +153,14 @@ int upv4(pcs *pc, struct packet **m0)
 			else {
 				struct packet *p;
 				if (ip->ttl == 1)
-					p = icmpReply(m, ICMP_UNREACH);
+					p = icmpReply(m, ICMP_UNREACH, ICMP_UNREACH_PORT);
 				else
 					p = udpReply(m);
 				
 				if (p != NULL) {
 					fix_dmac(pc, p);
 					if (pc->ip4.flags & IPF_FRAG) {
-						p = ipfrag(p, pc->ip4.mtu);
+						p = ipfrag(p, pc->mtu);
 					}
 					enq(&pc->oq, p);
 				}
@@ -201,6 +213,7 @@ int response(struct packet *m, sesscb *sesscb)
 {
 	ethdr *eh;
 	iphdr *ip;
+	int n;
 
 	eh = (ethdr *)(m->data);
 	ip = (iphdr *)(eh + 1);
@@ -234,16 +247,18 @@ int response(struct packet *m, sesscb *sesscb)
 	if (ip->sip != sesscb->dip)
 		return 0;
 	
+	sesscb->rdsize = ntohs(ip->len);
+	
 	if (ip->proto == IPPROTO_ICMP && sesscb->proto == IPPROTO_ICMP) {
 		icmphdr *icmp = (icmphdr *)(ip + 1);
 		sesscb->icmptype = icmp->type;
 		sesscb->icmpcode = icmp->code;
 		sesscb->rttl = ip->ttl;
 		sesscb->rdip = ip->sip;
-		sesscb->rdsize = ntohs(ip->len)  - (ip->ihl << 2);
-		if (ntohs(icmp->seq) == sesscb->sn) {
+		
+		if (ntohs(icmp->seq) == sesscb->sn)
 			return IPPROTO_ICMP;
-		}
+
 		return 0;
 	}
 			
@@ -251,7 +266,6 @@ int response(struct packet *m, sesscb *sesscb)
 		udpiphdr *ui = (udpiphdr *)ip;	
 		char *data = ((char*)(ui + 1));
 		if (memcmp(data, eh->dst, 6) == 0) {
-			sesscb->rdsize = ntohs(ip->len)  - (ip->ihl << 2);
 			sesscb->rttl = ip->ttl;
 			return IPPROTO_UDP;
 		}
@@ -268,18 +282,16 @@ int response(struct packet *m, sesscb *sesscb)
 		sesscb->rflags = ti->ti_flags;
 		sesscb->rttl = ip->ttl;
 		sesscb->data = NULL;
-		sesscb->rdsize = ntohs(ip->len) - (ip->ihl << 2) - 
-		    (ti->ti_off << 2);
-		
-		
+
+		n = sesscb->rdsize - (ip->ihl << 2) - (ti->ti_off << 2);
 		/* try to get MSS from options */
 		if (sesscb->flags == TH_SYN && sesscb->rflags == (TH_SYN | TH_ACK) && 
-			sesscb->rdsize > 0) {
+			n > 0) {
 			int i = 0;
 
 			while (data[i] == 0x1 && i < sesscb->rdsize) i++;
 			
-			for (;i < sesscb->rdsize;) {
+			for (;i < n;) {
 				if (data[i] == TCPOPT_MAXSEG && 
 				    data[i + 1] == TCPOLEN_MAXSEG) {
 					sesscb->rmss = (data[i + 2] << 8) + data[i + 3];
@@ -517,7 +529,7 @@ struct packet *packet(sesscb *sesscb)
 	ip->cksum = 0;
 	ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
 		
-	if (sesscb->frag)
+	if ((sesscb->frag & IPF_FRAG) == IPF_FRAG)
 		ipfrag(m, sesscb->mtu);
 	
 	return m;
@@ -589,7 +601,7 @@ struct packet *udpReply(struct packet *m0)
 	return m;	
 }
 
-struct packet *icmpReply(struct packet *m0, char icmptype)
+struct packet *icmpReply(struct packet *m0, char icmptype, char icmpcode)
 {
 	struct packet *m = NULL;
 	ethdr *eh = NULL;
@@ -665,8 +677,8 @@ struct packet *icmpReply(struct packet *m0, char icmptype)
 		
 		icmp->seq = htons(1);
 		icmp->cksum = 0;
-		icmp->type = ICMP_UNREACH;
-		icmp->code = ICMP_UNREACH_PORT;
+		icmp->type = icmptype;
+		icmp->code = icmpcode;
 		icmp->id = time(0) & 0xffff;
 			
 		icmp->cksum = cksum((unsigned short *) (icmp), sizeof(icmphdr) + len0);

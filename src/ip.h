@@ -99,6 +99,9 @@ typedef struct iphdr iphdr;
 #ifndef ICMP_UNREACH_PORT
 #define ICMP_UNREACH_PORT 3
 #endif
+#ifndef ICMP_UNREACH_NEEDFRAG
+#define ICMP_UNREACH_NEEDFRAG 4
+#endif
 
 #ifndef ICMP_REDIRECT
 #define ICMP_REDIRECT 5
