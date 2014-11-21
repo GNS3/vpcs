@@ -2,10 +2,9 @@ RM=rm -f
 CC=gcc $(CCOPT)
 OSTYPE=Linux
 CPUTYPE=i386
-OPT=-O2
 HVOPT=-DHV
 
-CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) $(HVOPT) -Wall -I. -DTAP
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall -I. -DTAP
 LDFLAGS=-lpthread -lutil -s -static
 OBJS=vpcs.o \
 	daemon.o \
