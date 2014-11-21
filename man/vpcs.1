@@ -1,6 +1,6 @@
 
-.TH VPCS "1" "2014-07-07" "0.5" "Virtual PC Simulator" 
-.\" Last revision: 2014-07-07 16:25:50
+.TH VPCS "1" "2013-12-16" "0.6" "Virtual PC Simulator" 
+./ Last revision: 2014-11-18 15:50:00
 .hy 0 
 .if n 
 .ad l 
@@ -8,12 +8,12 @@
 vpcs \- Virtual PC Simulator
 .SH SYNOPSIS
 .B vpcs
-[\fIoptions\fR] [\fIscriptfile\fR]
+[\fIOPTIONS\fR] [\fIFILENAME\fR]
 .SH DESCRIPTION
 .PP
 VPCS provides a command line interface to nine simulated virtual PCs.  You can ping/trace route from/to them, or ping/trace route other hosts/routers from the virtual PCs, making it an ideal study tool when you simulate Cisco or Juniper routers in a Dynamips or GNS3 environment.
 .PP
-Virtual PCs are able to generate and respond to ICMP (ping), TCP and UDP packets delivered to the application via a UDP pipe or Unix tap interface.  If \fIscriptfile\fR is specified, then vpcs reads the file on start-up and executes the commands in the scriptfile.  \fIscriptfile\fR must be in \fBvpcs script file format\fR.
+Virtual PCs are able to generate and respond to ICMP (ping), TCP and UDP packets delivered to the application via a UDP pipe or Unix tap interface.  If \fIscriptfile\fR is specified, then \fBvpcs \fRreads the file on start-up and executes the commands in the scriptfile.  \fIscriptfile\fR must be in \fBvpcs script file format\fR.
 .PP
 \fBvpcs\fR listens for messages on nine consecutive UDP ports and sends messages on nine consecutive UDP ports.  By the default, \fBvpcs\fR listens on UDP ports 20000 to 20008 and sends messages on UDP ports 30000 to 30008.  Each UDP port pair (20000/30000, 20001/30001...20008/30008) represents a virtual PC.  Virtual PCs are numbered 1 to 9.
 .SH OPTIONS
@@ -24,17 +24,22 @@ Print the command line options and exit
 \fB-v\fR
 Print the version information and exit
 .TP
-\fB-i\fR \fInum\fR
-number of vpc instances to start (default is 9)
-.TP
-[\fB-r\fR] \fIscriptfile\fR
-If \fIscriptfile\fR is specified, then \fBvpcs\fR reads the file on start-up and executes the commands in the \fIscriptfile\fR.  \fIscriptfile \fR must be in \fBvpcs\fR script file format.  By default, if a file named \fBstartup.vpc\fR exists in the directory where the \fBvpcs\fR program was started, it will be read and executed when \fBvpcs\fR starts.  The \fB-r\fR option is optional if \fIscriptfile\fR is the last parameter.
+[\fB-i\fR] \fInum\fR
+Start \fBvpcs\fR with \fInum\fR vitrual PCs, maximum 9.  If omitted \fBvpcs\fR will start with 9 virtual PCs. If \fInum\fR is 1, such as when GNS3 v1.x spawns PCs, commands that reference other PCs will have restricted options and the prompt will not display the PC number.  
 .TP
 \fB-p\fR \fIport\fR
-Run \fBvpcs\fR as a daemon process listening on TCP port specified by \fIport\fR.  As a daemon process, \fBvpcs\fR does not present a command line interface to the user, but the command line interface can be accessed remotely using a TCP stream application such as \fItelnet\fR or netcat (\fInc\fR).  Once the daemon has been started, there is no internal mechanism for terminating the program, and the program must be terminated by sending a system signal 9, typically by using the command \fBkill \-9 PID\fR (where PID is the process id of the vpcs instance)
+Run \fBvpcs\fR as a daemon process listening on TCP port specified by \fIport\fR.  As a daemon process, \fBvpcs\fR does not present a command line interface to the user, but the command line interface can be accessed remotely using a TCP stream application such as \fItelnet\fR or netcat (\fInc\fR).  Once the daemon has been started, there is no internal mechanism for terminating the program, and the program must be terminated by sending a system signal 9, typically by using the command \fBkill \-9 PID\fR (where PID is the process id of the \fBvpcs \fRinstance)
 .TP
 \fB-m\fR \fInum\fR
 \fBvpcs\fR uses 9 consecutive MAC addresses for the 9 \fIvpcs\fR stating at 00:50:79:66:68:00 by default. The \fB-m\fR option adds \fInum\fR to the last byte of the base MAC address.  Should any increment cause the last byte exceed 0xFF during this process, it will increment to 0x00.
+.TP
+[\fB-r\fR] \fIFILENAME\fR
+If \fIFILENAME\fR is specified, then \fBvpcs\fR reads the file on start-up and 
+executes the commands in the \fIFILENAME\fR.  \fIFILENAME \fR must be in 
+\fBvpcs\fR script file format.  By default, if a file named \fBstartup.vpc\fR 
+exists in the directory where the \fBvpcs\fR program was started, it will be 
+read and executed when \fBvpcs\fR starts.  The \fB-r\fR option is optional if 
+\fIFILENAME\fR is the last parameter.
 .TP
 \fB-e\fR
 On systems that support the \fB/dev/tapx\fR interface (Unix/Linux), run \fBvpcs\fR in tap mode rather than UDP mode.  In tap mode, IP packets are sent and received via /dev/tapx interfaces rather than via UDP streams.  Typically /dev/tapx interfaces are only available to the root user, meaning \fBvpcs\fR would also be required to be run by the root user (\fBsudo vpcs \-e\fR) to use tap mode.
@@ -51,10 +56,12 @@ This option is the default and not necessary, but included to contrast with the 
 .TP
 \fB-c\fR \fIport\fR
 \fBvpcs\fR streams packets to nine UDP ports commencing at \fI127.0.0.1:30000\fR.  The \fB-c\fR option allows you to stream packets to a different set of nine ports commencing at the base port number specified by \fIport\fR.
+
 .SS "TAP Mode Options"
 .TP
-\fB-d\fR \fIdevice\fR
+\fB-d\fR \fIdevice\fR 
 Device name, works only when \fB-i\fR is set to 1
+
 .SS "Hypervisor Mode Option"
 .TP
 \fB-H\fR \fIport\fR
@@ -63,7 +70,7 @@ Run as a hypervisor, listening on TCP port specified by \fIport\fR.  In the hype
 
 .SH EXAMPLES
 .SS "No command line options"
-If you start the \fBvpcs\fR with no arguments, \fIvpcs\fR will start and look for the script \fBstartup.vpc\fR in the current directory.  If it exists, it will run the script.  This is the normal way of running the \fIvpcs\fR.  It is simply envoked from the command line like this:
+If you start the \fBvpcs\fR with no arguments, \fIvpcs\fR will start and look for the script \fBstartup.vpc\fR in the current directory.  If it exists, it will run the script.  This is the normal way of running the \fIvpcs\fR.  It is simply evoked from the command line like this:
 .PP
 \fBvpcs\fR
 .PP
@@ -83,47 +90,48 @@ Suppose you needed more than nine Virtual PCs, so you want to run a second insta
 Since the default local listening port is 20000, and the default remote port is 30000, you would want to start \fBvpcs\fR with a local listening port of 20009 (or greater) and remote port of 30009 (or greater) .  You would also want the base MAC address to be offset by at least nine to avoid any clashes.  In this case you would use the command:
 .PP
 \fBvpcs \-s 20009 \-c 30009 \-m 9\fR
-
-.SS "Running two instances of vpcs that can communicate with each other on the one host"
-Suppose you wanted to run a second instance of \fBvpcs\fR on your local host that can communicate with the instance already running with a default configuration.  You would have to consider:
 .PP
-1. The VPCs MAC addresses for the second instance would need to be different,
-.PP
-2. The "local" or listening UDP port numbers for the second instance would have to match the "remote" port numbers of the first instance
-.PP
-3. The remote UDP port numbers would have to match the "local" or listening UDP port numbers of the first instance
-.PP
-Since the default local listening port is 20000, and the default remote port is 30000, you would want to start \fBvpcs\fR with a local listening port of 30000 and remote port of 20000.  You would also want the base MAC address to be offset by at least nine to avoid any clashes.  In this case you would use the command:
-.PP
-\fBvpcs \-s 30000 \-c 20000 \-m 9\fR
-
+A far better way to run more than nine Virtual PCs is to use the \fBHypervisor \fRmode.  In Hypervisor mode, \fBvpcs \fRwill automatically take care of incrementing MAC addresses and UDP port numbers so here is no clash. 
 .SH BASE INTERFACE
 \fBvpcs\fR presents the user with a command line interface (unless daemon mode has been invoked by the \fB-p\fR option). The interface prompt indicates which of the 9 virtual PCs currently has focus by indicating the VPC number in brackets.  Eg.:
 .br
-VPCS[1]
+VPCS[1]>
 .br
-Here the digit 1 inside the brackets indcates that VPC 1 has focus, and any traffic generated will be sent from VPC 1, and basic \fBshow\fR commands will relate to VPC 1.
+Here the digit 1 inside the brackets indicates that VPC 1 has focus, and any traffic generated will be sent from VPC 1, and basic \fBshow\fR commands will relate to VPC 1.
 .br
-.TP 25
-Basic commands supported are:
-.TP
+
+.br
+Note: When started with the \fB-i 1\fR option, VPC 1 always has focus, and the prompt does NOT display the VPC number in brackets. Eg.:
+.br
+VPCS>
+.br
+.br
+
+.SS Basic commands supported are:
+.TP 7
 \fB?\fR
 Print help
 .TP
-\fB<digit>\fR
-Switch to the VPC<digit>. <digit> range 1 to 9
+\fB!\fR \fICOMMAND\fR [\fIARG\fR ...]
+Invoke an OS \fiCOMMAND\fR with optional \fIARG(S)\fR as its arguments
 .TP
-\fBarp\fR 
-Shortcut for: \fBshow arp\fR. Show arp table
+\fIdigit\fR
+Switch to the VPC\fIdigit\fR. \fIdigit\fR range 1 to 9
 .TP
-\fBclear\fR [arguments]
+\fBarp\fR [\fIdigit\fR|\fBall\fR]
+Shortcut for: \fBshow arp\fR. Show arp table for VPC \fIdigit\fR (default this VPC) or all VPCs
+.TP
+\fBclear ip\fR|\fBipv6\fR|\fBarp\fR|\fBneighbor\fR|\fBhist\fR 
 Clear IPv4/IPv6, arp/neighbor cache, command history
 .TP
-\fBdhcp\fR [\-options]
-Shortcut for: \fBip dhcp\fR. Get IPv4 address via DHCP
+\fBdhcp\fR [\fIOPTION\fR]
+Shortcut for: \fBip dhcp\fR. Attempt to obtain IPv4 address, mask, gateway and DNS via DHCP
 .TP
-\fBecho\fR <text>
-Display <text> in output
+\fBdisconnect\fR
+Exit the telnet session (daemon mode)
+.TP
+\fBecho\fR \fITEXT\fR
+Display \fITEXT\fR in output
 .TP
 \fBhelp\fR
 Print help
@@ -131,79 +139,345 @@ Print help
 \fBhistory\fR
 Shortcut for: \fBshow history\fR. List the command history
 .TP
-\fBip\fR [arguments]
-Configure VPC's IP settings
+\fBip\fR \fIARG\fR ... [\fIOPTION\fR]
+Configure the current VPC's IP settings
+.br
 .TP
-\fBload\fR <filename>
-Load the configuration/script from the file <filename>
+       ARG ...:
+\fIaddress\fR [\fImask\fR] [\fIgateway\fR]
+.br
+\fIaddress\fR [\fIgateway\fR] [\fImask\fR]
+.TP 10
+.ti 10
+Set the VPC's ip, default gateway ip and network mask. 
+Default IPv4 mask is /24, IPv6 is /64. Example:
+.br
+\fBip 10.1.1.70/26 10.1.1.65\fR sets the VPC's ip to 10.1.1.70, the gateway to 10.1.1.65, the netmask to 255.255.255.192.
+.br
+In tap mode, the ip of the tapx is the maximum host ID of the subnet. In the example above the tapx ip would be 10.1.1.126
+.br
+mask may be written as /26, 26 or 255.255.255.192
+.TP 
+\fB       auto           
+Attempt to obtain IPv6 address, mask and gateway using SLAAC
 .TP
-\fBping\fR <host> [\-options]
-Ping the network <host> with ICMP (default) or TCP/UDP
+\fB       dhcp\fR [\fIOPTION\fR]  
+Attempt to obtain IPv4 address, mask, gateway, DNS via DHCP
+.br
+OPTION:
+  \fB\-d\fR   Show DHCP packet decode
+  \fB\-r\fR   Renew DHCP lease
+  \fB\-x\fR   Release DHCP lease
+.TP
+       \fBdns\fI ip\fR
+Set DNS server \fIip\fR, delete if \fIip\fR is '0'
+.TP
+       \fBdomain\fI NAME
+Set local domain name to \fINAME\fR.  The domain name will be added to host names when using commands that support names. Example:
+If the domain name was set to \fBexample.com\fR, then a command of \fBping abcd\fR would cause the VPCS to attempt to resolve the name \fBabcd.example.com\fR.
+.TP 7
+\fBload\fR [\fIFILENAME\fR[.vpc]]
+Load the configuration/scriptfile from the file \fIFILENAME\fR. If \fIFILENAME\fR ends with '.vpc', then the '.vpc' can be omitted. If \fIFILENAME\fR is omitted then \fIstartup.vpc\fR will be loaded if it exists. When the file is loaded, each line of the file is executed as a VPCS command. If the state of the echo flag is on, the command will be echoed to the console before execution, except:
+.TP 9
+       *
+If the command is prefixed with a '@' symbol (eg \fB@set echo color red\fR);
+.TP 9
+       * 
+If the command is an \fBecho\fR command;
+.TP 9
+       * 
+If the command is a \fBsleep\fR command
+.br
+Note: The command \fBsleep 0\fR will be echoed if the echo flag is on
+.br
+See \fBset echo\fR and \fBshow echo\fR
+
+Note: Press Ctrl+C to interrupt the running script.
+.TP 7
+\fBping\fR \fIHOST\fR [\fIOPTION\fR ...]
+Ping the network \fIHOST\fR with ICMP (default) or TCP/UDP. \fIHOST\fR can be an ip address or name
+ OPTIONS:
+ \fB-1\fR          ICMP mode, default
+ \fB-2\fR          UDP mode
+ \fB-3\fR          TCP mode
+ \fB-c \fIcount\fR    Packet count, default 5
+ \fB-D\fR          Set the Don't Fragment bit
+ \fB-f \fIFLAG\fR     Tcp header FLAG |\fBC\fR|\fBE\fR|\fBU\fR|\fBA\fR|\fBP\fR|\fBR\fR|\fBS\fR|\fBF\fR|
+                        bits |7 6 5 4 3 2 1 0|
+ \fB-i \fIms\fR       Wait \fIms\fR milliseconds between sending each packet
+ \fB-l \fIsize\fR     Data size
+ \fB-P \fIprotocol\fR Use IP \fIprotocol\fR in ping packets
+               \fB1\fR - ICMP (default), \fB17\fR - UDP, \fB6\fR - TCP
+ \fB-p \fIport\fR     Destination port
+ \fB-s \fIport\fR     Source port
+ \fB-T \fIttl\fR      Set \fIttl\fR, default 64
+ \fB-t \fR         Send packets until interrupted by Ctrl+C
+ \fB-w \fIms\fR       Wait \fIms\fR milliseconds to receive the response
+ Notes: 1. Using names requires DNS to be set.
+        2. Use Ctrl+C to stop the command.
 .TP
 \fBquit\fR
 Quit program
 .TP
-\fBrelay\fR [arguments] <port>
-Relay packets between two UDP port
+\fBrelay\fR \FIARG\FR ...
+Configure packet relay between UDP ports.
+
+The relay command allows the VPCS to become a virtual patch panel 
+where connections can be dynamically changed using the \fBrelay\fR command. 
+There are three steps required to use VPCS as a virtual patch panel.
+.TP 10
+       1. 
+A \fBrelay hub\fR port must be defined using the \fBrelay port \fIport\fR command.
+.TP 10
+       2.
+Remote NIO_UDP connections (cloud connections in GNS3) 
+use this \fBhub \fBport\fR as the remote port, ensuring each NIO_UDP 
+connection has a unique 
+\fBlocal\fR port. (The local \fBport\fR numbers will be used to 'patch' the 
+connection). VPC instances can be directed to use this hub port as 
+their remote port using the command \fBset rport \fIport\fR.
+.TP 10
+       3. The 'patching' is completed using the command:
+.br
+\fBrelay add [\fIip1\fB:]\fIport1 \fB[\fIip2\fB:]\fIport2\fR, 
+where \fIport1\fR and \fIport2\fR are the local port numbers used in step 2.
+.TP 12
+     ARG:
+.TP 35
+     \fBadd \fR[\fIip1\fR:]\fIport1 \fR[\fIip2\fR:]\fIport2\fR
+Relay the packets between \fIip1\fR and \fIip2\fR
+.TP 35
+     \fBdel \fR[\fIip1\fR:]\fIport1 \fR[\fIip2\fR:]\fIport2\fR   
+Delete the relay rule
+.TP 35
+     \fBdel \fIid\fR
+Delete the relay rule
+.TP 35
+     \fBdump \fR[\fBon\fR|\fBoff\fR]                 
+Dump relay packets to file
+.TP 35
+     \fBport \fIport\fR                     
+Set relay hub port
+.TP 35
+     \fBshow\fR            
+Show the relay rules
+
+Note: \fIip1\fR and i\fIp2\fR are 127.0.0.1 by default
+.TP 7
+\fBrlogin\fR [\fIip\fR] \fIport\fR
+Telnet to \fIport\fr on host at \fIip\fR (relative to host PC). To attach to the console of a virtual router running on port 2000 of this
+host PC, use \fBrlogin 2000\fR
+.br
+To telnet to the port 2004 of a remote host 10.1.1.1, use \fBrlogin 10.1.1.1 2004
 .TP
-\fBrlogin\fR [<ip>] <port>
-Telnet to host relative to HOST PC
+\fBsave\fR [\fIFILENAME\fR[.vpc]]
+Save the configuration to the scriptfile \fIFILENAME.vpc\fR. If there is no '.' in
+\fIFILENAME\fR then a '.vpc' extension is added. If \fIFILENAME\fR is omitted then the
+configuration will be saved to \fIstartup.vpc\fR
 .TP
-\fBsave\fR <filename>
-Save the configuration to the file <filename>
+\fBset\fR \fIARG\fR ...
+Set hostname, connection port, ipfrag state, dump options and echo options
+.TP 12
+     ARG:
+.TP 18
+     \fBdump\fI FLAG\fR [[\fIFLAG\fR]...]    
+Set the packet dump flags for this VPC.
+.PP
+          FLAG:
+.TP 18
+          \fIall\fR
+All the packets including incoming.
+ must use [detail|mac|raw] as well as 'all'
 .TP
-\fBset\fR [arguments]
-Set VPC name, peer ports, dump options, echo on or off
+          \fBdetail\fR          
+Print protocol
 .TP
-\fBshow\fR [arguments]
-Print the information of VPCs (default). Try \fBshow ?\fR
+          \fBfile\fR    
+Dump packets to file vpcs[id]_yyyymmddHHMMSS.pcap'
 .TP
-\fBsleep\fR <seconds> [text]
-Print <text> and pause the running script for <seconds>
+          \fBoff\fR         
+Clear all the flags
 .TP
-\fBtrace\fR <host> [\-options]
-Print the path packets take to network <host>
+          \fBmac\fR          
+Print hardware MAC address
 .TP
+          \fBraw\fR          
+Print the first 40 bytes
+.TP 
+    \fBecho on|off|[color \fBclear|\fIFGCOLOR\fR [\fIBGCOLOR\fR]]    
+Sets the state of the echo flag used when executing script files,
+or sets the color of text to \fIFGCOLOR\fR with optional \fIBGCOLOR\fR. 
+\fBset echo color clear\fR resets colors to their defaults.
+.br
+Color list: black, red, green, yellow, blue, magenta, cyan, white
+.TP
+    \fBlport \fIport\fR     
+Local port
+.TP
+    \fBmtu \fIvalue\fR            
+Set the size of the maximum transmission unit of the interface
+.TP
+    \fBpcname \fINAME\fR
+Set the hostname of the current VPC to \fINAME\fR
+.TP
+    \fBrport \fIport\fR           
+Remote peer port
+.TP
+    \fBrhost \fIip\fR           
+Remote peer host IPv4 address
+.TP 7
+\fBshow\fR [\fIARG\fR ...]
+Show information for ARG
+.TP 18
+    ARG:
+.TP
+    \fBarp\fR [\fIdigit\fR|\fBall\fR]    
+Show arp table for VPC digit or all VPCs
+.TP
+    \fBdump\fR [\fIdigit\fR|\fBall\fR]   
+Show dump flags for VPC digit or all VPCs
+.TP
+    \fBecho               
+Show the status of the echo flag. See set echo ?
+.TP
+    \fBhistory            
+List the command history
+.TP
+    \fBip \fR[\fIdigit\fR|\fBall\fR]
+Show IPv4 details for VPC digit or all VPCs.
+Shows VPC Name, IP address, mask, gateway, DNS, MAC, lport, rhost:rport and MTU
+.TP
+    \fBipv6 \fR[\fIdigit\fR|\fBall\fR]
+Show IPv6 details for VPC digit or all VPCs.
+Shows VPC Name, IPv6 addresses/mask, gateway, MAC,
+lport, rhost:rport and MTU
+.TP
+    \fBversion            
+Show the version information
+
+Notes:
+.br
+1. If no parameter is given, the key information of all VPCs will be displayed
+.br
+2. If no parameter is given for arp/dump/ip/ipv6 information for the current VPC will be displayed.
+.TP 7
+\fBsleep\fR [\fIseconds\fR] [\fItext\fR]
+Print \fItext\fR and pause execution of script for \fItime\fR seconds.
+If \fIseconds\fR is zero or missing, pause until a key is pressed.
+Default text when no parameters given: 'Press any key to continue'
+.TP
+\fBtrace\fI HOST\fR [\fIOPTION\fR ...]
+Print the path packets take to the network \fI HOST\fR. \fI HOST\fR can be an ip address or name.
+.TP 18
+    OPTIONS:
+.TP
+      \fB-P \fIprotocol    
+Use IP \fIprotocol\fR in trace packets
+ \fB1\fR - icmp, \fB17\fR - udp (default), \fB6\fR - tcp
+.TP
+      \fB-m \fIttl         
+Maximum \fIttl\fR, default 8
+.PP
+      Notes: 1. Using names requires DNS to be set.
+             2. Use Ctrl+C to stop the command.
+.TP 7
 \fBversion\fR
 Shortcut for: \fBshow version\fR
-.SS "vpcs script file format"
-Any text file consisting of valid vpcs commands can be used as a vpcs script file.  Lines in the file beginning with the \fB#\fR character will be treated as comments and ignored.  Command files can make use of the \fBecho\fR and \fBsleep\fR commands to create some form of interactive script.
-.br
-Script file exececution can be aborted at any time by pressing Ctrl+c.  This means that the \fBping <host> \-t\fR command (which must be terimated by Ctrl+c) is not useful in vpcs script files.
+.SS "VPCS script file format"
+Any text file consisting of valid vpcs commands can be used as a vpcs script file.  
+Lines in the file beginning with the \fB#\fR character will be treated as comments and ignored.  
+As the script is being executed, the VPCS will either display each command immediately before it is executed or not depending on the state of the \fBecho flag\fR.
+The \fB@\fR character can also be used to supress command echoing.  
+Commands pre-pended by the \fB@\fR character are not echoed.
+The \fBecho\fR and \fBsleep\fR commands are never echoed except the \fBsleep 0\fR command which is always echoed.
+ 
+Command files can make use of the \fBecho\fR and \fBsleep\fR commands to create some form of interactive script.
+
+Script file exececution can be aborted at any time by pressing Ctrl+c.  
+This means that the \fBping HOST \-t\fR command (which must be terimated by Ctrl+c) is not useful in \fBvpcs \fRscript files.
 
 .SH HYPERVISOR INTERFACE
+.PP
+When \fBvpcs \fRis started with the \fB-H \fIport \fRoption, \fBvpcs \fRstarts in \fBhypervisor \fRmode as a daemon process.
+.PP
+To access the \fBvpcs \fRhypervisor interface, you need to start a telnet session to the \fIport \fRnumber you specified with the \fB-H \fRoption.  If for example you started \fBvpcs \fRwith a command of \fBvpcs -H 20000\fR, then you would typically open a telnet session to port \fI20000 \fR on your \fIlocalhost \fR IP address (\fI127.0.0.1\fR).
+.PP
+In this mode, an alternative interface is presented to allow the user to create and kill multiple \fBvpcs \fRsessions.  These sessions are always run as a daemon process and must be accessed via either an external telnet application, or by using the \fBtelnet \fRor \fBrlogin \fR command within the \fBvpcs \fRhypervisor session.
 .TP 25
-commands supported are:
+In \fBhypervisor \fR mode, the commands supported are:
 .TP
 \fBhelp | ?\fR
 Print help
 .TP
-\fBvpcs\fR [parameters]
-Start \fBvpcs\fR daemon with parameters.
-.TP
-\fBstop id\fR               
-Stop \fBvpcs\fR process
-.TP
-\fBlist\fR                  
-List \fBvpcs\fR process
-.TP
 \fBdisconnect\fR            
 Exit the telnet session
 .TP
-\fBquit\fR [\-f]            
-Stop \fBvpcs\fR processes and hypervisor,
+\fBlist\fR                  
+List \fBvpcs\fR process and ids
+.TP
+\fBquit\fR [-f]            
+Stop all \fBvpcs\fR processes and hypervisor,
 \fI-f\fR force quit without prompting
 .TP
-\fBtelnet [<ip>] <port>\fR
-Telnet to <port> at <ip> (default 127.0.0.1)
+\fBstop \fIid\fR               
+Stop \fBvpcs\fR process number \fIid
 .TP
-\fBrlogin [<ip>] <port>\fR
+\fBrlogin [\fIip\fB] \fIport\fR
 Same as telnet
+.TP
+\fBtelnet [\fIip\fB] \fIport\fR
+Telnet to \fIport\fR at \fIip\fB (default 127.0.0.1)
+.TP
+\fBvpcs\fR [parameters]
+Start \fBvpcs\fR daemon with parameters.
+.PP
+A typical \fBhypervisor \fRsession might run something like this:
+.PP
+-------------------------------------------------------
+.br
+~$ \fBvpcs -H 20000\fR
+.br
+~$ \fBtelnet 127.0.0.1 20000\fR 
+.br
+Trying 127.0.0.1...
+.br
+Connected to localhost.
+.br
+Escape character is '^]'.
+.br
+HV > \fBvpcs\fR
+.br
+100-VPCS started with -p \fI20001\fR -s 20000 -c 30000
+.br
+HV > \fBrlogin \fI20001\fR
+.br
+.br
+Connect 127.0.0.1:20001, press Ctrl+X to quit
+.br
+NOTES: you will be back to the starting point, NOT THE LAST,
+.br
+       if using Ctrl+X to quit.
 
+Welcome to Virtual PC Simulator,   \fR\.\.\. <output omitted> \.\.\.
+.br
+VPCS[1] \fBdisconnect\fR
+.br
+Good-bye
+.br
+Disconnected from 127.0.0.1:20001
+.br
+HV >
+.br
+-------------------------------------------------------
+.PP
+Note that when the \fBvpcs \fRinstance was initiated from within the \fBhypervisor \fRinterface, it spawned a \fBvpcs \fRdaemon process listening on TCP port \fI20001\fR.
+To access that process, the \fBrlogin \fRcommand was used to port \fI20001\fR initiating a session with that instance.  However, you could have just as easily started another independent telnet session in another shell instance to \fI127.0.0.1 20001\fR.
+.PP
+Also note that once you have finished with the \fbvpcs \fRsession, you can exit either using the \fBdisconnect \fRcommand, or use the key combination of Ctrl+X.  If you have nested \fBrlogin \fRsessions, Ctrl+X will return you to the hypervisor, \fBdisconnect \fRwill take you back one level in the nesting.
 .SH BUGS
 IPv6 implementation is a basic implementation that is not fully implemented.
 .PP
-The \fBping <host> \-t\fR command (which must be terimated by Ctrl+c) can not be used in vpcs script files because when Ctrl+c is pressed to stop the ping, it also aborts the script file execution.
+The \fBping HOST \-t\fR command (which must be terminated by Ctrl+c) can not be used in \fBvpcs \fRscript files because when Ctrl+c is pressed to stop the ping, it also aborts the script file execution.
 .PP
 Please send problems, bugs, questions, desirable enhancements, patches etc to the author.
 .SH AUTHOR
@@ -217,4 +491,3 @@ VPCS is free software, distributed under the terms of the "BSD" licence.
 Source code and license can be found at vpcs.sf.net.
 .br
 For more information, please visit wiki.freecode.com.cn.
-

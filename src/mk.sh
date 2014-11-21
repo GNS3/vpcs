@@ -15,6 +15,7 @@ if [ $# -eq 1 ]; then
 	    ;;
 	debug)
 	    CCOPT="-g"
+	    MKOPT=debug 
             arch=`uname -p`
 	    ;;
 	*)
@@ -30,6 +31,7 @@ if [ $# -eq 2 ]; then
 	    ;;
 	debug)
 	    CCOPT="-g"
+	    MKOPT=debug
 	    arch=$2
 	    ;;
     esac
@@ -40,6 +42,7 @@ if [ $# -eq 2 ]; then
 	    ;;
 	debug)
 	    CCOPT="-g"
+	    MKOPT=debug
 	    arch=$1
 	    ;;
     esac

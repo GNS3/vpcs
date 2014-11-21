@@ -1,5 +1,5 @@
 
-    欢迎使用 VPCS, 最新版本为 0.5b2.
+    欢迎使用 VPCS, 最新版本为 0.6.
 
     VPCS 是免费软件，遵从 BSD 许可的条款分发。
     源代码和许可协议条款可以从 vpcs.sf.net 获取到。
@@ -22,34 +22,32 @@
 startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 
    VPCS 的命令行选项
-   usage: vpcs [options] [scriptfile]
-   Option:
-       -h         print this help then exit
-       -v         print version information then exit
+   usage: vpcs [OPTIONS] [FILENAME]
+   OPTIONS:
+     -h             print this help then exit
+     -v             print version information then exit
    
-       -i num     number of vpc instances to start (default is 9)
-       -p port    run as a daemon listening on the tcp 'port'
-       -m num     start byte of ether address, default from 0
-       -r file    load and execute script file
-                  compatible with older versions, DEPRECATED.
+     -i num         number of vpc instances to start (default is 9)
+     -p port        run as a daemon listening on the tcp port
+     -m num         start byte of ether address, default from 0
+     [-r] FILENAME  load and execute script file FILENAME
    
-       -e         tap mode, using /dev/tapx (linux only)
-       -u         udp mode, default
+     -e             tap mode, using /dev/tapx by default (linux only)
+     [-u]           udp mode, default
    
    udp mode options:
-       -s port    local udp base port, default from 20000
-       -c port    remote udp base port (dynamips udp port), default from 30000
-       -t ip      remote host IP, default 127.0.0.1
+     -s port        local udp base port, default from 20000
+     -c port        remote udp base port (dynamips udp port), default from 30000
+     -t ip          remote host IP, default 127.0.0.1
    
    tap mode options:
-       -d device  device name, works only when -i is set to 1
-
+     -d device      device name, works only when -i is set to 1
+   
    hypervisor mode option:
-    -H port    run as the hypervisor listening on the tcp 'port'
-    
-     If no 'scriptfile' specified, vpcs will read and execute the file named
-     'startup.vpc' if it exsits in the current directory.
-
+     -H port        run as the hypervisor listening on the tcp port
+   
+     If no FILENAME specified, vpcs will read and execute the file named
+     startup.vpc if it exists in the current directory.
 
    注意：
    1. VPCS 使用的 cygwin1.dll 可能与其他 cygwin1.dll 不兼容。建议在一系统
@@ -60,6 +58,23 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 站点：http://wiki.freecode.com.cn 或 http://mirnshi.cublog.cn
 
 历史版本：
+   0.6     错误修订：
+             1. 后台应答请求时，未使用网关的MAC地址
+             2. 命令超过20个参数，导致崩溃
+             3. 历史命令溢出，导致崩溃
+           功能增补修订：
+             1. 移除'ip mtu'，替换为'set mtu'
+             2. 支持将relay的数据包转储到文件，文件格式为pcap。
+                可以动态变更拓扑并可分析各节点的数据流向及内容。
+             3. dhcp4可以自动续租
+             4. 支持IP分片/重组
+             5. ping命令支持'-D'选项，强制不分片
+             6. 发送数据和接收数据包均比对MTU，超出MTU做相应提示处理
+             7. 回环地址、组播地址和零地址均判断为非法地址，不可以再配置使用
+             8. 重新格式化帮助
+             9. echo命令支持彩色文字显示，增加'@'隐藏显示
+             10. 增加保存dns、域名、relay等
+              
    0.5b2   错误修订：使用getenv+access方式获取VPCS的真实路径
            Debian GNU/kFreeBSD的补丁（Daniel Lintott）
            运行echo命令时，刷新输出
