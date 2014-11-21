@@ -27,12 +27,6 @@ OBJS=vpcs.o \
 	relay.o \
 	hv.o
 
-ifeq (,$(findstring debug, $(MAKEFLAGS)))
-	OPT=-g
-else
-	OPT=-O2
-endif
-
 all: vpcs
 
 vpcs: $(OBJS)
