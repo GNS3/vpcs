@@ -151,6 +151,7 @@ daemonize(int port, int bg)
 
 	daemon_proc(sock, fdtty);
 err:
+	printf("error\n");
 	if (sock >= 0)
 		close(sock);
 

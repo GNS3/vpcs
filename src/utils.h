@@ -39,6 +39,7 @@ int timeout(struct timeval tv, int mseconds);
 int digitstring(const char *s);
 char *ttrim(char *s);
 void esc_prn(const char *fmt, ...);
+void esc_fprn(FILE *f, const char *fmt, ...);
 
 int arg2int(const char* arg, int min, int max, int defalt);
 

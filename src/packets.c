@@ -530,7 +530,7 @@ struct packet *packet(sesscb *sesscb)
 	ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
 		
 	if ((sesscb->frag & IPF_FRAG) == IPF_FRAG)
-		ipfrag(m, sesscb->mtu);
+		m = ipfrag(m, sesscb->mtu);
 	
 	return m;
 }
@@ -767,6 +767,7 @@ ipfrag(struct packet *m0, int mtu)
 		if (off + len >= ip0->len) {
 			last = 1;
 			m = new_pkt(elen + ip0->len - off);
+			len = ip0->len - off;
 		} else
 			m = new_pkt(elen + len);
 
@@ -792,7 +793,7 @@ ipfrag(struct packet *m0, int mtu)
 		mh = m;
 	}
 	m0->len = elen + flen;
-	ip0->len = htons(len + sizeof(iphdr));
+	ip0->len = htons(flen + sizeof(iphdr));
 	ip0->frag = htons(IP_MF);
 	ip0->cksum = 0;
 	ip0->cksum = cksum((u_short *)ip0, sizeof(iphdr));
@@ -947,7 +948,7 @@ static struct packet *defrag_pkt(struct packet **m0)
 	}		
 	m = new_pkt(len + sizeof(iphdr) + sizeof(ethdr));
 	if (m == NULL)
-		return mh;
+		return *m0;
 
 	mh = *m0;
 	memcpy(m->data, mh->data, mh->len);

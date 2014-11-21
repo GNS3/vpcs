@@ -2,10 +2,9 @@ RM=rm -f
 CC=gcc $(CCOPT)
 OSTYPE=Darwin
 CPUTYPE=i386
-OPT=-O2
 HVOPT=-DHV
 
-CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) $(HVOPT) -Wall
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall
 LDFLAGS=-lpthread
 OBJS=vpcs.o \
 	daemon.o \
@@ -28,13 +27,21 @@ OBJS=vpcs.o \
 	relay.o \
 	hv.o
 
+ifeq (,$(findstring debug, $(MAKEFLAGS)))
+	OPT=-g
+else
+	OPT=-O2
+endif
+
 all: vpcs
 
 vpcs: $(OBJS)
 	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
 
+debug: vpcs
+
 .c.o: keys.h vpcs.h packets.h dhcp.h
-	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
+	$(CC) $(INCLUDE_PATH) $(CFLAGS) $(OPT) -c $<
 
 clean:
 	$(RM) *.o vpcs

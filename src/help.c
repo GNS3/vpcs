@@ -246,7 +246,7 @@ int help_set(int argc, char **argv)
 	
 	if (argc == 3 && !strncmp(argv[1], "echo", strlen(argv[1])) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
-		esc_prn("\n{Hset echo} {Hon}|{Hoff}|[{Hcolor} [{Hclear}|{UFGCOLOR} [{UBGCOLOR}]]]\n"
+		esc_prn("\n{Hset echo} {Hon}|{Hoff}|[{Hcolor} {Hclear}|{UFGCOLOR} [{UBGCOLOR}]]\n"
 			"  Sets the state of the echo flag used when executing script files,\n"
 			"  or sets the color of text to {UFGCOLOR} with optional {UBGCOLOR}\n"
 			"  Color list: black, red, green, yellow, blue, magenta, cyan, white\n"

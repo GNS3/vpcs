@@ -369,6 +369,11 @@ int run_ping(int argc, char **argv)
 		}
 	}
 	
+	if (!(pc->mscb.frag & IPF_FRAG) && 
+	    (pc->mscb.mtu < (pc->mscb.dsize + sizeof(iphdr)))) {
+		printf("packet size is greater than MTU(%d)\n", pc->mscb.mtu);
+		return 0;
+	}
 	if (pc->mscb.winsize == 0)
 		pc->mscb.winsize = 0xb68; /* 1460 * 4 */
 
@@ -970,7 +975,8 @@ int run_ipconfig(int argc, char **argv)
 	if (icidr < 1 || icidr > 30)
 		icidr = 24;
 		
-	if (rip == -1 || gip == -1 || rip == gip) {
+	if (rip == -1 || gip == -1 || rip == gip ||
+	    IN_LOOPBACK(ntohl(rip)) || IN_ZERONET(ntohl(rip)) || IN_MULTICAST(ntohl(rip))) {
 		printf("Invalid address\n");
 		return 0;
 	}
