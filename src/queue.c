@@ -54,17 +54,18 @@ struct packet *deq_impl(struct pq *pq, int cond)
 	
 	lock_q(pq);
 	
-	if (cond && (pq->q == NULL) )
+	if (cond && (pq->q == NULL))
 		pthread_cond_wait(&(pq->cond), &(pq->locker));
-	
+
 	if (pq->q != NULL) {
 		m = pq->q;
 		pq->q = pq->q->next;
 		pq->size --;
+		m->next = NULL;
 	}	
 	
 	ulock_q(pq);
-	
+
 	return m;
 }
 
@@ -86,7 +87,7 @@ struct packet *enq(struct pq *pq, struct packet *m)
 		printf("queue is full \n");
 		return NULL;
 	}
-	
+
 	lock_q(pq);
 
 	gettimeofday(&(m->ts), (void*)0);
@@ -98,6 +99,7 @@ struct packet *enq(struct pq *pq, struct packet *m)
 		while (q->next != NULL) q = q->next;
 		q->next = m;	
 	}
+
 	while (m) {
 		pq->size ++;
 		m = m->next;
@@ -106,7 +108,7 @@ struct packet *enq(struct pq *pq, struct packet *m)
 
 	ulock_q(pq);
 	
-	return q;	
+	return q;
 }
 
 void init_queue(struct pq *pq)
