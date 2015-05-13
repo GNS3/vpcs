@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/time.h>
 
 #include "ip.h"
 #include "dump.h"
@@ -39,8 +40,12 @@ static void dmp_arp(void *dat);
 static void dmp_dns(void *dat);
 static char *dmp_dns_timestr(u_int s);
 
+static struct timeval gtv = {0, 0};
+
 int dmp_packet(const struct packet *m, const int flag)
 {
+	struct timeval tv;
+	uint32_t usec;
 	int i, j, pos0, pos1;
 	char x0[96], x1[17];
 	u_char *p = (u_char *)m->data;
@@ -51,9 +56,14 @@ int dmp_packet(const struct packet *m, const int flag)
 
 	if (flag == 0)
 		return flag;
-
+	if (gtv.tv_sec == 0)
+		gettimeofday(&gtv, 0);
+	
+	gettimeofday(&tv, 0);
+	usec = (tv.tv_sec - gtv.tv_sec) * 1000000 + tv.tv_usec - gtv.tv_usec;
+	printf("\n\033[32m%04d.%d\033[0m", usec / 1000000, usec % 1000000);
 	if (flag & DMP_MAC) {
-		printf("\n");
+		printf("  ");
 		printf("\033[33m");
 		cr = 1;
 		PRINT_MAC(p + 6);
