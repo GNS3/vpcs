@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -456,10 +456,12 @@ redirect:
 			pc->mscb.dsize = dsize;
 			
 			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+			    ts0.tv_usec - ts.tv_usec;
 
 			if (k == 0) {
-				printf("Connect   %d@%s timeout\n", pc->mscb.dport, argv[1]);
+				printf("Connect   %d@%s timeout\n", 
+				    pc->mscb.dport, argv[1]);
 				continue;
 			} else if (k == 2) {
 				struct in_addr din;
@@ -467,7 +469,8 @@ redirect:
 				if (pc->mscb.icmptype == ICMP_REDIRECT && 
 				    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
 					din.s_addr = pc->ip4.gw;	
-					printf("Redirect Network, gateway %s",  inet_ntoa(din));
+					printf("Redirect Network, gateway %s",
+					    inet_ntoa(din));
 					din.s_addr = pc->mscb.rdip;
 					printf(" -> %s\n", inet_ntoa(din));
 					
@@ -476,18 +479,23 @@ redirect:
 					goto redirect;
 				}
 				printf("*%s %s=%d ttl=%d time=%.3f ms", 
-				    inet_ntoa(din), proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
+				    inet_ntoa(din), proto_seq, i++, 
+				    pc->mscb.rttl, usec / 1000.0);
 						
 				printf(" (ICMP type:%d, code:%d, %s)\n", 
 				    pc->mscb.icmptype, pc->mscb.icmpcode, 
-				    icmpTypeCode2String(4, pc->mscb.icmptype, pc->mscb.icmpcode));
+				    icmpTypeCode2String(4, pc->mscb.icmptype, 
+				        pc->mscb.icmpcode));
 				continue;
 			} else if (k == 3) {
-				printf("Connect   %d@%s RST returned\n", pc->mscb.dport, argv[1]);
+				printf("Connect   %d@%s RST returned\n", 
+				    pc->mscb.dport, argv[1]);
 				continue;	
 			}
 			printf("Connect   %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
+			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+			    
+			    usec / 1000.0);
 			
 			traveltime = 0.6 * usec / 1000;
 			/* send data after 1.5 * time2travel */
@@ -495,14 +503,17 @@ redirect:
 			gettimeofday(&(ts), (void*)0);
 			k = tcp_send(4);
 			if (k == 0) {
-				printf("SendData  %d@%s timeout\n", pc->mscb.dport, argv[1]);
+				printf("SendData  %d@%s timeout\n", 
+				    pc->mscb.dport, argv[1]);
 				continue;
 			}
 			
 			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+			    ts0.tv_usec - ts.tv_usec;
 			printf("SendData  %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
+			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+			    usec / 1000.0);
 			
 			/* close after 1.5 * time2travel */
 			if (k != 2)
@@ -512,15 +523,18 @@ redirect:
 			pc->mscb.dsize = PAYLOAD56;
 			k = tcp_close(4);
 			pc->mscb.dsize = dsize;
+
+			gettimeofday(&(ts0), (void*)0);
+			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+			    ts0.tv_usec - ts.tv_usec;
 			if (k == 0) {
-				printf("Close     %d@%s timeout\n", pc->mscb.dport, argv[1]);
+				printf("Close     %d@%s timeout(%.3fms)\n", 
+				    pc->mscb.dport, argv[1], usec / 1000.0);
 				continue;
 			}
-			
-			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
 			printf("Close     %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
+			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+			    usec / 1000.0);
 		}
 	} else {
 		i = 1;

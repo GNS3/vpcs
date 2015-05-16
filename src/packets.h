@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -62,7 +62,7 @@ int upv4(pcs *pc, struct packet **pkt);
 int response(struct packet *pkt, sesscb *sesscb);
 int arpResolve(pcs *pc, u_int ip, u_char *dmac);
 int host2ip(pcs *pc, const char *name, u_int *ip);
-void fix_dmac(pcs *pc, struct packet *m);
+void send4(pcs *pc, struct packet *pkt);
 
 #endif
 

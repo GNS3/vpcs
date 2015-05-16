@@ -94,8 +94,9 @@ typedef struct {
 typedef struct {
 	int id;				/* pc id */
 	char xname[MAX_NAMES_LEN + 1];	/* pc name */
-	pthread_t rpid;                 /* reader pthread id */
-	pthread_t wpid;                 /* writer pthread id */	
+	pthread_t outid;		/* ip output pthread id */
+	pthread_t rpid;			/* reader pthread id */
+	pthread_t wpid;			/* writer pthread id */	
 	int dmpflag;			/* dump flag */
 	FILE *dmpfile;			/* dump file pointer */
 	int bgjobflag;			/* backgroun job flag */
@@ -105,6 +106,7 @@ typedef struct {
 	int rport;			/* remote udp port */
 	u_int rhost;			/* remote host */
 	struct pq bgiq;			/* background input queue */
+	struct pq bgoq;			/* background output queue */
 	struct pq iq;			/* queue */
 	struct pq oq;			/* queue */
 	pthread_mutex_t locker;		/* mutex */

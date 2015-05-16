@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -44,9 +44,12 @@
 
 static struct packet *icmp6Reply(struct packet *m);
 static struct packet *udp6Reply(struct packet *m0);
-
+static void fix_dmac6(pcs *pc, struct packet *m);
 static struct packet* nb_sol(pcs *pc, ip6 *dst);
+#if 0
 static int nb_adv(pcs *pc, struct packet *m, ip6 *dst);
+#endif
+static int save_nb_adv(pcs *pc, struct packet *m);
 
 /* static void xxpreh(char *e, int c); */
 extern int tcp6(pcs *pc, struct packet *m);
@@ -144,10 +147,11 @@ int upv6(pcs *pc, struct packet *m)
 			icmp->cksum = cksum_fixup(icmp->cksum, 
 			    ICMP6_ECHO_REQUEST, ICMP6_ECHO_REPLY, 0);
 			swap_ehead(m->data);
-			fix_dmac6(pc, m);
-			enq(&pc->oq, m);
 			
-			return PKT_ENQ;	
+			/* push m into the background output queue which is watched by pth_output */
+			enq(&pc->bgoq, m);
+
+			return PKT_ENQ;
 		}
 
 		if (icmp->type == ND_ROUTER_ADVERT) {
@@ -233,14 +237,14 @@ int upv6(pcs *pc, struct packet *m)
 				} 
 				if (sameNet6((char *)pc->ip6.ip.addr8, p + 16, pc->ip6.cidr)) {
 					memcpy(pc->ip6.gmac, mac, 6);
-									
 				}
 			}
 			return PKT_DROP;
 		}
 		/* neighbor advertisement */
 		if (icmp->type == ND_NEIGHBOR_ADVERT) {
-			return PKT_UP;		
+			save_nb_adv(pc, m);
+			return PKT_DROP;
 		}
 		if (icmp->type == ICMP6_ECHO_REPLY) {
 			return PKT_UP;
@@ -267,10 +271,10 @@ int upv6(pcs *pc, struct packet *m)
 				p = icmp6Reply(m);
 			else
 				p = udp6Reply(m);
-			if (p != NULL) {
-				fix_dmac6(pc, p);
-				enq(&pc->oq, p);
-			}
+				
+			/* push m into the background output queue which is watched by pth_output */
+			if (p != NULL)
+				enq(&pc->bgoq, p);
 		}
 
 		/* anyway tell caller to drop this packet */
@@ -278,11 +282,23 @@ int upv6(pcs *pc, struct packet *m)
 	} else if (ip->ip6_nxt == IPPROTO_TCP) {
 		return tcp6(pc, m);
 	} else {
-		//printf("get %x\n", ip->ip6_nxt);
 		return PKT_DROP;
 	}
 
 	return PKT_UP;
+}
+
+void send6(pcs *pc, struct packet *m)
+{
+	ethdr *eh = (ethdr *)(m->data);
+
+	if (eh->type != htons(ETHERTYPE_IPV6)) {
+		del_pkt(m);
+		return;
+	}
+	
+	fix_dmac6(pc, m);
+	enq(&pc->oq, m);
 }
 
 int response6(struct packet *m, sesscb *sesscb)
@@ -672,7 +688,6 @@ u_char *nbDiscovery(pcs *pc, ip6 *dst)
 	i = 0;
 	j = -1;
 	while ((i++ < 3) &&  (j == -1)){
-		struct packet *p;
 		struct packet *m;
 		
 		m = nb_sol(pc, dst);	
@@ -686,15 +701,14 @@ u_char *nbDiscovery(pcs *pc, ip6 *dst)
 		gettimeofday(&(tv), (void*)0);
 		while (!timeout(tv, waittime)) {
 			delay_ms(1);
-			while ((p = deq(&pc->iq)) != NULL && (j == -1)) {
-				j = nb_adv(pc, p, dst);
-				free(p);
+			for (i = 0; i < NB_SIZE; i++) {
+				if (sameNet6((char *)pc->ipmac6[i].ip.addr8, 
+				    (char *)dst->addr8, 128))
+					return (pc->ipmac6[i].mac);
 			}
-		}			
+		}
 	}
-	if (i > 3)
-		return NULL;
-	return (pc->ipmac6[j].mac);
+	return NULL;
 }
 
 /* 
@@ -829,6 +843,7 @@ struct packet* nb_sol(pcs *pc, ip6 *dst)
  * if valid, put ip/mac into ip pool, return the record position in the pool
  * else return -1
  */
+#if 0
 int nb_adv(pcs *pc, struct packet *m, ip6 *dst)
 {
 	ethdr *eh;
@@ -893,17 +908,84 @@ int nb_adv(pcs *pc, struct packet *m, ip6 *dst)
 
 	return i;
 }
+#endif
+
+int save_nb_adv(pcs *pc, struct packet *m)
+{
+	ethdr *eh;
+	ip6hdr *ip;
+	ndhdr *nshdr;
+	ndopt *nsopt;
+	int i;
+
+	eh = (ethdr *)(m->data);
+	
+	if (eh->type != htons(ETHERTYPE_IPV6))
+		return -1;
+
+	if (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN))
+		return -1;
+
+	ip = (ip6hdr *)(eh + 1);
+
+	if ((!IP6EQ(&(pc->ip6.ip), &(ip->dst)) && 
+	    !IP6EQ(&(pc->link6.ip), &(ip->dst))) || IP6EQ(&ip->dst, &ip->src))
+		return -1;
+
+	nshdr = (ndhdr *)(ip + 1);
+	nsopt = (ndopt *)(nshdr + 1);
+	
+	if (nshdr->hdr.type != ND_NEIGHBOR_ADVERT)
+		return -1;
+
+	/* shoule check sum field
+	 * ...
+	 */
+
+	/* not Target Link-Layer Address */
+	if (nsopt->type != 2)
+		return -1;
+
+	i = 0;
+	while (i < NB_SIZE) {
+		if (IP6EQ(&pc->ipmac6[i].ip, &ip->src) &&
+		    (time_tick - pc->ipmac6[i].timeout <= 120))
+			break;
+
+		if (pc->ipmac6[i].timeout == 0 || 
+		    (time_tick - pc->ipmac6[i].timeout > 120)) {
+			memcpy(pc->ipmac6[i].mac, nsopt->mac, ETH_ALEN);
+			memcpy(pc->ipmac6[i].ip.addr8, ip->src.addr8, sizeof(ip->src.addr8));
+			pc->ipmac6[i].timeout = time_tick;
+			pc->ipmac6[i].cidr = 128;
+			break;
+		}
+		i++;
+	}
+
+	if (i == NB_SIZE) {
+		i = 0;
+		memcpy(pc->ipmac6[i].mac, nsopt->mac, ETH_ALEN);
+		memcpy(pc->ipmac6[i].ip.addr8, ip->src.addr8, 16);
+		pc->ipmac6[i].timeout = time_tick;
+	}
+
+	return i;
+}
 
 void fix_dmac6(pcs *pc, struct packet *m)
 {
 	u_char *p;
 	ethdr *eh;
+	ip6hdr *ip;
 	
 	eh = (ethdr *)(m->data);	
+	ip = (ip6hdr *)(eh + 1);
 	
-	p = nbDiscovery(pc, &pc->mscb.dip6);
+	p = nbDiscovery(pc, &ip->dst);
 	if (p)
 		memcpy(eh->dst, p, 6);
+	
 }
 
 /* end of file */

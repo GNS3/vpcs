@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -46,12 +46,14 @@ static struct packet *udpReply(struct packet *m0);
 static struct packet *icmpReply(struct packet *m0, char icmptype, char icmpcode);
 static void save_eaddr(pcs *pc, u_int addr, u_char *mac);
 extern int upv6(pcs *pc, struct packet *m);
+extern void send6(pcs *pc, struct packet *m);
 extern int tcp(pcs *pc, struct packet *m);
 
 static void free_ipfrag(struct ipfrag_head *head, struct ipfrag *fp);
 static void free_packet(struct packet *m);
 static struct ipfrag *new_ipfrag(struct packet *m, iphdr *ip);
 static struct packet *defrag_pkt(struct packet **);
+static void fix_dmac(pcs *pc, struct packet *m);
 
 extern u_int time_tick;
 static struct ipfrag_head ipfrag_hash[IPFRG_MAXHASH];
@@ -119,11 +121,7 @@ int upv4(pcs *pc, struct packet **m0)
 
 			p = icmpReply(m, ICMP_ECHOREPLY, 0);
 			if (p != NULL) {
-				fix_dmac(pc, p);
-				if (pc->ip4.flags & IPF_FRAG) {
-					p = ipfrag(p, pc->mtu);
-				}
-				enq(&pc->oq, p);
+				enq(&pc->bgoq, p);
 			}
 			return PKT_ENQ;
 		} else if (ip->proto == IPPROTO_UDP) {
@@ -158,11 +156,7 @@ int upv4(pcs *pc, struct packet **m0)
 					p = udpReply(m);
 				
 				if (p != NULL) {
-					fix_dmac(pc, p);
-					if (pc->ip4.flags & IPF_FRAG) {
-						p = ipfrag(p, pc->mtu);
-					}
-					enq(&pc->oq, p);
+					enq(&pc->bgoq, p);
 				}
 			}			
 			/* anyway tell caller to drop this packet */
@@ -207,6 +201,29 @@ int upv4(pcs *pc, struct packet **m0)
 		return PKT_DROP;
 	
 	return PKT_UP;
+}
+
+void send4(pcs *pc, struct packet *m)
+{
+	ethdr *eh = (ethdr *)(m->data);
+
+	if (eh->type == htons(ETHERTYPE_IPV6)) {
+		send6(pc, m);
+		return;
+	}
+	
+	if (eh->type != htons(ETHERTYPE_IP)) {
+		del_pkt(m);
+		return;
+	}
+	fix_dmac(pc, m);
+	
+	
+	if (pc->ip4.flags & IPF_FRAG) {
+		m = ipfrag(m, pc->mtu);
+	}
+
+	enq(&pc->oq, m);
 }
 
 int response(struct packet *m, sesscb *sesscb)

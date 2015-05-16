@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -52,7 +52,7 @@
 #include "relay.h"
 #include "dhcp.h"
 
-const char *ver = "0.6";
+const char *ver = "0.7";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -87,6 +87,7 @@ char *tapname = "tap0";  /* TAP device name (only when 1 VPC is created) */
 int macaddr = 0; /* the last byte of ether address */
 
 static void *pth_reader(void *devid);
+static void *pth_output(void *devid);
 static void *pth_writer(void *devid);
 static void *pth_timer_tick(void *);
 static void *pth_bgjob(void *);
@@ -365,11 +366,11 @@ void parse_cmd(char *cmdstr)
 	}
 	for (ep = cmd_entry; ep->name != NULL; ep++) {
 		if(!strncmp(pcmd, ep->name, strlen(pcmd))) {
-        		if (cmd != NULL)
-        			printf("%s\n", cmd->name);
-        		cmd = ep;
-        		rc++;
-        	}
+			if (cmd != NULL)
+				printf("%s\n", cmd->name);
+			cmd = ep;
+			rc++;
+		}
 	}
 
 	if (rc > 1) {
@@ -411,9 +412,9 @@ void parse_cmd(char *cmdstr)
 		memset(&vpc[pcid].mscb, 0, sizeof(vpc[pcid].mscb));
 
 	}  else
-   		printf("Bad command: \"%s\". Use ? for help.\n", cmdstr);
+		printf("Bad command: \"%s\". Use ? for help.\n", cmdstr);
 
-    return;
+	return;
 }
 
 void sig_int(int sig)
@@ -468,6 +469,8 @@ void *pth_reader(void *devid)
 	pc->oq.type = 1 + id * 100;
 	init_queue(&pc->bgiq);
 	pc->bgiq.type = 2 + id * 100;
+	init_queue(&pc->bgoq);
+	pc->bgoq.type = 3 + id * 100;
 	
 	
 	if (pthread_create(&(pc->wpid), NULL, pth_writer, devid) != 0) {
@@ -475,6 +478,11 @@ void *pth_reader(void *devid)
 		exit(-1);
 	}
 
+	if (pthread_create(&(pc->outid), NULL, pth_output, devid) != 0) {
+		printf("PC%d error\n", id + 1);
+		exit(-1);
+	}
+	
 	while (1) {
 		rc = VRead(pc, buf, PKT_MAXSIZE);
 		if (rc > 0) {
@@ -493,9 +501,8 @@ void *pth_reader(void *devid)
 					dmp_packet2file(m, pc->dmpfile);					
 				dmp_packet(m, pc->dmpflag);
 			}
-			
+	
 			rc = upv4(pc, &m);
-			
 			if (rc == PKT_UP) {
 				if (dhcp_enq(pc, m))
 					continue;
@@ -506,8 +513,31 @@ void *pth_reader(void *devid)
 			} else if (rc == PKT_DROP)
 				del_pkt(m);
 		}
-	}		
+	}
 
+	return NULL;
+}
+
+void *pth_output(void *devid)
+{
+	int id;
+	pcs *pc = NULL;
+	struct packet *m = NULL;
+	
+	id = *(int *)devid;
+	pc  = &vpc[id];
+	
+	/* send4 or send6 will block this thread for a while to get 
+	   the ether address via arpresolv or neighbor solicitation 
+	*/
+	while (1) {
+		m = waitdeq(&pc->bgoq);
+		
+		while (m) {
+			send4(pc, m);
+			m = deq(&pc->bgoq);
+		}
+	}
 	return NULL;
 }
 
@@ -522,17 +552,21 @@ void *pth_writer(void *devid)
 	locallink6(pc);
 	
 	while (1) {
-		struct packet *pkt = NULL;
-		
-		pkt = waitdeq(&pc->oq);
-		
-		if (pc->dmpflag & DMP_FILE)
-			dmp_packet2file(pkt, pc->dmpfile);
+		struct packet *m = NULL;
 
-		dmp_packet(pkt, pc->dmpflag);
-		if (VWrite(pc, pkt->data, pkt->len) != pkt->len)
-			printf("Send packet error\n");
-		del_pkt(pkt);
+		m = waitdeq(&pc->oq);
+
+		while (m) {
+			if (pc->dmpflag & DMP_FILE)
+				dmp_packet2file(m, pc->dmpfile);
+
+			dmp_packet(m, pc->dmpflag);
+			if (VWrite(pc, m->data, m->len) != m->len)
+				printf("Send packet error\n");
+			del_pkt(m);
+			
+			m = deq(&pc->oq);
+		}
 	}
 	return NULL;
 }
