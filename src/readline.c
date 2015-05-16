@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -77,7 +77,8 @@ char *readline(const char *prompt, struct rls *rls)
 	return rls->kbuffer;
 }
 
-int readline_tab(char** (*cb)(const char *string, const char *part), struct rls *rls)
+int readline_tab(char** (*cb)(const char *string, const char *part), 
+    struct rls *rls)
 {
 	if (cb != NULL)
 		rls->tab_callback = cb;
@@ -103,15 +104,15 @@ int loadhistory(const char *filename, struct rls *rls)
 			rls->kbuffer[len - 1] = '\0';
 			
 		if (i == rls->maxhistnum) {
-			memmove(rls->history[0], rls->history[1], rls->maxhistnum - 1);
+			memmove(rls->history[0], rls->history[1], 
+			    rls->maxbuflen * (rls->maxhistnum - 1));
 			i--;
 		}
 		strcpy(rls->history[i++], rls->kbuffer);
-
 	}
 	rls->hist_total = i;
 	fclose(fp);
-	
+
 	return 0;
 }
 
@@ -149,7 +150,7 @@ struct rls * readline_init(int histnum, int buflen)
 		memset(p, 0, (histnum + 2) * buflen);
 		rls->kbuffer = p;
 		
-		rls->history = malloc(histnum * sizeof(char *));	
+		rls->history = malloc(histnum * sizeof(char *));
 		if (rls->history == NULL)
 			break;
 		for (i = 0; i <= histnum; i++) 
@@ -170,7 +171,7 @@ struct rls * readline_init(int histnum, int buflen)
 	if (rls != NULL)
 		free(rls);
 		
-	return NULL;	
+	return NULL;
 }
 
 void readline_free(struct rls *rls)
@@ -184,7 +185,7 @@ void readline_free(struct rls *rls)
 
 int _readline(struct rls *rls)
 {
-	int flags;
+	int histmode;
 	struct termios termios;
 	int i, j;
 	int fkey;
@@ -200,45 +201,36 @@ int _readline(struct rls *rls)
 	
 	memset(rls->kbuffer, 0, rls->maxbuflen);
 	rls->pos = 0;
-	/*
-	flags = fcntl(0, F_GETFL);
-	fcntl(0, F_SETFL, flags);
-	*/
-
-	flags = 0;
+	histmode = 0;
 	ihist = 0;
 	kb = rls->kb;
 	rc = 0;
-	do {	
+	do {
 		if (off >= rc) {
 			memset(kb, 0, sizeof(rls->kb));
 			rc = read(rls->fdin, kb, sizeof(rls->kb));
-			if (rc <= 0) {
-				//usleep(1);
+			if (rc <= 0)
 				continue;
-			}
 			off = 0;
 		} else {
 			memmove(kb, kb + off, rc - off);
 			rc -= off;
 		}
 #if 0
-		printf("\n%2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x\n",
-			kb[0], kb[1], kb[2], kb[3], kb[4], kb[5], kb[6], kb[6]);
+printf("\n%2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x\n",
+	kb[0], kb[1], kb[2], kb[3], kb[4], kb[5], kb[6], kb[6]);
 		fflush(stdout);
 #endif		
 		if (kb[0] == ESC && kb[1] == ESC_PAD) {
 			fkey = kb[2] | (kb[3] << 8);
 			if (kb[2] == KEY_UP) {
 				off = 3;
-				if (flags == 0) {
-					/* set history-mode */
-					flags = 1;
+				if (histmode == 0) {
+					histmode = 1;
 					ihist = rls->hist_total;
-					if (rls->pos != 0)
-						strcpy(rls->history[rls->maxhistnum - 1], rls->kbuffer);
-					else
-						rls->history[rls->maxhistnum - 1][0] = '\0';
+					rls->kbuffer[rls->pos] = '\0';
+					strcpy(rls->history[rls->maxhistnum], 
+					    rls->kbuffer);
 				}
 				if (ihist == 0)
 					continue;
@@ -249,9 +241,6 @@ int _readline(struct rls *rls)
 					continue;
 				ihist = i;
 				
-				/*
-				while (rls->pos-- > 0)
-				*/
 				i = strlen(rls->kbuffer);
 				while (rls->pos++ < i)
 					vprint(rls->fdout, " ", 1);
@@ -268,7 +257,7 @@ int _readline(struct rls *rls)
 			}			
 			if (kb[2] == KEY_DOWN){
 				off = 3;
-				if (flags == 0)
+				if (histmode == 0)
 					continue;
 				if ((ihist + 1) >= rls->hist_total) {
 					i = strlen(rls->kbuffer);
@@ -278,11 +267,10 @@ int _readline(struct rls *rls)
 						vprint(rls->fdout, "\b \b", 3);
 					memset(rls->kbuffer, 0, rls->maxbuflen);
 					rls->pos = 0;
-					flags = 0;
+					histmode = 0;
 					continue;
 				}
-				//printf("ihist = %d, rls->hist_total = %d\n",
-				//    ihist, rls->hist_total);	
+
 				i = findhistory(rls, ihist);
 				if (i == -1)
 					continue;
@@ -305,7 +293,8 @@ int _readline(struct rls *rls)
 			if (kb[2] == KEY_RIGHT) {
 				off = 3;
 				if (rls->pos < strlen(rls->kbuffer))
-					vprint(rls->fdout, &(rls->kbuffer[rls->pos++]), 1);
+					vprint(rls->fdout, 
+					    &(rls->kbuffer[rls->pos++]), 1);
 				continue;
 			}
 			if (kb[2] == KEY_LEFT) {
@@ -327,13 +316,14 @@ int _readline(struct rls *rls)
 			if (fkey == KEY_END) {
 				off = 4;
 				while (rls->pos < strlen(rls->kbuffer)) {
-					vprint(rls->fdout, &(rls->kbuffer[rls->pos++]), 1);
+					vprint(rls->fdout, 
+					    &(rls->kbuffer[rls->pos++]), 1);
 				}
 				continue;
 			}	
 			
 		}
-		flags = 0;
+		histmode = 0;
 				
 		/* 'enter' */
 		if (kb[0] == LF || kb[0] == CR) {
@@ -397,7 +387,8 @@ int _readline(struct rls *rls)
 			vprint(rls->fdout, "\n", 1);
 			i = 0;
 			while (*(tab + i)) {
-				vprint(rls->fdout, *(tab + i), strlen(*(tab + i)));
+				vprint(rls->fdout, *(tab + i), 
+				    strlen(*(tab + i)));
 				vprint(rls->fdout, " ", 1);
 				free(*(tab + i));
 				i++;
@@ -424,9 +415,12 @@ int _readline(struct rls *rls)
 				
 				rls->pos--;
 				vprint(rls->fdout, "\b", 1);
-				vprint(rls->fdout, &rls->kbuffer[rls->pos], strlen(&rls->kbuffer[rls->pos]));
+				vprint(rls->fdout, &rls->kbuffer[rls->pos], 
+				    strlen(&rls->kbuffer[rls->pos]));
 				vprint(rls->fdout, " \b", 2);
-				for (i = 0; i < strlen(rls->kbuffer) - rls->pos; i++)
+				
+				j = strlen(rls->kbuffer) - rls->pos;
+				for (i = 0; i < j; i++)
 					vprint(rls->fdout, "\b", 1);
 			}
 			continue;
@@ -440,16 +434,18 @@ int _readline(struct rls *rls)
 				j = strlen(rls->kbuffer);
 				/* avoid overflow */
 				if (j < rls->maxbuflen - 1) {
+					p = rls->kbuffer;
 					while (j > rls->pos) {
-						rls->kbuffer[j] = rls->kbuffer[j-1];
+						*(p + j) = *(p + j - 1);
 						j--;
 					}
-						
 					rls->kbuffer[rls->pos] = kb[0];
-					//rls->kbuffer[rls->pos + 1] = '\0';
-					vprint(rls->fdout, &rls->kbuffer[rls->pos], 
+					vprint(rls->fdout, 
+					    &rls->kbuffer[rls->pos], 
 					    strlen(&rls->kbuffer[rls->pos]));
-					for (j = 0; j < strlen(rls->kbuffer) - rls->pos - 1; j++)
+					
+					j = strlen(rls->kbuffer) - rls->pos - 1;
+					for (i = 0; i < j; i++)
 						vprint(rls->fdout, "\b", 1);
 				}
 			} else {
@@ -472,7 +468,7 @@ int findhistory(struct rls *rls, int start)
 	int len, i;
 	
 	/* no pattern */
-	len = strlen(rls->history[rls->maxhistnum - 1]);
+	len = strlen(rls->history[rls->maxhistnum]);
 	if (len == 0) {
 		if (start >= 0) {
 			start++;
@@ -486,14 +482,16 @@ int findhistory(struct rls *rls, int start)
 		if (start >= 0) {
 			start++;
 			for (i = start; i < rls->hist_total; i++)
-				if (!strncmp(rls->history[rls->maxhistnum - 1], rls->history[i], len))
+				if (!strncmp(rls->history[rls->maxhistnum], 
+				    rls->history[i], len))
 					return i;
 			return -1;
 		} else {
 			start = 0 - start;
 			start --;
 			for (i = start; i >= 0; i--)
-				if (!strncmp(rls->history[rls->maxhistnum - 1], rls->history[i], len))
+				if (!strncmp(rls->history[rls->maxhistnum], 
+				    rls->history[i], len))
 					return i;
 			return -1;
 		}
@@ -520,7 +518,7 @@ void trimspace(char *buf)
 	q = p;
 	
 	while (*q != '\0')
-	    *p++ = *q++;
+		*p++ = *q++;
 	*p = '\0';
 }
 
