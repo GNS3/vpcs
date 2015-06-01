@@ -2,25 +2,25 @@
  * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without 
- * modification, are permitted provided that the following conditions 
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
  * are met:
- * 1. Redistributions of source code must retain the above copyright 
+ * 1. Redistributions of source code must retain the above copyright
  *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright 
- *    notice, this list of conditions and the following disclaimer in the 
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF 
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
@@ -52,7 +52,7 @@
 #include "relay.h"
 #include "dhcp.h"
 
-const char *ver = "0.6";
+const char *ver = "0.6.1";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -109,7 +109,7 @@ struct stub
 	char *grpname;
 	int (*f)(int argc, char **argv);
 	int (*help)(int argc, char **argv);
-	
+
 };
 typedef struct stub cmdStub;
 
@@ -122,7 +122,7 @@ static cmdStub cmd_entry[] = {
 	{"echo",	NULL,	run_echo,	NULL},
 	{"help",	NULL,	run_help,	help_help},
 	{"history",	NULL,	run_hist,	NULL},
-	{"relay",       NULL,   run_relay,      help_relay},
+	//{"relay",       NULL,   run_relay,      help_relay},
 	{"ip",		NULL,	run_ipconfig,	help_ip},
 	{"load",	NULL,	run_load,	help_load},
 	{"neighbor",	NULL,	run_nb6,	NULL},
@@ -154,8 +154,8 @@ int main(int argc, char **argv)
 
 	memset(&echoctl, 0, sizeof(struct echoctl));
 	rhost = inet_addr("127.0.0.1");
-	
-	devtype = DEV_UDP;		
+
+	devtype = DEV_UDP;
 	while ((c = getopt(argc, argv, "?c:ehm:p:r:s:t:uvFi:d:")) != -1) {
 		switch (c) {
 			case 'c':
@@ -173,7 +173,7 @@ int main(int argc, char **argv)
 				break;
 			case 'r':
 				startupfile = strdup(optarg);
-				break;	
+				break;
 			case 's':
 				lport = arg2int(optarg, 1024, 65000, 20000);
 				break;
@@ -224,12 +224,12 @@ int main(int argc, char **argv)
 	if (!isatty(0)) {
 		printf("Please run in the tty\n");
 		exit(-1);
-	}	
+	}
 
 	signal(SIGINT, &sig_int);
 	signal(SIGUSR1, &sig_clean);
 	signal(SIGCHLD, SIG_IGN);
-		
+
 	welcome();
 
 	srand(time(0));
@@ -241,22 +241,22 @@ int main(int argc, char **argv)
 			exit(-1);
 		}
 		strcpy(vpc[i].xname, "VPCS");
-		while (vpc[i].ip4.mac[4] == 0) 
+		while (vpc[i].ip4.mac[4] == 0)
 			delay_ms(10);
 		delay_ms(100);
 	}
 	pthread_create(&timer_pid, NULL, pth_timer_tick, (void *)0);
 	delay_ms(100);
-    	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
+    	//pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
     	pthread_create(&bgjob_pid, NULL, pth_bgjob, (void *)0);
 	pcid = 0;
 
 	delay_ms(50);
 	autoconf6();
-	
+
 	delay_ms(50);
 	startup();
-	
+
 	rls = readline_init(50, MAX_LEN);
 	if (rls == NULL) {
 		printf("initialize readline error\n");
@@ -288,12 +288,12 @@ void parse_cmd(char *cmdstr)
 	int rc = 0;
 	char *pcmd;
 	int at = 0;
-	
+
 	if (cmdstr[0] == '#' || cmdstr[0] == ';')
 		return;
 
 	argc = mkargv(cmdstr, (char **)argv, 20);
-	
+
 	if (argc == 0)
 		return;
 
@@ -301,37 +301,37 @@ void parse_cmd(char *cmdstr)
 	    (argv[0][0] >= '0' && argv[0][0] <= '9')) {
 	    	if ((argv[0][0] - '0') <= num_pths) {
 			if (echoctl.enable && runLoad)
-				printf("%s[%d] %s\n", vpc[pcid].xname, 
+				printf("%s[%d] %s\n", vpc[pcid].xname,
 				    pcid + 1, cmdstr);
 			pcid = argv[0][0] - '0' - 1;
-			
-		} else 
+
+		} else
 			printf("\nOnly %d VPCs actived\n", num_pths);
 		return;
-	} 
-	
+	}
+
 	rc = 0;
 	printf("\n");
-	
+
 	if (!strcmp(argv[0], "srcid")) {
 		printf("Source code ID: %s\n", ident);
 		return;
 	}
-	
+
 	if (!strncmp(argv[0], "echo", strlen(argv[0]))) {
 		char *p = NULL;
-	
+
 		p = strchr(cmdstr, ' ');
-		
+
 		if (echoctl.fgcolor != 0) {
 			if (echoctl.bgcolor != 0)
-				printf("\033[%d;%dm", echoctl.fgcolor, 
+				printf("\033[%d;%dm", echoctl.fgcolor,
 					echoctl.bgcolor);
 			else
 				printf("\033[%dm", echoctl.fgcolor);
 		}
 		if (p != NULL)
-			printf("%s", p + 1);	
+			printf("%s", p + 1);
 		else {
 			p = strchr(cmdstr, '\t');
 			if (p != NULL)
@@ -342,14 +342,14 @@ void parse_cmd(char *cmdstr)
 		fflush(stdout);
 		return;
 	}
-	
+
 	if (*cmdstr == '!') {
 		char *p = NULL;
 		if (strlen(cmdstr) > 1) {
 			p = cmdstr + 1;
 			while (*p== ' ' || *p == '\t')
 				p++;
-				
+
 			if (*p && strcmp(p, "?")) {
 				invoke_cmd(p);
 				return;
@@ -376,10 +376,10 @@ void parse_cmd(char *cmdstr)
 		printf("%s\n", cmd->name);
 		return;
 	}
-	
+
 	if(cmd && cmd->name != NULL) {
 		if (cmd->grpname != NULL) {
-			argc = insert_argv(argc, argv, cmd->grpname);	
+			argc = insert_argv(argc, argv, cmd->grpname);
 			for (ep = cmd_entry; ep->name != NULL; ep++) {
 				if(!strcmp(pcmd, ep->name)) {
 					cmd = ep;
@@ -387,25 +387,25 @@ void parse_cmd(char *cmdstr)
 				}
 			}
 		}
-		
+
 		if (echoctl.enable && runLoad) {
-			if (!strcmp(cmd->name, "sleep") && 
+			if (!strcmp(cmd->name, "sleep") &&
 			    (argc != 2 || (argc == 2 && !digitstring(argv[1])))) {
 			    	;
 			} else if (at == 0)
 				printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
 		}
-		if (argc > 1 && cmd->help != NULL && 
+		if (argc > 1 && cmd->help != NULL &&
 		    ((!strcmp(argv[argc - 1], "?") || !strcmp(argv[argc - 1], "help")))) {
 		    	argv[0] = cmd->name;
 			cmd->help(argc, argv);
 			return;
 		}
-						
+
 		/* the session control block */
 		memset(&vpc[pcid].mscb, 0, sizeof(vpc[pcid].mscb));
 		vpc[pcid].mscb.sock = 1;
-		
+
 		rc = cmd->f(argc, argv);
 
 		memset(&vpc[pcid].mscb, 0, sizeof(vpc[pcid].mscb));
@@ -433,11 +433,11 @@ void *pth_reader(void *devid)
 	id = *(int *)devid;
 	pc  = &vpc[id];
 	pc->id = id;
-	
+
 	pc->rhost = rhost;
 	pc->lport = lport + id;
 	pc->rport = rport + id;
-	
+
 	pc->ip4.mac[0] = 0x00;
 	pc->ip4.mac[1] = 0x50;
 	pc->ip4.mac[2] = 0x79;
@@ -446,10 +446,10 @@ void *pth_reader(void *devid)
 	pc->ip4.mac[5] = (id + macaddr) & 0xff;
 	pc->ip4.flags |= IPF_FRAG;
 	pc->mtu = 1500;
-	
+
 	if (pc->fd == 0)
 		pc->fd = open_dev(id);
-		
+
 	if (pc->fd <= 0) {
 		if (devtype == DEV_TAP)
 			if (num_pths > 1)
@@ -460,7 +460,7 @@ void *pth_reader(void *devid)
 			printf("Open port %d error [%s]\n", vpc[id].lport, strerror(errno));
 		return NULL;
 	}
-		
+
 	pthread_mutex_init(&(pc->locker), NULL);
 	init_queue(&pc->iq);
 	pc->iq.type = 0 + id * 100;
@@ -468,8 +468,8 @@ void *pth_reader(void *devid)
 	pc->oq.type = 1 + id * 100;
 	init_queue(&pc->bgiq);
 	pc->bgiq.type = 2 + id * 100;
-	
-	
+
+
 	if (pthread_create(&(pc->wpid), NULL, pth_writer, devid) != 0) {
 		printf("PC%d error\n", id + 1);
 		exit(-1);
@@ -490,12 +490,12 @@ void *pth_reader(void *devid)
 			if (!memcmp(m->data, pc->ip4.mac, ETH_ALEN) ||
 			    pc->dmpflag & DMP_ALL) {
 				if (pc->dmpflag & DMP_FILE)
-					dmp_packet2file(m, pc->dmpfile);					
+					dmp_packet2file(m, pc->dmpfile);
 				dmp_packet(m, pc->dmpflag);
 			}
-			
+
 			rc = upv4(pc, &m);
-			
+
 			if (rc == PKT_UP) {
 				if (dhcp_enq(pc, m))
 					continue;
@@ -506,7 +506,7 @@ void *pth_reader(void *devid)
 			} else if (rc == PKT_DROP)
 				del_pkt(m);
 		}
-	}		
+	}
 
 	return NULL;
 }
@@ -515,17 +515,17 @@ void *pth_writer(void *devid)
 {
 	int id;
 	pcs *pc = NULL;
-	
+
 	id = *(int *)devid;
 	pc  = &vpc[id];
-	
+
 	locallink6(pc);
-	
+
 	while (1) {
 		struct packet *pkt = NULL;
-		
+
 		pkt = waitdeq(&pc->oq);
-		
+
 		if (pc->dmpflag & DMP_FILE)
 			dmp_packet2file(pkt, pc->dmpfile);
 
@@ -581,7 +581,7 @@ void *pth_bgjob(void *dummy)
 		usleep(10000);
 		i = (i + 1) % num_pths;
 	} while (1);
-	
+
 	return NULL;
 }
 
@@ -590,7 +590,7 @@ void startup(void)
 	FILE *fp;
 	int argc;
 	char *argv[3];
-	
+
 	if (startupfile == NULL) {
 		fp = fopen(default_startupfile, "r");
 		if (fp != NULL) {
@@ -609,13 +609,13 @@ void startup(void)
 		if (fp != NULL) {
 			fclose(fp);
 			runStartup = 1;
-			
+
 			argv[0] = "load";
 			argv[1] = (char *)startupfile;
 			argv[2] = NULL;
 			argc = 2;
 			run_load(argc, argv);
-			
+
 			runStartup = 0;
 		} else
 			printf("Can't open %s\n", startupfile);
@@ -624,27 +624,27 @@ void startup(void)
 }
 
 
-void 
+void
 sig_clean(int sig)
 {
 	int i;
-	
+
 	for (i = 0; i < num_pths; i++)
 		close(vpc[i].fd);
 
-	if (rls != NULL && histfile != NULL) 
-		savehistory(histfile, rls);	
+	if (rls != NULL && histfile != NULL)
+		savehistory(histfile, rls);
 }
 
 int run_quit(int argc, char **argv)
 {
 	pid_t pid;
-	
+
 	if (daemon_port) {
 		pid = getppid();
 		kill(pid, SIGUSR1);
 	}
-		
+
 	sig_clean(0);
 
 	printf("\n");
@@ -654,40 +654,40 @@ int run_quit(int argc, char **argv)
 int run_disconnect(int argc, char **argv)
 {
 	pid_t pid;
-	
+
 	if (daemon_port) {
 		pid = getppid();
 		kill(pid, SIGQUIT);
 	} else
 		printf("NOT daemon mode\n");
-	
+
 	return 0;
 }
 void clear_hist(void)
 {
-	rls->hist_total = 0;	
+	rls->hist_total = 0;
 }
 
 void welcome(void)
 {
 	run_ver(0, NULL);
-	
+
 	printf("\nPress '?' to get help.\n");
-	return;			
+	return;
 }
 
-static int 
+static int
 invoke_cmd(const char *cmd)
 {
 	int rc = 0;
-	
+
 #ifdef cygwin
 	char str[1024];
 	snprintf(str, sizeof(str), "%s /c %s", getenv("COMSPEC"), cmd);
 	rc = WinExec(str, SW_SHOW);
-#else	
+#else
 	rc = system(cmd);
-#endif	
+#endif
 	return rc;
 }
 
