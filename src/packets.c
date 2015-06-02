@@ -45,7 +45,7 @@ static struct packet *arp(pcs *pc, u_int dip);
 static struct packet *udpReply(struct packet *m0);
 static struct packet *icmpReply(struct packet *m0, char icmptype, char icmpcode);
 static void save_eaddr(pcs *pc, u_int addr, u_char *mac);
-extern int upv6(pcs *pc, struct packet *m);
+extern int upv6(pcs *pc, struct packet **m);
 extern void send6(pcs *pc, struct packet *m);
 extern int tcp(pcs *pc, struct packet *m);
 
@@ -73,7 +73,7 @@ int upv4(pcs *pc, struct packet **m0)
 	u_int *si, *di;
 	
 	if (eh->type == htons(ETHERTYPE_IPV6))
-		return upv6(pc, m);
+		return upv6(pc, m0);
 		
 	/* not ipv4 or arp */
 	if ((eh->type != htons(ETHERTYPE_IP)) && 
@@ -333,7 +333,7 @@ int arpResolve(pcs *pc, u_int ip, u_char *dmac)
 		
 	c = 0;
 
-	for (i = 0; i < ARP_SIZE; i++) {
+	for (i = 0; i < POOL_SIZE; i++) {
 		if (pc->ipmac4[i].ip == ip && 
 		    (time_tick - pc->ipmac4[i].timeout) <= 120 &&
 		    !etherIsZero(pc->ipmac4[i].mac)) {
@@ -352,7 +352,7 @@ int arpResolve(pcs *pc, u_int ip, u_char *dmac)
 		gettimeofday(&(tv), (void*)0);
 		while (!timeout(tv, waittime)) {
 			delay_ms(1);
-			for (i = 0; i < ARP_SIZE; i++) {
+			for (i = 0; i < POOL_SIZE; i++) {
 				if (pc->ipmac4[i].ip == ip && 
 				    (time_tick - pc->ipmac4[i].timeout) <= 120 &&
 				    !etherIsZero(pc->ipmac4[i].mac)) {
@@ -365,8 +365,9 @@ int arpResolve(pcs *pc, u_int ip, u_char *dmac)
 	return 0;
 }
 
-struct packet *packet(sesscb *sesscb)
+struct packet *packet(pcs *pc)
 {
+	sesscb *sesscb = &pc->mscb;
 	ethdr *eh;
 	iphdr *ip;
 	int i;
@@ -719,7 +720,7 @@ save_eaddr(pcs *pc, u_int addr, u_char *mac)
 		return;
 	
 	i = 0;
-	while (i < ARP_SIZE) {
+	while (i < POOL_SIZE) {
 		if (time_tick - pc->ipmac4[i].timeout <= 120 &&
 			pc->ipmac4[i].ip == addr) {
 			pc->ipmac4[i].timeout = time_tick;

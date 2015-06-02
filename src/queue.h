@@ -38,10 +38,10 @@
 #define PKT_UP		2	/* application */
 
 struct packet {
-	struct packet *next;	
+	struct packet *next;
 	int len;
 	struct timeval ts;
-	char data[1];
+	char data[0];
 };
 
 struct pq {
@@ -67,6 +67,7 @@ void lock_q(struct pq*);
 void ulock_q(struct pq*);
 struct packet *new_pkt(int len);
 void del_pkt(struct packet *m);
+void free_pkts(struct packet *m);
 
 #endif
 

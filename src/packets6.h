@@ -47,9 +47,9 @@
 }
 
 
-int upv6(pcs *pc, struct packet *m);
+int upv6(pcs *pc, struct packet **m);
 
-struct packet *packet6(sesscb *sesscb);
+struct packet *packet6(pcs *pc); //, sesscb *sesscb);
 
 int response6(struct packet *pkt, sesscb *sesscb);
 struct packet *tcp6Reply(struct packet *m0, sesscb *cb);
@@ -58,6 +58,8 @@ int tr6Reply(struct packet *m, ip6 *mip, ip6 *dip);
 u_char *nbDiscovery(pcs *pc, ip6 *dst);
 struct packet* nbr_sol(pcs *pc);
 void send6(pcs *pc, struct packet *m);
+int findmtu6(pcs *pc, ip6 *src);
+int ip6ehdr(ip6hdr *ip, int plen, int hdrtype);
 
 #endif
 

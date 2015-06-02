@@ -41,14 +41,19 @@
 #include "vpcs.h"
 #include "packets6.h"
 #include "utils.h"
+#include "ip.h"
+#include "frag6.h"
 
-static struct packet *icmp6Reply(struct packet *m);
+static struct packet *icmp6Reply(pcs *, struct packet *, char type, char code);
 static struct packet *udp6Reply(struct packet *m0);
 static void fix_dmac6(pcs *pc, struct packet *m);
 static struct packet* nb_sol(pcs *pc, ip6 *dst);
-#if 0
-static int nb_adv(pcs *pc, struct packet *m, ip6 *dst);
-#endif
+static void save_mtu6(pcs *pc, struct packet *m);
+
+static int sub_nbsol(pcs *pc, struct packet *m);
+static int sub_nbadv(pcs *pc, struct packet *m);
+static int sub_udp(pcs *pc, struct packet *m);
+
 static int save_nb_adv(pcs *pc, struct packet *m);
 
 /* static void xxpreh(char *e, int c); */
@@ -62,82 +67,52 @@ extern u_int time_tick;
  *       PKT_ENQ, in out queue
  *       PKT_DROP, drop the packet
  */
-int upv6(pcs *pc, struct packet *m)
+int upv6(pcs *pc, struct packet **m0)
 {
+	struct packet *m = *m0;
 	ethdr *eh;
 	ip6hdr *ip;
 	icmp6hdr *icmp;
-	ip6 *tip6 = NULL;
-	u_int32_t mtu = 0;
+	struct packet *p = NULL;
 	
 	eh = (ethdr *)(m->data);
 	
-	if (etherIsMulticast(eh->src)) 
+	if (etherIsMulticast(eh->src))
 		return PKT_DROP;
 		
-	if (eh->type != htons(ETHERTYPE_IPV6)) 
+	if (eh->type != htons(ETHERTYPE_IPV6))
 		return PKT_DROP;
 	
 	ip = (ip6hdr *)(eh + 1);
-	if ((ip->ip6_vfc & IPV6_VERSION_MASK) != IPV6_VERSION) 
+	if ((ip->ip6_vfc & IPV6_VERSION_MASK) != IPV6_VERSION)
 		return PKT_DROP;
+	
+	/* too big, send ICMP with the code ICMP6_PACKET_TOO_BIG */
+	if (ntohs(ip->ip6_plen) + sizeof(ip6hdr) > pc->mtu) {
+		p = icmp6Reply(pc, m, ICMP6_PACKET_TOO_BIG, 0);
+		if (p) {
+			fix_dmac6(pc, p);
+			enq(&pc->oq, p);
+		}
+		return PKT_ENQ;
+	}
+	
+	/* fragment */
+	if (ip6ehdr(ip, m->len - sizeof(ethdr), IPPROTO_FRAGMENT) > 0) {
+		m = ipreass6(m);
+		if (m == NULL)
+			return PKT_ENQ;
+		else
+			*m0 = m;
+		ip = (ip6hdr *)(m->data + sizeof(ethdr));
+	}
 		
 	if (ip->ip6_nxt == IPPROTO_ICMPV6) {
 		icmp = (icmp6hdr *)(ip + 1);
 		
 		/* neighbor solicitation */
-		if (icmp->type == ND_NEIGHBOR_SOLICIT) {
-			ndhdr *nshdr;
-			ndopt *nsopt;
-			
-			nshdr = (ndhdr *)(ip + 1);
-			nsopt = (ndopt *)(nshdr + 1);
-			
-			if (eh->dst[0] != 0x33 || 
-			    eh->dst[1] != 0x33 ||
-			    eh->dst[2] != 0xff ||
-			    ip->ip6_hlim != 255 ||
-			    ip->dst.addr16[0] != IPV6_ADDR_INT16_MLL ||
-			    ip->dst.addr32[1] != 0 ||
-			    ip->dst.addr32[2] != IPV6_ADDR_INT32_ONE ||
-			    ip->dst.addr8[12] != 0xff) {
-				return PKT_DROP;
-			}
-			
-			if (eh->dst[3] != pc->ip6.ip.addr8[13] ||
-			    eh->dst[4] != pc->ip6.ip.addr8[14] ||
-			    eh->dst[5] != pc->ip6.ip.addr8[15] ||
-			    ip->dst.addr32[3] != (pc->ip6.ip.addr32[3] | 0xff)) {
-				if (eh->dst[3] != pc->link6.ip.addr8[13] ||
-				    eh->dst[4] != pc->link6.ip.addr8[14] ||
-				    eh->dst[5] != pc->link6.ip.addr8[15] ||
-				    ip->dst.addr32[3] != (pc->link6.ip.addr32[3] | 0xff)) {
-					return PKT_DROP;
-				} else
-					tip6 = &pc->link6.ip;	
-			} else
-				tip6 = &pc->ip6.ip;			
-
-			/* send advertisement */
-			memcpy(ip->dst.addr8, ip->src.addr8, 16);
-			memcpy(ip->src.addr8, tip6->addr8, 16);
-				
-			nshdr->hdr.type = ND_NEIGHBOR_ADVERT;
-			nshdr->hdr.code = 0;
-			nshdr->nd_na_flags = ND_RA_FLAG_OTHER | ND_RA_FLAG_HA;
-			nsopt->type = 2;
-			memcpy(nsopt->mac, pc->ip4.mac, ETH_ALEN);
-				
-			nshdr->hdr.cksum = 0;
-			nshdr->hdr.cksum = cksum6(ip, IPPROTO_ICMPV6, ntohs(ip->ip6_plen));
-			
-			memcpy(eh->dst, eh->src, ETH_ALEN);
-			memcpy(eh->src, pc->ip4.mac, ETH_ALEN);	
-	
-			enq(&pc->oq, m);
-			
-			return PKT_ENQ;
-		}
+		if (icmp->type == ND_NEIGHBOR_SOLICIT)
+			return sub_nbsol(pc, m);
 		
 		if (icmp->type == ICMP6_ECHO_REQUEST) {
 			swap_ip6head(m);
@@ -148,144 +123,235 @@ int upv6(pcs *pc, struct packet *m)
 			    ICMP6_ECHO_REQUEST, ICMP6_ECHO_REPLY, 0);
 			swap_ehead(m->data);
 			
-			/* push m into the background output queue which is watched by pth_output */
+			/* push m into the background output queue 
+			   which is watched by pth_output */
 			enq(&pc->bgoq, m);
 
 			return PKT_ENQ;
 		}
 
 		if (icmp->type == ND_ROUTER_ADVERT) {
-			char *p = NULL, *mac = NULL;
-			ndrahdr *ndr = (ndrahdr *)(ip + 1);
-			
-			/*  icmp6_data8[0]
-			 *  |7654 3210|
-			 *   |||
-			 *   ||Override flag, update link address if 1
-			 *   |Solicited flag, response to NS if 1
-			 *   Router flag if 1
-			 */
-			 
-			if (ip->src.addr8[0] != 0xfe ||
-			    ip->src.addr8[1] != 0x80 ||
-			    icmp->icmp6_data8[0] != ND_RA_FLAG_OTHER) {
-				return PKT_DROP;
-			}
-
-			/*
-			 * TLD (Type, Length, Data)
-			 * Type, Length: 8 bits
-			 *  1 = Source link-layer
-			 *      Length = 1, Data: Ethernet 48 bit MAC
-			 *  2 = Target link-layer
-			 *      Length = 1, Data: Ethernet 48 bit MAC
-			 *  3 = Prefix Informationr
-			 *      Length = 4, 
-			 *      Data: Prefix Length 8 bit
-			 *            1-bit on-link flag
-			 *            1-bit autonomous address-configuration flag, this 
-			 *              prefix can be used for stateless autoconfiguration.
-			 *            6-bits reserved
-			 *            32-bits the prefix valid lifetime in seconds
-			 *            32-bits stateless address remain preferred lifetime
-			 *            32-bits reserved
-			 *            128-bits Prefix of the ip address
-			 *  4 = Redirected Header
-			 *      Length: multiple of 8 octets in range 1 to 161
-			 *      Data: 48-bits Set to zero and ignored by receiver.
-			 *            variable octet IP Header + Data, not exceed 1280 octets.
-			 *  5 = MTU
-			 *      Length = 1
-			 *      Data: 16-bits reserved
-			 *            32-bits mtu
-			 */
-			
-			p = (char *)(ndr + 1);
-			
-			/* link-layer address */
-			if (*p == 1 && *(p + 1) == 1) {
-				mac = p + 2;
-				p += 8;
-			}
-			/* mtu, skip it*/
-			if (*p == 5 && *(p + 1) == 1) {
-				mtu = ntohl(*(u_int32_t *)(p + 4));
-				p += 8;
-			}
-			/* prefix */
-			if (*p == 3 && *(p + 1) == 4) {
-				int cidr;
-				cidr = 	*(p + 2);
-				if (pc->ip6.cidr == 0) {
-					memcpy(pc->ip6.ip.addr8, p + 16, 16);
-					pc->ip6.cidr = cidr;
-					
-					pc->ip6.ip.addr8[15] = pc->ip4.mac[5];
-					pc->ip6.ip.addr8[14] = pc->ip4.mac[4];
-					pc->ip6.ip.addr8[13] = pc->ip4.mac[3];
-					pc->ip6.ip.addr8[12] = 0xfe;
-					pc->ip6.ip.addr8[11] = 0xff;
-					pc->ip6.ip.addr8[10] = pc->ip4.mac[2];
-					pc->ip6.ip.addr8[9]  = pc->ip4.mac[1];
-					pc->ip6.ip.addr8[8]  = (pc->ip4.mac[0] &0x20) ? 
-					    pc->ip4.mac[0] & 0xef : (pc->ip4.mac[0] | 0x20);
-
-					pc->ip6.type = IP6TYPE_EUI64;
-					if (mtu != 0)
-						pc->mtu = mtu;
-					mtu = 0;
-				} 
-				if (sameNet6((char *)pc->ip6.ip.addr8, p + 16, pc->ip6.cidr)) {
-					memcpy(pc->ip6.gmac, mac, 6);
-				}
-			}
-			return PKT_DROP;
+			return sub_nbadv(pc, m);
 		}
 		/* neighbor advertisement */
 		if (icmp->type == ND_NEIGHBOR_ADVERT) {
 			save_nb_adv(pc, m);
 			return PKT_DROP;
 		}
-		if (icmp->type == ICMP6_ECHO_REPLY) {
-			return PKT_UP;
-		}
-		if (icmp->type == ICMP6_TIME_EXCEEDED || icmp->type == ICMP6_DST_UNREACH) {
-			return PKT_UP;
+		
+		if (icmp->type == ICMP6_PACKET_TOO_BIG)
+			save_mtu6(pc, m);
+		
+		switch (icmp->type) {
+			case ICMP6_ECHO_REPLY:
+			case ICMP6_TIME_EXCEEDED:
+			case ICMP6_DST_UNREACH:
+			case ICMP6_PACKET_TOO_BIG:
+				return PKT_UP;
+			default:
+				break;
 		}
 	}
 	
-	if (ip->ip6_nxt == IPPROTO_UDP) {
-		udphdr *ui;
-		ui = (udphdr *)(ip + 1);
-		
-		if (IN6_IS_MULTICAST(&(ip->dst)))
+	switch (ip->ip6_nxt) {
+		case IPPROTO_UDP:
+			return sub_udp(pc, m);
+		case IPPROTO_TCP:
+			return tcp6(pc, m);
+		default:
 			return PKT_DROP;
-			
-		/* udp echo reply */	
-		char *data = ((char*)(ui + 1));
-		if (memcmp(data, eh->dst, 6) == 0)
-			return PKT_UP;
-		else {
-			struct packet *p;
-			if (ip->ip6_hlim == 1)
-				p = icmp6Reply(m);
-			else
-				p = udp6Reply(m);
-				
-			/* push m into the background output queue which is watched by pth_output */
-			if (p != NULL)
-				enq(&pc->bgoq, p);
-		}
-
-		/* anyway tell caller to drop this packet */
-		return PKT_DROP;	
-	} else if (ip->ip6_nxt == IPPROTO_TCP) {
-		return tcp6(pc, m);
-	} else {
-		return PKT_DROP;
 	}
 
 	return PKT_UP;
+}
+
+
+int sub_udp(pcs *pc, struct packet *m)
+{
+	ethdr *eh;
+	ip6hdr *ip;
+	udphdr *ui;	
+	struct packet *p;
+
+	eh = (ethdr *)(m->data);
+	ip = (ip6hdr *)(eh + 1);
+	
+	ui = (udphdr *)(ip + 1);
+	
+	if (IN6_IS_MULTICAST(&(ip->dst)))
+		return PKT_DROP;
+		
+	/* udp echo reply */	
+	char *data = ((char*)(ui + 1));
+	if (memcmp(data, eh->dst, 6) == 0)
+		return PKT_UP;
+	
+	p = (ip->ip6_hlim != 1) ? udp6Reply(m) :
+	    icmp6Reply(pc, m, ICMP6_DST_UNREACH, ICMP6_DST_UNREACH_NOPORT);
+		
+	/* push m into the background output queue 
+	   which is watched by pth_output */
+	if (p != NULL)
+		enq(&pc->bgoq, p);
+
+	/* anyway tell caller to drop this packet */
+	return PKT_DROP;		
+}
+
+int sub_nbsol(pcs *pc, struct packet *m)
+{
+	ethdr *eh;
+	ip6hdr *ip;
+	ndhdr *nshdr;
+	ndopt *nsopt;
+	ip6 *tip6 = NULL;
+	
+	eh = (ethdr *)(m->data);
+	ip = (ip6hdr *)(eh + 1);
+	nshdr = (ndhdr *)(ip + 1);
+	nsopt = (ndopt *)(nshdr + 1);
+	
+	if (eh->dst[0] != 0x33 || 
+	    eh->dst[1] != 0x33 ||
+	    eh->dst[2] != 0xff ||
+	    ip->ip6_hlim != 255 ||
+	    ip->dst.addr16[0] != IPV6_ADDR_INT16_MLL ||
+	    ip->dst.addr32[1] != 0 ||
+	    ip->dst.addr32[2] != IPV6_ADDR_INT32_ONE ||
+	    ip->dst.addr8[12] != 0xff) {
+		return PKT_DROP;
+	}
+	
+	if (eh->dst[3] != pc->ip6.ip.addr8[13] ||
+	    eh->dst[4] != pc->ip6.ip.addr8[14] ||
+	    eh->dst[5] != pc->ip6.ip.addr8[15] ||
+	    ip->dst.addr32[3] != (pc->ip6.ip.addr32[3] | 0xff)) {
+		if (eh->dst[3] != pc->link6.ip.addr8[13] ||
+		    eh->dst[4] != pc->link6.ip.addr8[14] ||
+		    eh->dst[5] != pc->link6.ip.addr8[15] ||
+		    ip->dst.addr32[3] != (pc->link6.ip.addr32[3] | 0xff)) {
+			return PKT_DROP;
+		} else
+			tip6 = &pc->link6.ip;	
+	} else
+		tip6 = &pc->ip6.ip;			
+
+	/* send advertisement */
+	memcpy(ip->dst.addr8, ip->src.addr8, 16);
+	memcpy(ip->src.addr8, tip6->addr8, 16);
+		
+	nshdr->hdr.type = ND_NEIGHBOR_ADVERT;
+	nshdr->hdr.code = 0;
+	nshdr->nd_na_flags = ND_RA_FLAG_OTHER | ND_RA_FLAG_HA;
+	nsopt->type = 2;
+	memcpy(nsopt->mac, pc->ip4.mac, ETH_ALEN);
+		
+	nshdr->hdr.cksum = 0;
+	nshdr->hdr.cksum = cksum6(ip, IPPROTO_ICMPV6, ntohs(ip->ip6_plen));
+	
+	memcpy(eh->dst, eh->src, ETH_ALEN);
+	memcpy(eh->src, pc->ip4.mac, ETH_ALEN);	
+
+	enq(&pc->oq, m);
+	
+	return PKT_ENQ;
+}
+
+int sub_nbadv(pcs *pc, struct packet *m)
+{
+	ethdr *eh;
+	ip6hdr *ip;
+	icmp6hdr *icmp;
+	u_int32_t mtu = 0;
+	char *p = NULL, *mac = NULL;
+	ndrahdr *ndr = NULL;
+	
+	eh = (ethdr *)(m->data);
+	ip = (ip6hdr *)(eh + 1);
+	icmp = (icmp6hdr *)(ip + 1);
+	ndr = (ndrahdr *)(ip + 1);
+	
+	/*  icmp6_data8[0]
+	 *  |7654 3210|
+	 *   |||
+	 *   ||Override flag, update link address if 1
+	 *   |Solicited flag, response to NS if 1
+	 *   Router flag if 1
+	 */
+	 
+	if (ip->src.addr8[0] != 0xfe || ip->src.addr8[1] != 0x80 ||
+	    icmp->icmp6_data8[0] != ND_RA_FLAG_OTHER) {
+		return PKT_DROP;
+	}
+
+	/*
+	 * TLD (Type, Length, Data)
+	 * Type, Length: 8 bits
+	 *  1 = Source link-layer
+	 *      Length = 1, Data: Ethernet 48 bit MAC
+	 *  2 = Target link-layer
+	 *      Length = 1, Data: Ethernet 48 bit MAC
+	 *  3 = Prefix Informationr
+	 *      Length = 4, 
+	 *      Data: Prefix Length 8 bit
+	 *            1-bit on-link flag
+	 *            1-bit autonomous address-configuration flag, this 
+	 *              prefix can be used for stateless autoconfiguration.
+	 *            6-bits reserved
+	 *            32-bits the prefix valid lifetime in seconds
+	 *            32-bits stateless address remain preferred lifetime
+	 *            32-bits reserved
+	 *            128-bits Prefix of the ip address
+	 *  4 = Redirected Header
+	 *      Length: multiple of 8 octets in range 1 to 161
+	 *      Data: 48-bits Set to zero and ignored by receiver.
+	 *            variable octet IP Header + Data, not exceed 1280 octets.
+	 *  5 = MTU
+	 *      Length = 1
+	 *      Data: 16-bits reserved
+	 *            32-bits mtu
+	 */
+	
+	p = (char *)(ndr + 1);
+	
+	/* link-layer address */
+	if (*p == 1 && *(p + 1) == 1) {
+		mac = p + 2;
+		p += 8;
+	}
+	/* mtu, skip it*/
+	if (*p == 5 && *(p + 1) == 1) {
+		mtu = ntohl(*(u_int32_t *)(p + 4));
+		p += 8;
+	}
+	/* prefix */
+	if (*p == 3 && *(p + 1) == 4) {
+		int cidr;
+		cidr = 	*(p + 2);
+		if (pc->ip6.cidr == 0) {
+			memcpy(pc->ip6.ip.addr8, p + 16, 16);
+			pc->ip6.cidr = cidr;
+			
+			pc->ip6.ip.addr8[15] = pc->ip4.mac[5];
+			pc->ip6.ip.addr8[14] = pc->ip4.mac[4];
+			pc->ip6.ip.addr8[13] = pc->ip4.mac[3];
+			pc->ip6.ip.addr8[12] = 0xfe;
+			pc->ip6.ip.addr8[11] = 0xff;
+			pc->ip6.ip.addr8[10] = pc->ip4.mac[2];
+			pc->ip6.ip.addr8[9]  = pc->ip4.mac[1];
+			pc->ip6.ip.addr8[8]  = (pc->ip4.mac[0] &0x20) ? 
+			    pc->ip4.mac[0] & 0xef : (pc->ip4.mac[0] | 0x20);
+
+			pc->ip6.type = IP6TYPE_EUI64;
+			if (mtu != 0)
+				pc->mtu = mtu;
+			mtu = 0;
+		} 
+		if (sameNet6((char *)pc->ip6.ip.addr8, p + 16, pc->ip6.cidr)) {
+			memcpy(pc->ip6.gmac, mac, 6);
+		}
+	}
+	return PKT_DROP;	
 }
 
 void send6(pcs *pc, struct packet *m)
@@ -313,8 +379,11 @@ int response6(struct packet *m, sesscb *sesscb)
 		icmp6hdr *icmp = (icmp6hdr *)(ip + 1);
 		if (icmp->type == ICMP6_DST_UNREACH || 
 		    icmp->type == ICMP6_TIME_EXCEEDED || 
-		    icmp->type == ICMP6_DST_UNREACH_NOPORT) {
+		    icmp->type == ICMP6_DST_UNREACH_NOPORT ||
+		    icmp->type == ICMP6_PACKET_TOO_BIG) {
 			
+			if (icmp->type == ICMP6_PACKET_TOO_BIG)
+				sesscb->mtu = ntohl(icmp->icmp6_mtu);
 			sesscb->icmptype = icmp->type;
 			sesscb->icmpcode = icmp->code;
 			sesscb->rttl = ip->ip6_hlim;
@@ -365,8 +434,8 @@ int response6(struct packet *m, sesscb *sesscb)
 		sesscb->data = NULL;
 
 		/* try to get MSS from options */
-		if (sesscb->flags == TH_SYN && sesscb->rflags == (TH_SYN | TH_ACK) && 
-			sesscb->rdsize > 0) {
+		if (sesscb->flags == TH_SYN && sesscb->rdsize > 0 &&
+		    sesscb->rflags == (TH_SYN | TH_ACK)) {
 			int i = 0;
 
 			while (data[i] == 0x1 && i < sesscb->rdsize) i++;
@@ -389,8 +458,9 @@ int response6(struct packet *m, sesscb *sesscb)
 	return 0;
 }
 
-struct packet *packet6(sesscb *sesscb)
+struct packet *packet6(pcs *pc) //sesscb *sesscb)
 {
+	sesscb *sesscb = &pc->mscb;
 	int dlen = 0, len = 0, i;
 	struct packet *m = NULL;
 	ethdr *eh;
@@ -458,8 +528,8 @@ struct packet *packet6(sesscb *sesscb)
 		/* append payload data */
 		for (i = 0; i < dlen; i++)
 			m->data[sizeof(ethdr) + sizeof(ip6hdr) + 
-			    sizeof(icmp6hdr) + i] = i;
-    	
+			    sizeof(icmp6hdr) + i] = i % 0xff;
+	
 		icmp->cksum = 0;
 		icmp->cksum = cksum6(ip, IPPROTO_ICMPV6, len - 
 		    sizeof(ethdr) - sizeof(ip6hdr));
@@ -537,6 +607,10 @@ struct packet *packet6(sesscb *sesscb)
 		th->th_sum = cksum6(ip, IPPROTO_TCP, len - 
 		    sizeof(ethdr) - sizeof(ip6hdr));
 	}
+	
+	if ((sesscb->frag & IPF_FRAG) == IPF_FRAG)
+		m = ipfrag6(m, findmtu6(pc, &(sesscb->dip6)));
+	
 	return m;
 	
 }
@@ -547,7 +621,7 @@ struct packet *packet6(sesscb *sesscb)
  *
  *-----------------------------------------------------------------------*/
 
-struct packet *icmp6Reply(struct packet *m0)
+struct packet *icmp6Reply(pcs *pc, struct packet *m0, char icmptype, char icmpcode)
 {
 	ethdr *eh, *eh0;
 	ip6hdr *ip, *ip0;
@@ -557,6 +631,10 @@ struct packet *icmp6Reply(struct packet *m0)
 	int plen;
 	
 	plen = m0->len - sizeof(ethdr);
+	
+	if (sizeof(ip6hdr) + sizeof(icmp6hdr) + plen > IPV6_MMTU)
+		plen = IPV6_MMTU - sizeof(ip6hdr) - sizeof(icmp6hdr);
+	
 	hlen = sizeof(ethdr) + sizeof(ip6hdr) + sizeof(icmp6hdr) + plen;
 	
 	m = new_pkt(hlen);
@@ -579,16 +657,23 @@ struct packet *icmp6Reply(struct packet *m0)
 	ip->ip6_vfc |= IPV6_VERSION;
 	ip->ip6_nxt = IPPROTO_ICMPV6;
 	ip->ip6_hlim = TTL;
-	ip->ip6_plen = htons((u_short)hlen);
+	ip->ip6_plen = htons(sizeof(icmp6hdr) + (u_short)plen);
 	
 	memcpy(ip->src.addr8, ip0->dst.addr8, 16);
 	memcpy(ip->dst.addr8, ip0->src.addr8, 16);
 	
 	icmp = (icmp6hdr *)(ip + 1);
-	icmp->type = ICMP6_DST_UNREACH;
-	icmp->code = ICMP6_DST_UNREACH_NOPORT;
-	icmp->icmp6_id = time(0) & 0xffff;
-	icmp->icmp6_seq = htons(1);
+	icmp->type = icmptype; //ICMP6_DST_UNREACH;
+	icmp->code = icmpcode; //ICMP6_DST_UNREACH_NOPORT;
+	switch (icmptype) {
+		case ICMP6_PACKET_TOO_BIG:
+			icmp->icmp6_mtu = htonl(pc->mtu);
+			break;
+		default:
+			icmp->icmp6_id = time(0) & 0xffff;
+			icmp->icmp6_seq = htons(1);
+			break;
+	}
 
 	memcpy((char *)(icmp + 1), m0->data + sizeof(ethdr), plen);
 	icmp->cksum = 0;
@@ -677,7 +762,7 @@ u_char *nbDiscovery(pcs *pc, ip6 *dst)
 		return NULL;
 	} else {
 		/* search neightbor cache */
-		for (i = 0; i < NB_SIZE; i++) {
+		for (i = 0; i < POOL_SIZE; i++) {
 			if (sameNet6((char *)pc->ipmac6[i].ip.addr8, 
 			    (char *)dst->addr8, 128))
 				return (pc->ipmac6[i].mac);
@@ -701,7 +786,7 @@ u_char *nbDiscovery(pcs *pc, ip6 *dst)
 		gettimeofday(&(tv), (void*)0);
 		while (!timeout(tv, waittime)) {
 			delay_ms(1);
-			for (i = 0; i < NB_SIZE; i++) {
+			for (i = 0; i < POOL_SIZE; i++) {
 				if (sameNet6((char *)pc->ipmac6[i].ip.addr8, 
 				    (char *)dst->addr8, 128))
 					return (pc->ipmac6[i].mac);
@@ -837,79 +922,6 @@ struct packet* nb_sol(pcs *pc, ip6 *dst)
 	return m;
 }
 
-/*
- * resolve neighbor advertisement
- *
- * if valid, put ip/mac into ip pool, return the record position in the pool
- * else return -1
- */
-#if 0
-int nb_adv(pcs *pc, struct packet *m, ip6 *dst)
-{
-	ethdr *eh;
-	ip6hdr *ip;
-	ndhdr *nshdr;
-	ndopt *nsopt;
-	int i;
-
-	eh = (ethdr *)(m->data);
-	
-	if (eh->type != htons(ETHERTYPE_IPV6))
-		return -1;
-
-	if (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN))
-		return -1;
-
-	ip = (ip6hdr *)(eh + 1);
-
-	if ((!IP6EQ(&(pc->ip6.ip), &(ip->dst)) && 
-	    !IP6EQ(&(pc->link6.ip), &(ip->dst))) || !IP6EQ(dst, &ip->src))
-		return -1;
-
-	nshdr = (ndhdr *)(ip + 1);
-	nsopt = (ndopt *)(nshdr + 1);
-	
-	if (nshdr->hdr.type != ND_NEIGHBOR_ADVERT)
-		return -1;
-
-	/* shoule check sum field
-	 * ...
-	 */
-	if (!IP6EQ(dst, &nshdr->target))
-		return -1;
-
-	/* not Target Link-Layer Address */
-	if (nsopt->type != 2)
-		return -1;
-
-	i = 0;
-	while (i < NB_SIZE) {
-		if (memcmp(pc->ipmac6[i].ip.addr8, ip->src.addr8, 16) == 0 &&
-		    (time_tick - pc->ipmac6[i].timeout <= 120))
-			break;
-			
-		if (pc->ipmac6[i].timeout == 0 || 
-		    (time_tick - pc->ipmac6[i].timeout > 120)) {
-			memcpy(pc->ipmac6[i].mac, nsopt->mac, ETH_ALEN);
-			memcpy(pc->ipmac6[i].ip.addr8, ip->src.addr8, 16);
-			pc->ipmac6[i].timeout = time_tick;
-			pc->ipmac6[i].cidr = 128;
-			break;
-		}
-		i++;
-	}
-
-	if (i == NB_SIZE) {
-		i = 0;
-		memcpy(pc->ipmac6[i].mac, nsopt->mac, ETH_ALEN);
-		memcpy(pc->ipmac6[i].ip.addr8, ip->src.addr8, 16);
-		pc->ipmac6[i].timeout = time_tick;
-	}
-
-	return i;
-}
-#endif
-
 int save_nb_adv(pcs *pc, struct packet *m)
 {
 	ethdr *eh;
@@ -947,7 +959,7 @@ int save_nb_adv(pcs *pc, struct packet *m)
 		return -1;
 
 	i = 0;
-	while (i < NB_SIZE) {
+	while (i < POOL_SIZE) {
 		if (IP6EQ(&pc->ipmac6[i].ip, &ip->src) &&
 		    (time_tick - pc->ipmac6[i].timeout <= 120))
 			break;
@@ -955,7 +967,9 @@ int save_nb_adv(pcs *pc, struct packet *m)
 		if (pc->ipmac6[i].timeout == 0 || 
 		    (time_tick - pc->ipmac6[i].timeout > 120)) {
 			memcpy(pc->ipmac6[i].mac, nsopt->mac, ETH_ALEN);
-			memcpy(pc->ipmac6[i].ip.addr8, ip->src.addr8, sizeof(ip->src.addr8));
+			memcpy(pc->ipmac6[i].ip.addr8, ip->src.addr8, 
+			    sizeof(ip->src.addr8));
+			
 			pc->ipmac6[i].timeout = time_tick;
 			pc->ipmac6[i].cidr = 128;
 			break;
@@ -963,7 +977,7 @@ int save_nb_adv(pcs *pc, struct packet *m)
 		i++;
 	}
 
-	if (i == NB_SIZE) {
+	if (i == POOL_SIZE) {
 		i = 0;
 		memcpy(pc->ipmac6[i].mac, nsopt->mac, ETH_ALEN);
 		memcpy(pc->ipmac6[i].ip.addr8, ip->src.addr8, 16);
@@ -986,6 +1000,82 @@ void fix_dmac6(pcs *pc, struct packet *m)
 	if (p)
 		memcpy(eh->dst, p, 6);
 	
+}
+
+int ip6ehdr(ip6hdr *ip, int plen, int hdrtype)
+{
+	int nxt, off;
+	ip6eh *eh;
+	
+	nxt = ip->ip6_nxt;
+	off = sizeof(ip6hdr);
+	while (off < plen) {
+		if (nxt == hdrtype)
+			return off;
+		eh = (ip6eh *)(((char *)ip) + off);
+		switch (nxt) {
+			case IPPROTO_AH:
+				off = (eh->len) << 2;
+				break;
+			default:
+				off += (eh->len + 1) << 3;
+				break;
+		}
+		nxt = eh->nxt;
+	}
+	return 0;
+}
+
+void save_mtu6(pcs *pc, struct packet *m)
+{
+	icmp6hdr *icmp;
+	ip6hdr *ip = NULL, *ip0 = NULL;
+	int i, n;
+
+	ip = (ip6hdr *)(m->data + sizeof(ethdr));
+	if ((ip->ip6_vfc & IPV6_VERSION_MASK) != IPV6_VERSION)
+		return;
+
+	n = ip6ehdr(ip, m->len - sizeof(ethdr), IPPROTO_ICMPV6);
+	if (n == 0)
+		return;
+
+	icmp = (icmp6hdr *)((char *)ip + n);
+	if (icmp->type != ICMP6_PACKET_TOO_BIG)
+		return;
+
+	ip0 = (ip6hdr *)(m->data + sizeof(ethdr) + 
+	    sizeof(ip6hdr) + sizeof(icmp6hdr));
+	
+	for (i = 0, n = -1; i < POOL_SIZE; i++) {
+		if (IP6EQ(&ip0->dst, &pc->ip6mtu[i].ip)) {
+			pc->ip6mtu[i].mtu = ntohl(icmp->icmp6_mtu);
+			pc->ip6mtu[i].timeout = time_tick;
+			return;
+		}
+		if ((n < 0) && 
+		    (time_tick - pc->ip6mtu[i].timeout > POOL_TIMEOUT))
+			n = i;
+	}
+
+	if (n >= 0) {
+		pc->ip6mtu[n].mtu = ntohl(icmp->icmp6_mtu);
+		pc->ip6mtu[n].timeout = time_tick;
+		memcpy(pc->ip6mtu[n].ip.addr8, ip0->dst.addr8, 16);
+	}
+}
+
+int findmtu6(pcs *pc, ip6 *src)
+{
+	int i;
+	
+	for (i = 0; i < POOL_SIZE; i++) {
+		if (time_tick - pc->ip6mtu[i].timeout > POOL_TIMEOUT)
+			continue;
+		if (IP6EQ(src, &pc->ip6mtu[i].ip))
+			return pc->ip6mtu[i].mtu;
+	}
+	return pc->mtu;
 }
 
 /* end of file */

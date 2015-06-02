@@ -254,7 +254,10 @@ static void dmp_ip6(void *dat)
 	if (iph->ip6_nxt == IPPROTO_ICMPV6) {
 		printf("Proto: icmp, ");
 		printf("type: %d, ", icmp->type);
-		printf("code: %d\n", icmp->code);
+		printf("code: %d", icmp->code);
+		if (icmp->type == ICMP6_PACKET_TOO_BIG)
+			printf(", mtu: %d", ntohl(icmp->icmp6_mtu));
+		printf("\n");
 		printf("Desc: %s\n", icmpTypeCode2String(6, icmp->type, icmp->code));
 	} else if (iph->ip6_nxt == IPPROTO_UDP) {
 		printf("Proto: udp, len: %d, sum: %4.4x\n", ntohs(uh->len), ntohs(uh->cksum));

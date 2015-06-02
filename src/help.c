@@ -322,6 +322,11 @@ int help_show(int argc, char **argv)
 		"  Show IPv6 details, including:\n"
 		"  VPC Name, IPv6 addresses/mask, router link-layer, MAC, lport, rhost:rport and\n"
 		"  MTU (reduced view in tablular format if 'all' option used)\n"};
+	char *hmtu[2] = {
+		"\n{Hshow mtu6} [{Udigit}|{Hall}]\n"
+		"  Show IPv6 mtu table for VPC {Udigit} (default this VPC) or all VPCs\n",
+		"\n{Hshow mtu6}\n"
+		"  Show IPv6 mtu table\n"};
 	char *hh[3] = {
 		"\n{Hshow} [{UARG}]\n"
 		"  Show information for ARG\n"
@@ -336,6 +341,7 @@ int help_show(int argc, char **argv)
 		"       {Hipv6} [{Udigit}|{Hall}]   Show IPv6 details for VPC {Udigit} or all VPCs\n"
 		"                          shows VPC Name, IPv6 addresses/mask, gateway, MAC,\n"
 		"                          lport, rhost:rport and MTU\n"
+		"       {Hmtu6} [{Udigit}|{Hall}]   Show IPv6 mtu table for VPC {Udigit} or all VPCs\n"
 		"       {Hversion}            Show the version information\n\n"
 		"  Notes: \n"
 		"  1. If no parameter is given, the key information of all VPCs will be displayed\n"
@@ -385,6 +391,14 @@ int help_show(int argc, char **argv)
 		
 		return 1;
 	}
+	
+	if (argc == 3 && !strncmp(argv[1], "mtu6", strlen(argv[1])) && 
+	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
+		esc_prn("%s", num_pths > 1 ? hmtu[0] : hmtu[1]);
+
+		return 1;
+	}
+	
 	if (argc > 1 && 
 	    (!strcmp(argv[argc - 1], "?") || !strncmp(argv[argc - 1], "help", strlen(argv[argc - 1])))) {
 		esc_prn("%s", hh[0]);

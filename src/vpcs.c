@@ -51,8 +51,9 @@
 #include "dump.h"
 #include "relay.h"
 #include "dhcp.h"
+#include "frag6.h"
 
-const char *ver = "0.7";
+const char *ver = "0.8 dev";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -234,6 +235,10 @@ int main(int argc, char **argv)
 	welcome();
 
 	srand(time(0));
+	
+	init_ipfrag();
+	init_ip6frag();
+	
 	memset(vpc, 0, MAX_NUM_PTHS * sizeof(pcs));
 	for (i = 0; i < num_pths; i++) {
 		if (pthread_create(&(vpc[i].rpid), NULL, pth_reader, (void *)&i) != 0) {
@@ -578,7 +583,8 @@ void *pth_timer_tick(void *dummy)
 	while (1) {
 		t1 = time(0);
 		if (t1 - t0 > 0) {
-			time_tick += t1 - t0;
+			//time_tick += t1 - t0;
+			time_tick = t1;
 			t0 = t1;
 		}
 		usleep(100);

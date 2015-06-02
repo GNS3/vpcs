@@ -39,9 +39,6 @@ typedef struct {
 	int timeout;
 } ipmac;
 
-#define ARP_SIZE 10
-#define NB_SIZE 10
-
 typedef struct {
 	u_int svr;
 	u_char smac[6];
@@ -65,13 +62,19 @@ typedef struct {
 } ip6mac;
 
 typedef struct {
-	ip6	ip;			/* local host ip6 */
-	int cidr;			/* local host ip6 netmask */
-	int type;			/* 1:eui-64 2:locallink */
+	int timeout;
+	ip6 ip;
+	u_int32_t mtu;
+} ip6mtu;
+
+typedef struct {
+	ip6	ip;		/* local host ip6 */
+	int cidr;		/* local host ip6 netmask */
+	int type;		/* 1:eui-64 2:locallink */
 #define IP6TYPE_NONE 0	
 #define IP6TYPE_EUI64 1
 #define IP6TYPE_LOCALLINK 2
-	u_char gmac[6];			/* destination host mac */
+	u_char gmac[6];		/* destination host mac */
 } hipv6;
 	
 typedef struct {
@@ -90,7 +93,10 @@ typedef struct {
 } hipv4;
 
 #define MAX_NAMES_LEN	(6)
-#define MAX_SESSIONS 1000	
+#define MAX_SESSIONS	1000
+#define POOL_SIZE	32
+#define POOL_TIMEOUT	120
+
 typedef struct {
 	int id;				/* pc id */
 	char xname[MAX_NAMES_LEN + 1];	/* pc name */
@@ -113,8 +119,9 @@ typedef struct {
 	sesscb mscb;			/* opened by app */
 	sesscb sesscb[MAX_SESSIONS];	/* tcp session pool */
 	tcpcb6 tcpcb6[MAX_SESSIONS];	/* tcp6 session pool */
-	ipmac ipmac4[ARP_SIZE];		/* arp pool */
-	ip6mac ipmac6[NB_SIZE];		/* neighbor pool */
+	ipmac ipmac4[POOL_SIZE];	/* arp pool */
+	ip6mac ipmac6[POOL_SIZE];	/* neighbor pool */
+	ip6mtu ip6mtu[POOL_SIZE];	/* mtu6 record */
 	hipv4 ip4;
 	int ip6auto;
 	hipv6 ip6;

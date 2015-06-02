@@ -120,25 +120,29 @@ int run_ping6(int argc, char **argv)
 		i = 0;
 		while ((i++ < count || count == -1) && !ctrl_c) {
 			struct timeval ts0, ts;
-			u_int usec;
+			int usec;
 			int k;
 			int dsize = pc->mscb.dsize;
 			int traveltime = 1;
 			
-			if (i > 1)
+			if (i > 1) {
+				printf("wait %dms\n", pc->mscb.waittime);
 				delay_ms(pc->mscb.waittime);
-				
+			}
+
 			/* clear the input queue */
 			while ((m = deq(&pc->iq)) != NULL);
 			/* connect the remote */
 			gettimeofday(&(ts), (void*)0);
-			k = tcp_open(IPV6_VERSION);
+			k = tcp_open(pc, IPV6_VERSION);
 			
 			/* restore data size */
 			pc->mscb.dsize = dsize;
 			
 			gettimeofday(&(ts0), (void*)0);
 			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+			if (usec < 0)
+				usec = 0;
 			if (k == 0) {
 				printf("Connect   %d@%s timeout\n", pc->mscb.dport, argv[1]);
 				continue;
@@ -169,7 +173,7 @@ int run_ping6(int argc, char **argv)
 			/* send data */
 			delay_ms(traveltime);		
 			gettimeofday(&(ts), (void*)0);
-			k = tcp_send(IPV6_VERSION);
+			k = tcp_send(pc, IPV6_VERSION);
 			if (k == 0) {
 				printf("SendData  %d@%s timeout\n", pc->mscb.dport, argv[1]);
 				continue;
@@ -177,6 +181,8 @@ int run_ping6(int argc, char **argv)
 			
 			gettimeofday(&(ts0), (void*)0);
 			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+			if (usec < 0)
+				usec = 0;
 			printf("SendData  %d@%s seq=%d ttl=%d time=%.3f ms\n", 
 			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
 			
@@ -185,7 +191,7 @@ int run_ping6(int argc, char **argv)
 				delay_ms(traveltime);
 			
 			gettimeofday(&(ts), (void*)0);
-			k = tcp_close(IPV6_VERSION);
+			k = tcp_close(pc, IPV6_VERSION);
 			if (k == 0) {
 				printf("Close     %d@%s timeout\n", pc->mscb.dport, argv[1]);
 				continue;
@@ -193,6 +199,8 @@ int run_ping6(int argc, char **argv)
 			
 			gettimeofday(&(ts0), (void*)0);
 			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+			if (usec < 0)
+				usec = 0;
 			printf("Close     %d@%s seq=%d ttl=%d time=%.3f ms\n", 
 			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
 
@@ -202,13 +210,17 @@ int run_ping6(int argc, char **argv)
 		while ((i <= count || count == -1) && !ctrl_c) {
 			struct packet *p;
 			struct timeval tv;
-			u_int usec;
-    			int respok = 0;
-    		
+			int usec;
+			int respok = 0;
+
+			if (i > 1)
+				delay_ms(pc->mscb.waittime);
+			
+		new_mtu6:
 			pc->mscb.sn = i;
 			pc->mscb.timeout = time_tick;
 				
-			m = packet6(&pc->mscb);
+			m = packet6(pc);
 			
 			if (m == NULL) {
 				printf("out of memory\n");
@@ -229,7 +241,8 @@ int run_ping6(int argc, char **argv)
 					respok = response6(p, &pc->mscb);
 					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 +
 					    p->ts.tv_usec - tv.tv_usec;
-										
+					if (usec < 0)
+						usec = 0;	
 					del_pkt(p);
 					
 					if (respok == 0)
@@ -252,14 +265,19 @@ int run_ping6(int argc, char **argv)
 						memset(buf, 0, sizeof(buf));
 						vinet_ntop6(AF_INET6, &pc->mscb.rdip6, buf, 
 						    INET6_ADDRSTRLEN + 1);
-
-						printf("*%s %s=%d ttl=%d time=%.3f ms", 
-						    buf, proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
 						
+						printf("*%s %s=%d ttl=%d time=%.3f ms", 
+						    buf, proto_seq, i, pc->mscb.rttl, usec / 1000.0);
+
+						if (pc->mscb.icmptype == ICMP6_PACKET_TOO_BIG) {
+							printf(" (new MTU %d)\n", pc->mscb.mtu);
+							goto new_mtu6;
+						}
 						
 						printf(" (ICMP type:%d, code:%d, %s)\n", 
 						    pc->mscb.icmptype, pc->mscb.icmpcode,
 						    icmpTypeCode2String(6, pc->mscb.icmptype, pc->mscb.icmpcode));
+						i++;
 						break;
 					}
 				}
@@ -440,7 +458,7 @@ int run_tracert6(int argc, char **argv)
 		for (j = 0; j < pktnum && !ctrl_c; j++) {			
 			
 			pc->mscb.ttl = i;
-			m = packet6(&pc->mscb);
+			m = packet6(pc);
 
 			if (m == NULL) {
 				printf("out of memory\n");
@@ -678,6 +696,72 @@ int show_ipv6(int argc, char **argv)
 	return 1;
 }
 
+void show_pc_mtu6(pcs *pc)
+{
+	int i;
+	char buf6[INET6_ADDRSTRLEN + 1];
+	struct in6_addr ipaddr;
+
+	int empty = 1;
+
+	for (i = 0; i < POOL_SIZE; i++) {
+		if (IP6ZERO(&(pc->ip6mtu[i].ip)))
+			continue;
+			
+		if (time_tick - pc->ip6mtu[i].timeout > POOL_TIMEOUT)
+			continue;
+
+		memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+		memcpy(ipaddr.s6_addr, pc->ip6mtu[i].ip.addr8, 16);
+		vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+	
+		printf("%5d\t%3d\t%s/%d\n", pc->ip6mtu[i].mtu, 
+		    POOL_TIMEOUT - (time_tick - pc->ip6mtu[i].timeout), 
+		    buf6, pc->link6.cidr); 
+			
+		empty = 0;
+	}
+	if (empty)
+		printf("IPV6 MTU table is empty\n");
+}
+
+int show_mtu6(int argc, char **argv)
+{
+	pcs *pc;
+	int si;
+
+	printf("\n");
+	
+	if (argc == 3) {
+		if (!strncmp(argv[2], "all", strlen(argv[2]))) {
+			for (si = 0; si < num_pths; si++) {
+				pc = &vpc[si];
+				printf("%s[%d]:\n", pc->xname, si + 1);
+				show_pc_mtu6(pc);
+			}
+			return 1;	
+		} else if (strlen(argv[2]) == 1 && digitstring(argv[2])) {
+			si = atoi(argv[2]) - 1;
+			if (si < 0) {
+				printf("Invalid ID\n");
+				return 1;
+			}
+		} else {
+			printf("Invalid ID\n");
+			return 1;
+		}
+	} else {
+		si = pcid;
+	}
+	if (si != pcid)
+		printf("%s[%d]:\n", vpc[si].xname, si + 1);
+	
+	pc = &vpc[si];
+	show_pc_mtu6(pc);
+	
+	return 1;
+}
+
 int run_nb6(int argc, char **argv)
 {
 	pcs *pc = &vpc[pcid];
@@ -686,7 +770,7 @@ int run_nb6(int argc, char **argv)
 	int i, j;
 	
 	printf("\n");
-	for (i = 0; i < NB_SIZE; i++) {
+	for (i = 0; i < POOL_SIZE; i++) {
 		if (pc->ipmac6[i].timeout > 0) {
 			for (j = 0; j < 6; j++)
 				sprintf(buf + j * 3, "%2.2x:", pc->ipmac6[i].mac[j]);
@@ -745,7 +829,7 @@ const char *ip6Info(const int id)
 	char tmp[INET6_ADDRSTRLEN + 1];
 	
 	if (vpc[id].ip6.ip.addr32[0] != 0 || vpc[id].ip6.ip.addr32[1] != 0 || 
-		vpc[id].ip6.ip.addr32[2] != 0 || vpc[id].ip6.ip.addr32[3] != 0) {	
+		vpc[id].ip6.ip.addr32[2] != 0 || vpc[id].ip6.ip.addr32[3] != 0) {
 		memset(buf, 0, INET6_ADDRSTRLEN + 1);
 		memcpy(ipaddr.s6_addr, vpc[id].ip6.ip.addr8, 16);
 		vinet_ntop6(AF_INET6, &ipaddr, tmp, INET6_ADDRSTRLEN + 1);

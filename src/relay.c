@@ -307,7 +307,7 @@ void save_relay(FILE *fp)
 
 void *pth_relay(void *dummy)
 {
-	char buf[1500];
+	char buf[1600];
 	int len;
 	int n = 0;
 	struct sockaddr_in peeraddr;

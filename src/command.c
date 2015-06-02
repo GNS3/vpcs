@@ -112,6 +112,9 @@ int run_show(int argc, char **argv)
 		if (!strncmp("ipv6", argv[1], strlen(argv[1])))
 			return show_ipv6(argc, argv);
 		
+		if (!strncmp("mtu6", argv[1], strlen(argv[1])))
+			return show_mtu6(argc, argv);
+		
 		if (!strncmp("echo", argv[1], strlen(argv[1])))
 			return show_echo(argc, argv);
 		
@@ -450,7 +453,7 @@ redirect:
 			
 			dsize = pc->mscb.dsize;
 			pc->mscb.dsize = PAYLOAD56;
-			k = tcp_open(4);
+			k = tcp_open(pc, 4);
 			
 			/* restore data size */
 			pc->mscb.dsize = dsize;
@@ -501,7 +504,7 @@ redirect:
 			/* send data after 1.5 * time2travel */
 			delay_ms(traveltime);
 			gettimeofday(&(ts), (void*)0);
-			k = tcp_send(4);
+			k = tcp_send(pc, 4);
 			if (k == 0) {
 				printf("SendData  %d@%s timeout\n", 
 				    pc->mscb.dport, argv[1]);
@@ -521,7 +524,7 @@ redirect:
 			gettimeofday(&(ts), (void*)0);	
 			dsize = pc->mscb.dsize;
 			pc->mscb.dsize = PAYLOAD56;
-			k = tcp_close(4);
+			k = tcp_close(pc, 4);
 			pc->mscb.dsize = dsize;
 
 			gettimeofday(&(ts0), (void*)0);
@@ -547,7 +550,7 @@ redirect:
 			pc->mscb.sn = i;
 			pc->mscb.timeout = time_tick;
 			
-			m = packet(&pc->mscb);
+			m = packet(pc);
 			if (m == NULL) {
 				printf("out of memory\n");
 				return 0;
@@ -1236,7 +1239,7 @@ redirect:
 			pc->mscb.ttl = i;
 			pc->mscb.icmptype = 0;
 			pc->mscb.rdip = pc->mscb.dip;
-			m = packet(&pc->mscb);
+			m = packet(pc);
 			if (m == NULL) {
 				printf("out of memory\n");
 				return false;
@@ -1651,19 +1654,19 @@ int show_arp(int argc, char **argv)
 				pc = &vpc[si];
 				printf("%s[%d]:\n", pc->xname, si + 1);
 				
-				for (i = 0; i < ARP_SIZE; i++) {
+				for (i = 0; i < POOL_SIZE; i++) {
 					if (pc->ipmac4[i].ip == 0)
 						continue;
 					if (memcmp(pc->ipmac4[i].mac, zero, ETH_ALEN) == 0)
 						continue;
-					if (time_tick - pc->ipmac4[i].timeout > 120)
+					if (time_tick - pc->ipmac4[i].timeout > POOL_TIMEOUT)
 						continue;
 					for (j = 0; j < 6; j++)
 						sprintf(buf + j * 3, "%2.2x:", pc->ipmac4[i].mac[j]);
 					buf[17] = '\0';
 					in.s_addr = pc->ipmac4[i].ip;
 					printf("%s  %s expires in %d seconds \n", buf, inet_ntoa(in), 
-					    120 - (time_tick - pc->ipmac4[i].timeout));
+					    POOL_TIMEOUT - (time_tick - pc->ipmac4[i].timeout));
 					empty = 0;
 					
 				}
@@ -1688,18 +1691,18 @@ int show_arp(int argc, char **argv)
 		printf("%s[%d]:\n", vpc[si].xname, si + 1);
 	
 	pc = &vpc[si];
-	for (i = 0; i < ARP_SIZE; i++) {
+	for (i = 0; i < POOL_SIZE; i++) {
 		if (pc->ipmac4[i].ip == 0)
 			continue;
 		if (etherIsZero(pc->ipmac4[i].mac))
 			continue;
-		if (time_tick - pc->ipmac4[i].timeout < 120) {
+		if (time_tick - pc->ipmac4[i].timeout < POOL_TIMEOUT) {
 			for (j = 0; j < 6; j++)
 				sprintf(buf + j * 3, "%2.2x:", pc->ipmac4[i].mac[j]);
 			buf[17] = '\0';
 			in.s_addr = pc->ipmac4[i].ip;
 			printf("%s  %s expires in %d seconds \n", buf, inet_ntoa(in), 
-			    120 - (time_tick - pc->ipmac4[i].timeout));
+			    POOL_TIMEOUT - (time_tick - pc->ipmac4[i].timeout));
 			empty = 0;
 		}
 	}
@@ -1708,6 +1711,7 @@ int show_arp(int argc, char **argv)
 	
 	return 1;
 }
+
 static int show_dump(int argc, char **argv)
 {
 	int i;
@@ -1865,7 +1869,7 @@ static int show_ip(int argc, char **argv)
 		printf("LPORT       : %d\n", vpc[id].lport);
 		in.s_addr = vpc[id].rhost;
 		printf("RHOST:PORT  : %s:%d\n", inet_ntoa(in), vpc[id].rport);
-		printf("MTU:        : %d\n", vpc[id].mtu);
+		printf("MTU         : %d\n", vpc[id].mtu);
 		return 1;
 	}
 
@@ -1899,7 +1903,7 @@ int run_ver(int argc, char **argv)
 		"Welcome to Virtual PC Simulator, version %s\r\n"
 		"Dedicated to Daling.\r\n"
 		"Build time: %s %s\r\n"
-		"Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)\r\n"
+		"Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)\r\n"
 		"All rights reserved.\r\n\r\n"
 		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\r\n"
 		"Source code and license can be found at vpcs.sf.net.\r\n"

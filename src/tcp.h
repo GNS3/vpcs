@@ -28,9 +28,9 @@
 #define _TCP_H_
 
 #define TCP_TIMEOUT 60 /* seconds */
-int tcp_open(int ipv);
-int tcp_send(int ipv);
-int tcp_close(int ipv);
+int tcp_open(pcs *pc, int ipv);
+int tcp_send(pcs *pc, int ipv);
+int tcp_close(pcs *pc, int ipv);
 
 int tcp(pcs *pc, struct packet *m0);
 struct packet *tcpReply(struct packet *m0, sesscb *cb);

@@ -30,6 +30,18 @@
 #include <time.h>
 #include "queue.h"
 
+void
+free_pkts(struct packet *m)
+{
+	struct packet *m0;
+	
+	while (m) {
+		m0 = m->next;
+		del_pkt(m);
+		m = m0;
+	}
+}
+
 void del_pkt(struct packet *m)
 {
 	free(m);
@@ -39,9 +51,9 @@ struct packet *new_pkt(int len)
 {
 	struct packet *m = NULL;
 	
-	m = (struct packet *)malloc(len + sizeof(struct packet) - 1);
+	m = (struct packet *)malloc(len + sizeof(struct packet));
 	if (m != NULL) {
-		memset(m, 0, len + sizeof(struct packet) - 1);
+		memset(m, 0, len + sizeof(struct packet));
 		m->len = len;
 		return m;
 	} else

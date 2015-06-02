@@ -278,6 +278,8 @@ const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 				if (code <= 6)
 					return Dest6Unreach[code];
 				break;
+			case 2:
+				return "ICMPv6 packet too big";
 			case 3:
 				if (code <= 1)
 					return Time6Exceed[code];

@@ -39,6 +39,7 @@ int run_nb6(int argc, char **argv);
 
 int run_show6(pcs *);
 int show_ipv6(int argc, char **argv);
+int show_mtu6(int argc, char **argv);
 
 const char *ip6Info(const int id);
 

@@ -57,7 +57,7 @@ void init_ipfrag(void);
 struct packet *ipreass(struct packet *m);
 struct packet *ipfrag(struct packet *m0, int mtu);
 
-struct packet *packet(sesscb *sesscb);
+struct packet *packet(pcs *pc);
 int upv4(pcs *pc, struct packet **pkt);
 int response(struct packet *pkt, sesscb *sesscb);
 int arpResolve(pcs *pc, u_int ip, u_char *dmac);

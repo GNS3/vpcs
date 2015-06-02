@@ -94,22 +94,25 @@ reqry:
 	for (i = 0; i < 2; i++) {
 		if (pc->ip4.dns[i] == 0)
 			continue;
+		
+		/* save old control block */
+		memcpy(&cb, &pc->mscb, sizeof(sesscb));
+		pc->mscb.data = data;
+		pc->mscb.dsize = dlen;
+		pc->mscb.proto = IPPROTO_UDP;
+		pc->mscb.mtu = pc->mtu;
+		pc->mscb.ipid =  time(0) & 0xffff;
+		pc->mscb.ttl = TTL;
+		pc->mscb.sip = pc->ip4.ip;
+		pc->mscb.dip = pc->ip4.dns[i];
+		pc->mscb.sport = (random() % (65000 - 1024)) + 1024;
+		pc->mscb.dport = 53;
+		memcpy(pc->mscb.smac, pc->ip4.mac, ETH_ALEN);
+		memcpy(pc->mscb.dmac, mac, ETH_ALEN);
 	
-	  	memset(&cb, 0, sizeof(sesscb));
-	  	cb.data = data;
-	  	cb.dsize = dlen;
-	  	cb.proto = IPPROTO_UDP;
-	  	cb.mtu = pc->mtu;
-	  	cb.ipid =  time(0) & 0xffff;
-	  	cb.ttl = TTL;
-	  	cb.sip = pc->ip4.ip;
-	  	cb.dip = pc->ip4.dns[i];
-	  	cb.sport = (random() % (65000 - 1024)) + 1024;
-		cb.dport = 53;
-		memcpy(cb.smac, pc->ip4.mac, ETH_ALEN);
-		memcpy(cb.dmac, mac, ETH_ALEN);
-	
-		m = packet(&cb);
+		m = packet(pc);
+		/* restore control block */
+		memcpy(&pc->mscb, &cb, sizeof(sesscb));
 		if (m == NULL) {
 			printf("out of memory\n");
 			return 0;

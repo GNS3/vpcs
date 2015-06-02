@@ -59,12 +59,11 @@ extern int dmpflag;
  *                            close wait
  *                  ACk ->
  *******************************************************/
-int tcp_ack(int ipv)
+int tcp_ack(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m = NULL;
 	
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	
 	if (ipv == IPV6_VERSION)
 		fpacket = packet6;
@@ -73,7 +72,7 @@ int tcp_ack(int ipv)
 	
 	pc->mscb.flags = TH_ACK;
 
-	m = fpacket(&pc->mscb);
+	m = fpacket(pc);
 	
 	if (m == NULL) {
 		printf("out of memory\n");
@@ -87,13 +86,12 @@ int tcp_ack(int ipv)
 	return 1;
 }
 
-int tcp_open(int ipv)
+int tcp_open(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m, *p;
 	int i = 0, ok;
 	int state = 0;
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	int (*fresponse)(struct packet *pkt, sesscb *sesscb);
 	
 	if (ipv == IPV6_VERSION) {
@@ -113,7 +111,7 @@ int tcp_open(int ipv)
 		pc->mscb.seq = rand();
 		pc->mscb.ack = 0;
 
-		m = fpacket(&pc->mscb);
+		m = fpacket(pc);
 	
 		if (m == NULL) {
 			printf("out of memory\n");
@@ -153,7 +151,7 @@ int tcp_open(int ipv)
 					pc->mscb.seq = pc->mscb.rack;
 					pc->mscb.ack = pc->mscb.rseq;
 					
-					m = fpacket(&pc->mscb);
+					m = fpacket(pc);
 					if (m == NULL) {
 						printf("out of memory\n");
 						return 0;
@@ -181,7 +179,7 @@ int tcp_open(int ipv)
 		/* reply ACK , ack+1 */
 		pc->mscb.seq = pc->mscb.rack;
 		pc->mscb.ack = pc->mscb.rseq + 1;
-		tcp_ack(ipv);
+		tcp_ack(pc, ipv);
 
 		return 1;
 	}
@@ -190,14 +188,13 @@ int tcp_open(int ipv)
 /*
  * return 1 if ACK, 2 if FIN|PUSH
  */
-int tcp_send(int ipv)
+int tcp_send(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m, *p;
 	int i = 0, ok;
 	int state = 0;
 	
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	int (*fresponse)(struct packet *pkt, sesscb *sesscb);
 	
 	if (ipv == IPV6_VERSION) {
@@ -219,7 +216,7 @@ int tcp_send(int ipv)
 		if (pc->mscb.rflags == (TH_ACK | TH_PUSH) &&
 			pc->mscb.seq == pc->mscb.rack) {
 			pc->mscb.ack = pc->mscb.rseq + pc->mscb.rdsize;
-			tcp_ack(ipv);
+			tcp_ack(pc, ipv);
 			delay_ms(1);
 		}
 	}	
@@ -229,7 +226,7 @@ int tcp_send(int ipv)
 		struct timeval tv;
 		
 		pc->mscb.flags = TH_ACK | TH_PUSH;
-		m = fpacket(&pc->mscb);
+		m = fpacket(pc);
 	
 		if (m == NULL) {
 			printf("out of memory\n");
@@ -267,7 +264,7 @@ int tcp_send(int ipv)
 					pc->mscb.seq = pc->mscb.rack;
 					pc->mscb.ack = pc->mscb.rseq + pc->mscb.rdsize;
 					
-					tcp_ack(ipv);
+					tcp_ack(pc, ipv);
 					
 					if (pc->mscb.seq == tseq+ pc->mscb.dsize)
 						return 1;
@@ -299,15 +296,14 @@ int tcp_send(int ipv)
 	return 0;
 }
 
-int tcp_close(int ipv)
+int tcp_close(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m, *p;
 	int i = 0, ok;
 	int state = 0;
 	int rfin = 0;
 	
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	int (*fresponse)(struct packet *pkt, sesscb *sesscb);
 	
 	if (ipv == IPV6_VERSION) {
@@ -329,7 +325,7 @@ int tcp_close(int ipv)
 		if (pc->mscb.rflags == (TH_ACK | TH_PUSH) &&
 			pc->mscb.seq == pc->mscb.rack) {
 			pc->mscb.ack = pc->mscb.rseq + pc->mscb.rdsize;
-			tcp_ack(ipv);
+			tcp_ack(pc, ipv);
 			delay_ms(1);
 			continue;
 		}
@@ -343,7 +339,7 @@ int tcp_close(int ipv)
 			pc->mscb.ack = pc->mscb.rseq;
 			pc->mscb.ack++;
 			
-			tcp_ack(ipv);
+			tcp_ack(pc, ipv);
 			
 			delay_ms(1);
 			rfin = 1;
@@ -359,7 +355,7 @@ int tcp_close(int ipv)
 		state = 0;
 		
 		pc->mscb.flags = TH_FIN | TH_ACK | TH_PUSH;
-		m = fpacket(&pc->mscb);
+		m = fpacket(pc);
 	
 		if (m == NULL) {
 			printf("out of memory\n");
@@ -429,7 +425,7 @@ int tcp_close(int ipv)
 		
 		/* the remote sent FIN/ACK, response the ACK */
 		pc->mscb.ack++;
-		tcp_ack(ipv);
+		tcp_ack(pc, ipv);
 		
 		return 1;
 	}
