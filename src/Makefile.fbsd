@@ -1,5 +1,5 @@
 RM=rm -f
-CC=clang $(CCOPT)
+CC=gcc $(CCOPT)
 OSTYPE=FreeBSD
 CPUTYPE=i386
 OPT=-Wall 
@@ -27,6 +27,7 @@ OBJS=vpcs.o \
 	dump.o \
 	relay.o \
 	hv.o \
+	frag.o \
 	frag6.o
 
 debug: all

@@ -357,13 +357,18 @@ int sub_nbadv(pcs *pc, struct packet *m)
 void send6(pcs *pc, struct packet *m)
 {
 	ethdr *eh = (ethdr *)(m->data);
-
+	ip6hdr *ip;
+	
 	if (eh->type != htons(ETHERTYPE_IPV6)) {
 		del_pkt(m);
 		return;
 	}
 	
 	fix_dmac6(pc, m);
+	
+	ip = (ip6hdr *)(eh + 1);
+	m = ipfrag6(m, findmtu6(pc, &ip->dst));
+	
 	enq(&pc->oq, m);
 }
 

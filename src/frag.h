@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -24,23 +24,33 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
-#ifndef _PACKETS_H_
-#define _PACKETS_H_
+#ifndef _FRAG_H_
+#define _FRAG_H_
 
-#include "vpcs.h"
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "ip.h"
-#include "frag.h"
+
+struct fraglink {
+	struct fraglink *prev;
+	struct fraglink *next;
+	u_int  expired;
+	u_int  flags:4,         /* first and last fragments */
+	       nfrags:4;        /* count of fragments */
+#define FF_HEAD 1
+#define FF_TAIL  2
+	u_char  proto;            /* protocol of this fragment */
+	u_short id;           /* sequence id for reassembly */
+	u_int sip;
+	u_int dip;
+	struct packet *m;          /* to ip headers of fragments */
+};
 
 
-#define PAYLOAD56 56
-
-struct packet *packet(pcs *pc);
-int upv4(pcs *pc, struct packet **pkt);
-int response(struct packet *pkt, sesscb *sesscb);
-int arpResolve(pcs *pc, u_int ip, u_char *dmac);
-int host2ip(pcs *pc, const char *name, u_int *ip);
-void send4(pcs *pc, struct packet *pkt);
+void init_ipfrag(void);
+struct packet *ipfrag(struct packet *m0, int mtu);
+struct packet *ipreass(struct packet *m);
 
 #endif
-
-/* end of file */
