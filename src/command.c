@@ -222,6 +222,7 @@ int run_ping(int argc, char **argv)
 	pcs *pc = &vpc[pcid];
 	char dname[256];
 	u_char flags;
+	char ipstr[64];
 
 	char proto_seq[16];
 	int count = 5;
@@ -380,23 +381,31 @@ int run_ping(int argc, char **argv)
 	if (pc->mscb.winsize == 0)
 		pc->mscb.winsize = 0xb68; /* 1460 * 4 */
 
-	if (strchr(argv[1], ':') != NULL) {
+	if (strchr(argv[1], ':') == NULL) {
+		pc->mscb.dip = inet_addr(argv[1]);
+		
+		if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
+			strcpy(dname, argv[1]);
+			if (hostresolv(pc, dname, ipstr) == 0) {
+				printf("Cannot resolve %s\n", argv[1]);
+				return 0;
+			}
+			
+			printf("%s resolved to %s\n", dname, ipstr);
+			if (strchr(ipstr, ':')) {
+				pc->mscb.mtu = pc->mtu;
+				argv[1] = ipstr;
+				return run_ping6(argc, argv);
+			}
+			
+			pc->mscb.dip = inet_addr(ipstr);
+		}
+	} else {
 		pc->mscb.mtu = pc->mtu;
 		return run_ping6(argc, argv);
-	}	
-	pc->mscb.dip = inet_addr(argv[1]);
-	
-	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
-		strcpy(dname, argv[1]);
-		if (hostresolv(pc, dname, &(pc->mscb.dip)) == 0) {
-			printf("Cannot resolve %s\n", argv[1]);
-			return 0;
-		} else {
-			in.s_addr = pc->mscb.dip;
-			printf("%s resolved to %s\n", dname, inet_ntoa(in)); 	
-		}
 	}
 	
+	printf("\n");
 	/* find ether address of destination host or gateway */
 	if (pc->mscb.dip == pc->ip4.ip) {
 		i = 1;
@@ -1081,6 +1090,7 @@ int run_tracert(int argc, char **argv)
 	char outbuf[1024];
 	int buf_off = 0;
 	char dname[256];
+	char ipstr[64];
 		
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_UDP;
@@ -1175,13 +1185,18 @@ int run_tracert(int argc, char **argv)
 
 	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
 		strcpy(dname, argv[1]);
-		if (hostresolv(pc, dname, &(pc->mscb.dip)) == 0) {
+		if (hostresolv(pc, dname, ipstr) == 0) {
 			printf("Cannot resolve %s\n", argv[1]);
 			return 0;
-		} else {
-			in.s_addr = pc->mscb.dip;
-			printf("%s resolved to %s\n", dname, inet_ntoa(in)); 	
 		}
+		printf("%s resolved to %s\n", dname, ipstr);
+		if (strchr(ipstr, ':')) {
+			pc->mscb.mtu = pc->mtu;
+			argv[1] = ipstr;
+			return run_tracert6(argc, argv);
+		}
+		
+		pc->mscb.dip = inet_addr(ipstr);
 	}
 	
 	if (pc->mscb.dip == pc->ip4.ip) {
