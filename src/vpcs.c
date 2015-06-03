@@ -63,12 +63,12 @@ int lport = 20000;
 int rport = 30000;
 int rport_flag = 0;
 u_int rhost = 0; /* remote host */
-
 struct echoctl echoctl;
-//int canEcho = 0; /* echoing on if 1, off if 0 */
-int runLoad = 0; /* work with canEcho */
 
-int runStartup = 0; /* execute startup if 1 */
+int runLoad = 0;	/* work with canEcho */
+int runRelay = 1;	/* sw of relay function */
+int runStartup = 0;	/* execute startup if 1 */
+
 char *startupfile = NULL;
 const char *default_startupfile = "startup.vpc";
 char *histfile = "vpcs.hist";
@@ -86,6 +86,7 @@ int num_pths = MAX_NUM_PTHS;  /* number of VPCs */
 char *tapname = "tap0";  /* TAP device name (only when 1 VPC is created) */
 
 int macaddr = 0; /* the last byte of ether address */
+
 
 static void *pth_reader(void *devid);
 static void *pth_output(void *devid);
@@ -158,7 +159,7 @@ int main(int argc, char **argv)
 	rhost = inet_addr("127.0.0.1");
 	
 	devtype = DEV_UDP;		
-	while ((c = getopt(argc, argv, "?c:ehm:p:r:s:t:uvFi:d:")) != -1) {
+	while ((c = getopt(argc, argv, "?c:ehm:p:r:Rs:t:uvFi:d:")) != -1) {
 		switch (c) {
 			case 'c':
 				rport_flag = 1;
@@ -175,7 +176,10 @@ int main(int argc, char **argv)
 				break;
 			case 'r':
 				startupfile = strdup(optarg);
-				break;	
+				break;
+			case 'R':
+				runRelay = 0;
+				break;
 			case 's':
 				lport = arg2int(optarg, 1024, 65000, 20000);
 				break;
@@ -253,8 +257,8 @@ int main(int argc, char **argv)
 	}
 	pthread_create(&timer_pid, NULL, pth_timer_tick, (void *)0);
 	delay_ms(100);
-    	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
-    	pthread_create(&bgjob_pid, NULL, pth_bgjob, (void *)0);
+	pthread_create(&relay_pid, NULL, pth_relay, (void *)0);
+	pthread_create(&bgjob_pid, NULL, pth_bgjob, (void *)0);
 	pcid = 0;
 
 	delay_ms(50);
@@ -739,6 +743,7 @@ void usage()
 		"  {H-h}             print this help then exit\r\n"
 		"  {H-v}             print version information then exit\r\n"
 		"\r\n"
+		"  {H-R}             disable relay function\r\n"
 		"  {H-i} {Unum}         number of vpc instances to start (default is 9)\r\n"
 		"  {H-p} {Uport}        run as a daemon listening on the tcp {Uport}\r\n"
 		"  {H-m} {Unum}         start byte of ether address, default from 0\r\n"
