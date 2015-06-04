@@ -71,6 +71,8 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	appenddomain(pc, dname, name);
 	
 	while (reqcnt++ < 3) {
+		tryagain = 0;
+		
 		magicid = random();
 		dlen = dnsrequest(magicid, dname, atype, data, &namelen);
 		if (dlen == 0) 
@@ -104,6 +106,8 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 				}
 				if (ok == 6) {
 					atype = 28;
+					cnt4 = 0;
+					cnt6 = 0;
 					tryagain = 1;
 					break;
 				}
