@@ -75,6 +75,7 @@ typedef struct {
 #define IP6TYPE_EUI64 1
 #define IP6TYPE_LOCALLINK 2
 	u_char gmac[6];		/* destination host mac */
+	ip6 dns[2];		/* local host ip6 */
 } hipv6;
 	
 typedef struct {

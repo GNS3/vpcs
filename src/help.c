@@ -97,13 +97,15 @@ int help_ip(int argc, char **argv)
 		return 1;
 	}
 
-	if (argc == 3 && !strncmp(argv[1], "dns", strlen(argv[1])) && 
+	if (argc == 3 && (!strncmp(argv[1], "dns", strlen(argv[1])) ||
+	    !strncmp(argv[1], "dns6", strlen(argv[1]))) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
-		esc_prn("\n{Hip dns} {Uip}\n"
+		esc_prn("\n{Hip [dns | dns6]} {Uip}\n"
 			"  Set DNS server {Uip}, delete if {Uip} is '0'.\n");
 		
 		return 1;
 	}
+	
 	if (argc == 3 && !strncmp(argv[1], "domain", strlen(argv[1])) && 
 	    (!strcmp(argv[2], "?") || !strncmp(argv[2], "help", strlen(argv[2])))) {
 		esc_prn("\n\{Hip domain} {Uname}\n"
@@ -134,6 +136,7 @@ int help_ip(int argc, char **argv)
 		"          {H-r}         Renew DHCP lease\n"
 		"          {H-x}         Release DHCP lease\n"
 		"    {Hdns} {Uip}         Set DNS server {Uip}, delete if {Uip} is '0'\n"
+		"    {Hdns6} {Uipv6}       Set DNS server {Uipv6}, delete if {Uipv6} is '0'\n"
 		"    {Hdomain} {UNAME}    Set local domain name to {UNAME}\n");
 
 	return 1;

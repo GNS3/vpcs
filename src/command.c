@@ -965,6 +965,10 @@ int run_ipconfig(int argc, char **argv)
 		return 1;
 	}
 
+	if (!strncmp("dns6", argv[1], strlen(argv[1]))) {
+		return run_ipdns6(argc, argv);
+	}
+	
 	rip = inet_addr(argv[1]);
 	hasgip = gip = 0;
 	icidr = 24;

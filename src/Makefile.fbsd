@@ -1,5 +1,5 @@
 RM=rm -f
-CC=gcc $(CCOPT)
+CC=clang $(CCOPT)
 OSTYPE=FreeBSD
 CPUTYPE=i386
 OPT=-Wall 

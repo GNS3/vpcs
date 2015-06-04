@@ -29,11 +29,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "packets.h"
 #include "vpcs.h"
 #include "utils.h"
 #include "dns.h"
 #include "inet6.h"
+#include "packets.h"
+#include "packets6.h"
 
 extern int ctrl_c;
 
@@ -41,117 +42,193 @@ static int fmtstring(const char *name, char *buf);
 static int dnsrequest(u_short id, const char *name, int type, char *data, int *namelen);
 static int dnsparse(struct packet *m, u_short id, char *data, int dlen, u_char *ip);
 static int ip2str(u_char *ip, char *str);
+static void appenddomain(pcs *pc, char *dname, const char *name);
+static struct packet *dns4(pcs *pc, int sw, char *data, int dlen);
+static struct packet *dns6(pcs *pc, int sw, char *data, int dlen);
 
 int hostresolv(pcs *pc, char *name, char *ipstr)
 {
-	sesscb cb;
+	
 	struct packet *m;
 	char data[512];
 	char *pdn = NULL;
 	int dlen;
-	u_int gip;
-	struct in_addr in;
+
 	struct timeval tv;
 	int ok;
 	int namelen;
 	int i;
-	u_char mac[ETH_ALEN];
+	
 	char dname[64];
 	u_short magicid;
 	int reqcnt = 0;
 	int atype = 1;
+	int cnt4 = 0;
+	int cnt6 = 0;
 	u_char ip[20];
+	int tryagain = 0;
 	
-	if (!strchr(name, '.')) {
-		if (pc->ip4.domain[0] != '\0')
-			snprintf(dname, sizeof(dname), "%s.%s", name, pc->ip4.domain);
-		else if (pc->ip4.dhcp.domain[0] != '\0')
-			snprintf(dname, sizeof(dname), "%s.%s", name, pc->ip4.dhcp.domain);
-	} else
+	appenddomain(pc, dname, name);
+	
+	while (reqcnt++ < 3) {
+		magicid = random();
+		dlen = dnsrequest(magicid, dname, atype, data, &namelen);
+		if (dlen == 0) 
+			return 0;
+
+		pdn = data + sizeof(dnshdr);
+		for (i = 0; i < 4 && !tryagain; i++) {
+			if (cnt4 < 2) {
+				m = dns4(pc, cnt4, data, dlen);
+				cnt4++;
+				if (m == NULL)
+					continue;
+			} else if (cnt6 < 2) {
+				m = dns6(pc, cnt6, data, dlen);
+				cnt6++;
+				if (m == NULL)
+					continue;
+			}
+			gettimeofday(&(tv), (void*)0);
+			enq(&pc->oq, m);
+			while (!timeout(tv, 1000) && !ctrl_c) {
+				delay_ms(1);
+				ok = 0;
+				while ((m = deq(&pc->iq)) != NULL && !ok) {
+					ok = dnsparse(m, magicid, pdn, namelen, ip);
+					free(m);
+				}
+				if (ok == 2) {
+					tryagain = 1;
+					break;
+				}
+				if (ok == 6) {
+					atype = 28;
+					tryagain = 1;
+					break;
+				}
+				if (ok) {
+					strcpy(name, pdn);
+					ip2str(ip, ipstr);
+					return 1;
+				}
+			}
+		}
+	}
+	
+	return 0;
+}
+
+void appenddomain(pcs *pc, char *dname, const char *name)
+{
+	char *dn = NULL;
+	
+	if (strchr(name, '.')) {
+		strcpy(dname, name);
+		return;
+	}
+
+	if (pc->ip4.domain[0] != '\0')
+		dn = pc->ip4.domain;
+	else if (pc->ip4.dhcp.domain[0] != '\0')
+		dn = pc->ip4.dhcp.domain;
+	
+	if (strchr(name, '.') || dn == NULL) {
 		snprintf(dname, sizeof(dname), "%s", name);
-reqry:	
-	if (reqcnt > 3)
-		return 0;
+		return;
+	}
+	
+	snprintf(dname, sizeof(dname), "%s.%s", name, dn);
+}
 
-	magicid = random();
-	dlen = dnsrequest(magicid, dname, atype, data, &namelen);
-	if (dlen == 0) 
+struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
+{
+	u_int gip;
+	struct in_addr in;
+	sesscb cb;
+	u_char mac[ETH_ALEN];
+	struct packet *m;
+	
+	if (pc->ip4.dns[sw] == 0)
 		return 0;
-
+	
 	if (sameNet(cb.dip, pc->ip4.ip, pc->ip4.cidr))
 		gip = cb.dip;
 	else {
-		if (pc->ip4.gw == 0) {
-			printf("No gateway found\n");
-			return 0;
-		} else
-		
+		if (pc->ip4.gw == 0)
+			return NULL;
 		gip = pc->ip4.gw;
 	}
 
-  	if (!arpResolve(pc, gip, mac)) {
+	if (!arpResolve(pc, gip, mac)) {
 		in.s_addr = gip;
-		printf("host (%s) not reachable\n", inet_ntoa(in));
-		return 0;
+		return NULL;
 	}
-
-	pdn = data + sizeof(dnshdr);
-	for (i = 0; i < 2; i++) {
-		if (pc->ip4.dns[i] == 0)
-			continue;
-		
-		/* save old control block */
-		memcpy(&cb, &pc->mscb, sizeof(sesscb));
-		pc->mscb.data = data;
-		pc->mscb.dsize = dlen;
-		pc->mscb.proto = IPPROTO_UDP;
-		pc->mscb.mtu = pc->mtu;
-		pc->mscb.ipid =  time(0) & 0xffff;
-		pc->mscb.ttl = TTL;
-		pc->mscb.sip = pc->ip4.ip;
-		pc->mscb.dip = pc->ip4.dns[i];
-		pc->mscb.sport = (random() % (65000 - 1024)) + 1024;
-		pc->mscb.dport = 53;
-		memcpy(pc->mscb.smac, pc->ip4.mac, ETH_ALEN);
-		memcpy(pc->mscb.dmac, mac, ETH_ALEN);
 	
-		m = packet(pc);
-		/* restore control block */
-		memcpy(&pc->mscb, &cb, sizeof(sesscb));
-		if (m == NULL) {
-			printf("out of memory\n");
-			return 0;
-		}
-		gettimeofday(&(tv), (void*)0);
-		enq(&pc->oq, m);
-		while (!timeout(tv, 1000) && !ctrl_c) {
-			delay_ms(1);
-			ok = 0;		
-			while ((m = deq(&pc->iq)) != NULL && !ok) {
-				ok = dnsparse(m, magicid, pdn, namelen, ip);
-				free(m);
-			}
-			if (ok == 2) {
-				//printf("%s ->> %s\n", dname, pdn);
-				//strcpy(dname, pdn);
-				reqcnt++;
-				goto reqry;
-			}
-			if (ok == 6) {
-				//printf("%s ->> AAAA\n", dname);
-				//strcpy(dname, pdn);
-				reqcnt++;
-				atype = 28;
-				goto reqry;
-			}
-			if (ok) {
-				strcpy(name, pdn);
-				ip2str(ip, ipstr);
-				return 1;
-			}
-		}
-	}
-	return 0;
+	/* save old control block */
+	memcpy(&cb, &pc->mscb, sizeof(sesscb));
+	pc->mscb.data = data;
+	pc->mscb.dsize = dlen;
+	pc->mscb.proto = IPPROTO_UDP;
+	pc->mscb.mtu = pc->mtu;
+	pc->mscb.ipid =  time(0) & 0xffff;
+	pc->mscb.ttl = TTL;
+	pc->mscb.sip = pc->ip4.ip;
+	pc->mscb.dip = pc->ip4.dns[sw];
+	pc->mscb.sport = (random() % (65000 - 1024)) + 1024;
+	pc->mscb.dport = 53;
+	memcpy(pc->mscb.smac, pc->ip4.mac, ETH_ALEN);
+	memcpy(pc->mscb.dmac, mac, ETH_ALEN);
+	
+	m = packet(pc);
+	/* restore control block */
+	memcpy(&pc->mscb, &cb, sizeof(sesscb));
+	
+	return m;
+}
+
+struct packet *dns6(pcs *pc, int sw, char *data, int dlen)
+{
+	sesscb cb;
+	u_char mac[ETH_ALEN];
+	struct packet *m;
+	char *p;
+	
+	if (pc->ip6.dns[sw].addr32[0] == 0 && pc->ip6.dns[sw].addr32[1] == 0 && 
+	    pc->ip6.dns[sw].addr32[2] == 0 && pc->ip6.dns[sw].addr32[3] == 0)
+		return 0;
+
+	p = (char*)nbDiscovery(pc, &pc->mscb.dip6);	
+	if (p == NULL)
+		return 0;
+
+	memcpy(mac, p, 6);
+		
+	/* save old control block */
+	memcpy(&cb, &pc->mscb, sizeof(sesscb));
+	pc->mscb.data = data;
+	pc->mscb.dsize = dlen;
+	pc->mscb.proto = IPPROTO_UDP;
+	pc->mscb.mtu = pc->mtu;
+	pc->mscb.ipid =  time(0) & 0xffff;
+	pc->mscb.ttl = TTL;
+	
+	memcpy(pc->mscb.dip6.addr8, pc->ip6.dns[sw].addr8, 16);
+	if (pc->mscb.dip6.addr16[0] != IPV6_ADDR_INT16_ULL)
+		memcpy(pc->mscb.sip6.addr8, pc->ip6.ip.addr8, 16);
+	else
+		memcpy(pc->mscb.sip6.addr8, pc->link6.ip.addr8, 16);
+		
+	pc->mscb.sport = (random() % (65000 - 1024)) + 1024;
+	pc->mscb.dport = 53;
+	memcpy(pc->mscb.smac, pc->ip4.mac, ETH_ALEN);
+	memcpy(pc->mscb.dmac, mac, ETH_ALEN);
+	
+	m = packet6(pc);
+	/* restore control block */
+	memcpy(&pc->mscb, &cb, sizeof(sesscb));
+	
+	return m;
 }
 
 static int fmtstring(const char *name, char *buf)
@@ -199,24 +276,24 @@ static int dnsrequest(u_short id, const char *name, int type, char *data, int *n
 	dh.flags = 0x0001; /* QR|OC|AA|TC|RD -  RA|Z|RCODE  */
 	dh.query = htons(0x0001); /* one query */
 	  	
-  	memcpy(data, (void *)&dh, sizeof(dnshdr));
-  	
-  	/* query name */
-  	memset(buf, 0, sizeof(buf));
-  	i = fmtstring(name, (char *)buf);
-  	if (i == 0)
-  		return 0;
-  	*namelen = i;
-  	memcpy(data + dlen, buf, i);
-  	dlen += i;
-  	
-  	/* A record */
-  	data[dlen++] = 0x00;
-  	data[dlen++] = type;
-  	/* IN class */
-  	data[dlen++] = 0x00;
-  	data[dlen++] = 0x01;
-  	
+	memcpy(data, (void *)&dh, sizeof(dnshdr));
+	
+	/* query name */
+	memset(buf, 0, sizeof(buf));
+	i = fmtstring(name, (char *)buf);
+	if (i == 0)
+		return 0;
+	*namelen = i;
+	memcpy(data + dlen, buf, i);
+	dlen += i;
+	
+	/* A record */
+	data[dlen++] = 0x00;
+	data[dlen++] = type;
+	/* IN class */
+	data[dlen++] = 0x00;
+	data[dlen++] = 0x01;
+	
 	return dlen;
 }
 
@@ -227,8 +304,9 @@ static int dnsrequest(u_short id, const char *name, int type, char *data, int *n
 static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_char *cip)
 {
 	ethdr *eh;
-	iphdr *ip;
-	udpiphdr *ui;
+	iphdr *ip4;
+	ip6hdr *ip6;
+	udphdr *uh;
 	u_char *p;
 	dnshdr *dh;
 	u_short *sp;
@@ -247,11 +325,17 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 		
 
 	eh = (ethdr *)(m->data);
-	ip = (iphdr *)(eh + 1);
-	ui = (udpiphdr *)ip;
-	iplen = ntohs(ip->len);
+	if (eh->type == htons(ETHERTYPE_IPV6)) {
+		ip6 = (ip6hdr *)(eh + 1);
+		uh = (udphdr *)(ip6 + 1);
+		iplen = ntohs(ip6->ip6_plen);
+	} else {
+		ip4 = (iphdr *)(eh + 1);
+		uh = (udphdr *)(ip4 + 1);
+		iplen = ntohs(ip4->len);
+	}
 
-	dh = (dnshdr *)(ui + 1);
+	dh = (dnshdr *)(uh + 1);
 	if (dh->id != magicid)
 		return 0;
 
@@ -282,7 +366,7 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 	c = 0;
 	i = 0;
 	data[0] = '\0';
-	while (p + c - (u_char *)ip < iplen) {
+	while (p + c - (u_char *)(eh + 1) < iplen) {
 		i = *(p + c);
 		strncat(data, (char *)(p + c + 1), i);
 		c += i + 1;
@@ -298,7 +382,7 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 	 * normal is 0xc00c, 11 00000000001100, 11-pointer, 0c-offset from dnshdr 
 	*/
 	p += 2;
-	while (p - (u_char *)ip < iplen) {
+	while (p - (u_char *)(eh + 1) < iplen) {
 		sp = (u_short *)p;
 		/* A/AAAA record */
 		if ((*sp == 0x0100 || *sp == 0x1c00) && *(sp + 1) == 0x0100) {
@@ -333,7 +417,7 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 				sp = (u_short *)p;
 				i += sprintf(data + i, ".");
 				dmp_dns_rname((char *)(dh) + (ntohs(*sp) & 0x3fff), 
-				    (char *)ip + iplen, data + i);
+				    (char *)(eh + 1) + iplen, data + i);
 			}
 			/* tell caller retry again */
 			return 2;

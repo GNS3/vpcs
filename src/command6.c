@@ -125,10 +125,8 @@ int run_ping6(int argc, char **argv)
 			int dsize = pc->mscb.dsize;
 			int traveltime = 1;
 			
-			if (i > 1) {
-				printf("wait %dms\n", pc->mscb.waittime);
+			if (i > 1)
 				delay_ms(pc->mscb.waittime);
-			}
 
 			/* clear the input queue */
 			while ((m = deq(&pc->iq)) != NULL);
@@ -555,6 +553,54 @@ int run_show6(pcs *pc)
 	return 1;
 }
 
+int run_ipdns6(int argc, char **argv)
+{
+	pcs *pc = &vpc[pcid];
+	struct in6_addr ipaddr;
+	
+	if (!strcmp(argv[argc - 1] , "?"))
+		return help_ip(argc, argv);
+
+	if (argc == 3) {
+		if (!strcmp(argv[2], "0")) {
+			memset(pc->ip6.dns[0].addr8, 0, 16);
+			return 1;
+		}
+		
+		if (vinet_pton6(AF_INET6, argv[2], &ipaddr) != 1) {
+			printf("Invalid address: %s\n", argv[2]);
+			return 0;
+		}
+	
+		memcpy(pc->ip6.dns[0].addr8, ipaddr.s6_addr, 16);
+	}
+	if (argc == 4) {
+		if (!strcmp(argv[2], "0")) {
+			memset(pc->ip6.dns[0].addr8, 0, 16);
+			return 1;
+		}
+		
+		if (vinet_pton6(AF_INET6, argv[2], &ipaddr) != 1) {
+			printf("Invalid address: %s\n", argv[2]);
+			return 0;
+		}
+	
+		memcpy(pc->ip6.dns[0].addr8, ipaddr.s6_addr, 16);
+
+		if (!strcmp(argv[3], "0")) {
+			memset(pc->ip6.dns[1].addr8, 0, 16);
+			return 1;
+		}
+		if (vinet_pton6(AF_INET6, argv[3], &ipaddr) != 1) {
+			printf("Invalid address: %s\n", argv[3]);
+			return 0;
+		}
+	
+		memcpy(pc->ip6.dns[1].addr8, ipaddr.s6_addr, 16);
+	}
+	return 1;
+}
+
 int show_ipv6(int argc, char **argv)
 {
 	int i, j, k;
@@ -672,7 +718,23 @@ int show_ipv6(int argc, char **argv)
 			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
 			printf("%s/%d", buf6, vpc[id].ip6.cidr);
 		}
-		printf("\n");		
+		printf("\n");
+		printf("DNS               : ");
+		if (vpc[id].ip6.dns[0].addr32[0] != 0 || vpc[id].ip6.dns[0].addr32[1] != 0 || 
+		    vpc[id].ip6.dns[0].addr32[2] != 0 || vpc[id].ip6.dns[0].addr32[3] != 0) {	
+			memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+			memcpy(ipaddr.s6_addr, vpc[id].ip6.dns[0].addr8, 16);
+			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+			printf("%s", buf6);
+		}
+		if (vpc[id].ip6.dns[1].addr32[0] != 0 || vpc[id].ip6.dns[1].addr32[1] != 0 || 
+		    vpc[id].ip6.dns[1].addr32[2] != 0 || vpc[id].ip6.dns[1].addr32[3] != 0) {	
+			memset(buf6, 0, INET6_ADDRSTRLEN + 1);
+			memcpy(ipaddr.s6_addr, vpc[id].ip6.dns[1].addr8, 16);
+			vinet_ntop6(AF_INET6, &ipaddr, buf6, INET6_ADDRSTRLEN + 1);
+			printf(" %s", buf6);
+		}
+		printf("\n");
 		printf("ROUTER LINK-LAYER : ");
 		if (!etherIsZero(vpc[id].ip6.gmac)) 
 			PRINT_MAC(vpc[id].ip6.gmac);
