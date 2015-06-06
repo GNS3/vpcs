@@ -97,7 +97,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 				delay_ms(1);
 				ok = 0;
 				while ((m = deq(&pc->iq)) != NULL && !ok) {
-					ok = dnsparse(m, magicid, pdn, namelen, ip);
+					ok = dnsparse(m, magicid, dname, namelen, ip);
 					free(m);
 				}
 				if (ok == 2) {
@@ -112,7 +112,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 					break;
 				}
 				if (ok) {
-					strcpy(name, pdn);
+					strcpy(name, dname);
 					ip2str(ip, ipstr);
 					return 1;
 				}
@@ -318,6 +318,7 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 	int iplen;
 	int i, j;
 	u_char c;
+	int cname = 0;
 	
 	const char *rcode[6] = {
 		"No error",
@@ -382,11 +383,17 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 	/* skip type and class */
 	p += c + 5;
 	
-	/* skip offset pointer, 
-	 * normal is 0xc00c, 11 00000000001100, 11-pointer, 0c-offset from dnshdr 
-	*/
-	p += 2;
+	
 	while (p - (u_char *)(eh + 1) < iplen) {
+		/* skip offset pointer, 
+		 * normal is 0xc00c, 11 00000000001100, 
+		 *           11-pointer, 0c-offset from dnshdr 
+		 */
+		if ((*p & 0xc0) != 0xc0) {
+			p++;
+			continue;
+		}
+		p += 2;
 		sp = (u_short *)p;
 		/* A/AAAA record */
 		if ((*sp == 0x0100 || *sp == 0x1c00) && *(sp + 1) == 0x0100) {
@@ -424,7 +431,8 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 				    (char *)(eh + 1) + iplen, data + i);
 			}
 			/* tell caller retry again */
-			return 2;
+			cname = 1;
+			p++;
 		} else  {
 			/* skip type2, class2, ttl4, rlen2 */
 			p += 2 + 2 + 4;
@@ -435,6 +443,9 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 			p += 2;
 		}
 	}
+	if (cname == 1)
+		return 2;
+	
 	return 0;
 }
 

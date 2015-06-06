@@ -49,7 +49,7 @@ typedef struct {
 	u_char z:3;
 	u_char ra:1;
 } dnsflags;
-		
+
 #define MAX_DNS_NAME 64
 
 int hostresolv(pcs *pc, char *name, char *ipstr);

@@ -391,7 +391,12 @@ int run_ping(int argc, char **argv)
 				return 0;
 			}
 			
-			printf("%s resolved to %s\n", dname, ipstr);
+			printf("%s resolved to ", argv[1]);
+			if (strcmp(argv[1], dname) == 0)
+				printf("%s\n", ipstr);
+			else
+				printf("%s(%s)\n", dname, ipstr);
+
 			if (strchr(ipstr, ':')) {
 				pc->mscb.mtu = pc->mtu;
 				argv[1] = ipstr;
