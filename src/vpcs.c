@@ -309,7 +309,7 @@ void parse_cmd(char *cmdstr)
 
 	if (argc == 1 && strlen(argv[0]) == 1 && num_pths >= 1 &&
 	    (argv[0][0] >= '0' && argv[0][0] <= '9')) {
-	    	if ((argv[0][0] - '0') <= num_pths) {
+		if ((argv[0][0] - '0') <= num_pths) {
 			if (echoctl.enable && runLoad)
 				printf("%s[%d] %s\n", vpc[pcid].xname, 
 				    pcid + 1, cmdstr);
@@ -401,13 +401,13 @@ void parse_cmd(char *cmdstr)
 		if (echoctl.enable && runLoad) {
 			if (!strcmp(cmd->name, "sleep") && 
 			    (argc != 2 || (argc == 2 && !digitstring(argv[1])))) {
-			    	;
+				;
 			} else if (at == 0)
 				printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);
 		}
 		if (argc > 1 && cmd->help != NULL && 
 		    ((!strcmp(argv[argc - 1], "?") || !strcmp(argv[argc - 1], "help")))) {
-		    	argv[0] = cmd->name;
+			argv[0] = cmd->name;
 			cmd->help(argc, argv);
 			return;
 		}
@@ -420,7 +420,7 @@ void parse_cmd(char *cmdstr)
 
 		memset(&vpc[pcid].mscb, 0, sizeof(vpc[pcid].mscb));
 
-	}  else
+	} else
 		printf("Bad command: \"%s\". Use ? for help.\n", cmdstr);
 
 	return;
@@ -582,16 +582,9 @@ void *pth_writer(void *devid)
 
 void *pth_timer_tick(void *dummy)
 {
-	time_t t0, t1;
-	t0 = time(0);
 	while (1) {
-		t1 = time(0);
-		if (t1 - t0 > 0) {
-			//time_tick += t1 - t0;
-			time_tick = t1;
-			t0 = t1;
-		}
-		usleep(100);
+		time_tick = time(0);
+		usleep(1000);
 	}
 	return NULL;
 }
@@ -607,11 +600,11 @@ void *pth_bgjob(void *dummy)
 			t = time_tick - vpc[i].ip4.dhcp.timetick;
 			s = t - vpc[i].ip4.dhcp.renew;
 			if (t > vpc[i].ip4.dhcp.renew && s < 4) {
-			    	vpc[i].bgjobflag = 1;
-			    	if (dhcp_renew(&vpc[i]))
-			    		vpc[i].ip4.dhcp.timetick = time_tick;
-			    	vpc[i].bgjobflag = 0;
-			    	continue;
+				vpc[i].bgjobflag = 1;
+				if (dhcp_renew(&vpc[i]))
+					vpc[i].ip4.dhcp.timetick = time_tick;
+				vpc[i].bgjobflag = 0;
+				continue;
 			}
 			s = t - vpc[i].ip4.dhcp.rebind;
 			if (t > vpc[i].ip4.dhcp.rebind && s < 4) {
@@ -622,7 +615,7 @@ void *pth_bgjob(void *dummy)
 			    	continue;
 			}
 		}
-		usleep(10000);
+		usleep(1000);
 		i = (i + 1) % num_pths;
 	} while (1);
 	

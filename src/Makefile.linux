@@ -25,7 +25,9 @@ OBJS=vpcs.o \
 	help.o \
 	dump.o \
 	relay.o \
-	hv.o
+	hv.o \
+	frag.o \
+	frag6.o
 	
 all: vpcs
 

@@ -81,6 +81,8 @@ static int run_dhcp_new(int renew, int dump);
 static int run_dhcp_release(int dump);
 
 static int str2color(const char *cstr);
+
+static int run_ping_tcp(
 		
 /*
  *          1         2         3         4         5         6
@@ -211,26 +213,221 @@ int run_show(int argc, char **argv)
 	return 1;
 }
 
-/* ping host */
-int run_ping(int argc, char **argv)
+int run_ping_tcp(pcs *pc)
 {
-	int i, j;
-	int gip;
-	u_int gwip;
-	struct in_addr in;
-	struct packet *m;
-	pcs *pc = &vpc[pcid];
-	char dname[256];
-	u_char flags;
-	char ipstr[64];
 
-	char proto_seq[16];
-	int count = 5;
-	int interval = 1000;
-	
-	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
-		return help_ping(argc, argv);
+		struct timeval ts0, ts;
+		u_int usec;
+		int k;
+		int dsize;
+		int traveltime = 1;
+
+		if (i > 1)
+			delay_ms(pc->mscb.waittime);
+		
+		/* clear the input queue */
+		while ((m = deq(&pc->iq)) != NULL)
+			del_pkt(m);
+		/* connect the remote */
+		gettimeofday(&(ts), (void*)0);
+		
+		dsize = pc->mscb.dsize;
+		pc->mscb.dsize = PAYLOAD56;
+		k = tcp_open(pc, 4);
+		
+		/* restore data size */
+		pc->mscb.dsize = dsize;
+		
+		gettimeofday(&(ts0), (void*)0);
+		usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+		    ts0.tv_usec - ts.tv_usec;
+
+		if (k == 0) {
+			printf("Connect   %d@%s timeout\n", 
+			    pc->mscb.dport, argv[1]);
+			continue;
+		} else if (k == 2) {
+			struct in_addr din;
+			din.s_addr = pc->mscb.rdip;
+			if (pc->mscb.icmptype == ICMP_REDIRECT && 
+			    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
+				din.s_addr = pc->ip4.gw;	
+				printf("Redirect Network, gateway %s",
+				    inet_ntoa(din));
+				din.s_addr = pc->mscb.rdip;
+				printf(" -> %s\n", inet_ntoa(din));
+				
+				gwip = pc->mscb.rdip;
+				delay_ms(100);
+				goto redirect;
+			}
+			printf("*%s %s=%d ttl=%d time=%.3f ms", 
+			    inet_ntoa(din), proto_seq, i++, 
+			    pc->mscb.rttl, usec / 1000.0);
+					
+			printf(" (ICMP type:%d, code:%d, %s)\n", 
+			    pc->mscb.icmptype, pc->mscb.icmpcode, 
+			    icmpTypeCode2String(4, pc->mscb.icmptype, 
+			        pc->mscb.icmpcode));
+			continue;
+		} else if (k == 3) {
+			printf("Connect   %d@%s RST returned\n", 
+			    pc->mscb.dport, argv[1]);
+			continue;	
+		}
+		printf("Connect   %d@%s seq=%d ttl=%d time=%.3f ms\n", 
+		    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+		    
+		    usec / 1000.0);
+		
+		traveltime = 0.6 * usec / 1000;
+		/* send data after 1.5 * time2travel */
+		delay_ms(traveltime);
+		gettimeofday(&(ts), (void*)0);
+		k = tcp_send(pc, 4);
+		if (k == 0) {
+			printf("SendData  %d@%s timeout\n", 
+			    pc->mscb.dport, argv[1]);
+			continue;
+		}
+		
+		gettimeofday(&(ts0), (void*)0);
+		usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+		    ts0.tv_usec - ts.tv_usec;
+		printf("SendData  %d@%s seq=%d ttl=%d time=%.3f ms\n", 
+		    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+		    usec / 1000.0);
+		
+		/* close after 1.5 * time2travel */
+		if (k != 2)
+			delay_ms(traveltime);
+		gettimeofday(&(ts), (void*)0);	
+		dsize = pc->mscb.dsize;
+		pc->mscb.dsize = PAYLOAD56;
+		k = tcp_close(pc, 4);
+		pc->mscb.dsize = dsize;
+
+		gettimeofday(&(ts0), (void*)0);
+		usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+		    ts0.tv_usec - ts.tv_usec;
+		if (k == 0) {
+			printf("Close     %d@%s timeout(%.3fms)\n", 
+			    pc->mscb.dport, argv[1], usec / 1000.0);
+			continue;
+		}
+		printf("Close     %d@%s seq=%d ttl=%d time=%.3f ms\n", 
+		    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+		    usec / 1000.0);
+	}	
+
+}
+
+int run_ping_dg(pcs *pc, int sn)
+{
+	struct packet *p = NULL;
+	struct timeval tv;
+	u_int usec;
+	int respok = 0;
+
+	pc->mscb.sn = i;
+	pc->mscb.timeout = time_tick;
+		
+	m = packet(pc);
+	if (m == NULL) {
+		printf("out of memory\n");
+		return 0;
 	}
+		
+	/* clean input queue */
+	while ((p = deq(&pc->iq)) != NULL)
+		del_pkt(p);
+			
+	gettimeofday(&(tv), (void*)0);
+	enq(&pc->oq, m);
+
+	while (!timeout(tv, pc->mscb.waittime) && !respok && !ctrl_c) {
+		delay_ms(1);
+		respok = 0;
+
+		while ((p = deq(&pc->iq)) != NULL && !respok && !ctrl_c) {
+			pc->mscb.icmptype = pc->mscb.icmpcode = 0; 
+			respok = response(p, &pc->mscb);
+			
+			usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 + 
+			    p->ts.tv_usec - tv.tv_usec;
+
+			del_pkt(p);
+
+			if (respok == 0)
+				continue;
+				
+			//tv.tv_sec = 0;
+				
+			if ((pc->mscb.proto == IPPROTO_ICMP && pc->mscb.icmptype == ICMP_ECHOREPLY) ||
+			    (pc->mscb.proto == IPPROTO_UDP && respok == IPPROTO_UDP) ||
+			    (pc->mscb.proto == IPPROTO_TCP && respok == IPPROTO_TCP)) {
+				printf("%d bytes from %s %s=%d ttl=%d time=%.3f ms\n", 
+				    pc->mscb.rdsize, inet_ntoa(in), proto_seq, i++, 
+				    pc->mscb.rttl, usec / 1000.0);
+				break;
+			}
+					
+			if (respok == IPPROTO_ICMP) {
+				struct in_addr din;
+					
+				if (pc->mscb.icmptype == ICMP_REDIRECT && 
+				    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
+				din.s_addr = pc->ip4.gw;	
+				printf("Redirect Network, gateway %s",  inet_ntoa(din));
+				din.s_addr = pc->mscb.rdip;
+				printf(" -> %s\n", inet_ntoa(din));
+				
+				gwip = pc->mscb.rdip;
+				delay_ms(100);
+				goto redirect;
+				}
+				din.s_addr = pc->mscb.rdip;
+				printf("*%s %s=%d ttl=%d time=%.3f ms", 
+				    inet_ntoa(din), proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
+					
+				printf(" (ICMP type:%d, code:%d, %s)\n", 
+				    pc->mscb.icmptype, pc->mscb.icmpcode,
+				    icmpTypeCode2String(4, pc->mscb.icmptype, pc->mscb.icmpcode));
+				break;
+			}
+		}
+	}
+		
+	if (!respok && !ctrl_c)
+		printf("%s %s=%d timeout\n", argv[1], proto_seq, i++);
+}
+
+int tcp_flags(char *p)
+{
+	const char *fs = "fsrpauec";
+	int i, j;
+	unsigned char flags = 0;
+	
+	for (i = 0; i < strlen(p); i++) {
+		if (strchr(flag, *(p + i)) == NULL)
+			printf("Invalid options\n");
+			return 0;
+		}
+		
+		for (j = 0; j < strlen(fs); j++) {
+			if ((*(p + i) | 0x20) == *(fs + j))
+				flags |= (1 << j);
+		}
+	}
+	return flags;
+}
+
+int run_ping_options(pcs *pc, int argc, char **argv)
+{
+	const char *flag = "fsrpauec";
+	
+	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?'))
+		return -1;
 	
 	pc->mscb.frag = IPF_FRAG;
 	pc->mscb.mtu = pc->mtu;
@@ -317,37 +514,9 @@ int run_ping(int argc, char **argv)
 				break;
 			case 'f':
 				if (i < argc) {
-					for (j = 0; j < strlen(argv[i]); j++) {
-						switch (argv[i][j] | 0x20) {
-							case 'c':
-								pc->mscb.flags |= 0x80;
-								break;
-							case 'e':
-								pc->mscb.flags |= 0x40;
-								break;
-							case 'u':
-								pc->mscb.flags |= 0x20;
-								break;
-							case 'a':
-								pc->mscb.flags |= 0x10;
-								break;		
-							case 'p':
-								pc->mscb.flags |= 0x08;
-								break;
-							case 'r':
-								pc->mscb.flags |= 0x04;
-								break;
-							case 's':
-								pc->mscb.flags |= 0x02;
-								break;
-							case 'f':
-								pc->mscb.flags |= 0x01;
-								break;
-							default:
-								printf("Invalid options\n");
-							return 0;
-						}
-					}	
+					pc->mscb.flags = tcp_flags(argv[i]);
+					if (pc->mscb.flags == 0)
+						return -1;
 					i++;
 				}
 				break;
@@ -368,10 +537,36 @@ int run_ping(int argc, char **argv)
 				break;
 			default:
 				printf("Invalid options\n");
-				return 0;
-				break;	
+				return -1;
 		}
-	}
+	}	
+	
+}
+/* ping host */
+int run_ping(int argc, char **argv)
+{
+	int i, j;
+	int gip;
+	u_int gwip;
+	struct in_addr in;
+	struct packet *m;
+	pcs *pc = &vpc[pcid];
+	char dname[256];
+	u_char flags;
+	char ipstr[64];
+
+	char proto_seq[16];
+	int count = 5;
+	int interval = 1000;
+	
+	int rc;
+	
+	rc = run_ping_options(argc, argv);
+	
+	if (rc == -1)
+		return help_ping(argc, argv);
+		
+		
 	
 	if (!(pc->mscb.frag & IPF_FRAG) && 
 	    (pc->mscb.mtu < (pc->mscb.dsize + sizeof(iphdr)))) {
@@ -448,192 +643,13 @@ redirect:
 	pc->mscb.flags = flags;
 	if (pc->mscb.proto == IPPROTO_TCP && pc->mscb.flags == 0) {	
 		i = 0;
-
 		while ((i++ < count || count == -1) && !ctrl_c) {
-			struct timeval ts0, ts;
-			u_int usec;
-			int k;
-			int dsize;
-			int traveltime = 1;
-
-			if (i > 1)
-				delay_ms(pc->mscb.waittime);
-			
-			/* clear the input queue */
-			while ((m = deq(&pc->iq)) != NULL)
-				del_pkt(m);
-			/* connect the remote */
-			gettimeofday(&(ts), (void*)0);
-			
-			dsize = pc->mscb.dsize;
-			pc->mscb.dsize = PAYLOAD56;
-			k = tcp_open(pc, 4);
-			
-			/* restore data size */
-			pc->mscb.dsize = dsize;
-			
-			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
-			    ts0.tv_usec - ts.tv_usec;
-
-			if (k == 0) {
-				printf("Connect   %d@%s timeout\n", 
-				    pc->mscb.dport, argv[1]);
-				continue;
-			} else if (k == 2) {
-				struct in_addr din;
-				din.s_addr = pc->mscb.rdip;
-				if (pc->mscb.icmptype == ICMP_REDIRECT && 
-				    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
-					din.s_addr = pc->ip4.gw;	
-					printf("Redirect Network, gateway %s",
-					    inet_ntoa(din));
-					din.s_addr = pc->mscb.rdip;
-					printf(" -> %s\n", inet_ntoa(din));
-					
-					gwip = pc->mscb.rdip;
-					delay_ms(100);
-					goto redirect;
-				}
-				printf("*%s %s=%d ttl=%d time=%.3f ms", 
-				    inet_ntoa(din), proto_seq, i++, 
-				    pc->mscb.rttl, usec / 1000.0);
-						
-				printf(" (ICMP type:%d, code:%d, %s)\n", 
-				    pc->mscb.icmptype, pc->mscb.icmpcode, 
-				    icmpTypeCode2String(4, pc->mscb.icmptype, 
-				        pc->mscb.icmpcode));
-				continue;
-			} else if (k == 3) {
-				printf("Connect   %d@%s RST returned\n", 
-				    pc->mscb.dport, argv[1]);
-				continue;	
-			}
-			printf("Connect   %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
-			    
-			    usec / 1000.0);
-			
-			traveltime = 0.6 * usec / 1000;
-			/* send data after 1.5 * time2travel */
-			delay_ms(traveltime);
-			gettimeofday(&(ts), (void*)0);
-			k = tcp_send(pc, 4);
-			if (k == 0) {
-				printf("SendData  %d@%s timeout\n", 
-				    pc->mscb.dport, argv[1]);
-				continue;
-			}
-			
-			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
-			    ts0.tv_usec - ts.tv_usec;
-			printf("SendData  %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
-			    usec / 1000.0);
-			
-			/* close after 1.5 * time2travel */
-			if (k != 2)
-				delay_ms(traveltime);
-			gettimeofday(&(ts), (void*)0);	
-			dsize = pc->mscb.dsize;
-			pc->mscb.dsize = PAYLOAD56;
-			k = tcp_close(pc, 4);
-			pc->mscb.dsize = dsize;
-
-			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
-			    ts0.tv_usec - ts.tv_usec;
-			if (k == 0) {
-				printf("Close     %d@%s timeout(%.3fms)\n", 
-				    pc->mscb.dport, argv[1], usec / 1000.0);
-				continue;
-			}
-			printf("Close     %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
-			    usec / 1000.0);
+			run_ping_tcp(pc, i);
 		}
 	} else {
 		i = 1;
 		while ((i <= count || count == -1) && !ctrl_c) {
-			struct packet *p = NULL;
-			struct timeval tv;
-			u_int usec;
-			int respok = 0;
-
-			pc->mscb.sn = i;
-			pc->mscb.timeout = time_tick;
-			
-			m = packet(pc);
-			if (m == NULL) {
-				printf("out of memory\n");
-				return 0;
-			}
-			
-			/* clean input queue */
-			while ((p = deq(&pc->iq)) != NULL)
-				del_pkt(p);
-				
-			gettimeofday(&(tv), (void*)0);
-			enq(&pc->oq, m);
-
-			while (!timeout(tv, pc->mscb.waittime) && !respok && !ctrl_c) {
-				delay_ms(1);
-				respok = 0;
-
-				while ((p = deq(&pc->iq)) != NULL && !respok && !ctrl_c) {
-
-					pc->mscb.icmptype = pc->mscb.icmpcode = 0; 
-					respok = response(p, &pc->mscb);
-					
-					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 + 
-					    p->ts.tv_usec - tv.tv_usec;
-
-					del_pkt(p);
-
-					if (respok == 0)
-						continue;
-					
-					//tv.tv_sec = 0;
-					
-					if ((pc->mscb.proto == IPPROTO_ICMP && pc->mscb.icmptype == ICMP_ECHOREPLY) ||
-					    (pc->mscb.proto == IPPROTO_UDP && respok == IPPROTO_UDP) ||
-					    (pc->mscb.proto == IPPROTO_TCP && respok == IPPROTO_TCP)) {
-						printf("%d bytes from %s %s=%d ttl=%d time=%.3f ms\n", 
-						    pc->mscb.rdsize, inet_ntoa(in), proto_seq, i++, 
-						    pc->mscb.rttl, usec / 1000.0);
-						break;
-					}
-						
-					if (respok == IPPROTO_ICMP) {
-						struct in_addr din;
-						
-						if (pc->mscb.icmptype == ICMP_REDIRECT && 
-						    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
-						din.s_addr = pc->ip4.gw;	
-						printf("Redirect Network, gateway %s",  inet_ntoa(din));
-						din.s_addr = pc->mscb.rdip;
-						printf(" -> %s\n", inet_ntoa(din));
-						
-						gwip = pc->mscb.rdip;
-						delay_ms(100);
-						goto redirect;
-						}
-						din.s_addr = pc->mscb.rdip;
-						printf("*%s %s=%d ttl=%d time=%.3f ms", 
-						    inet_ntoa(din), proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
-							
-						printf(" (ICMP type:%d, code:%d, %s)\n", 
-						    pc->mscb.icmptype, pc->mscb.icmpcode,
-						    icmpTypeCode2String(4, pc->mscb.icmptype, pc->mscb.icmpcode));
-						break;
-					}
-				}
-			}
-			
-			if (!respok && !ctrl_c)
-				printf("%s %s=%d timeout\n", argv[1], proto_seq, i++);
-				
+			run_ping_dg(pc, i);
 			delay_ms(interval);
 		}
 	}
