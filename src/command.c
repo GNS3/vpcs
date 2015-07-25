@@ -560,6 +560,11 @@ redirect:
 					
 					//tv.tv_sec = 0;
 					
+
+					if(i > 65534){
+						i = 1;
+					}
+
 					if ((pc->mscb.proto == IPPROTO_ICMP && pc->mscb.icmptype == ICMP_ECHOREPLY) ||
 					    (pc->mscb.proto == IPPROTO_UDP && respok == IPPROTO_UDP) ||
 					    (pc->mscb.proto == IPPROTO_TCP && respok == IPPROTO_TCP)) {
