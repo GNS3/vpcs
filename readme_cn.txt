@@ -1,5 +1,5 @@
 
-    欢迎使用 VPCS, 最新版本为 0.6.
+    欢迎使用 VPCS, 最新版本为 0.8.
 
     VPCS 是免费软件，遵从 BSD 许可的条款分发。
     源代码和许可协议条款可以从 vpcs.sf.net 获取到。
@@ -58,6 +58,10 @@ startup.vpc 可以包含的命令即为 VPCS 的内部命令。
 站点：http://wiki.freecode.com.cn 或 http://mirnshi.cublog.cn
 
 历史版本：
+   0.8     支持IPv6分片重组
+           支持DNS IPv6 AAAA
+           增加命令行选项--禁止relay功能
+           
    0.6     错误修订：
              1. 后台应答请求时，未使用网关的MAC地址
              2. 命令超过20个参数，导致崩溃

@@ -1,5 +1,5 @@
 
-   Welcome to Virtual PC Simulator, Ver 0.6.
+   Welcome to Virtual PC Simulator, Ver 0.8.
    
    VPCS is free software, distributed under the terms of the "BSD" licence.
    Source code and license can be found at vpcs.sf.net.
@@ -62,6 +62,10 @@ The line started with '#' or '!' will be discarded.
 Website: http://wiki.freecode.com.cn or http://mirnshi.cublog.cn
    
 History:
+   0.8     Support IPv6 fragmentation
+           Support DNS AAAA record
+           Add an option to disable the relay function from the command line
+
    0.6     bugfix: use MAC of gateway while replying in the background
            bugfix: command with more than 20 arguments will cause core dump
            check mtu when receiving the packet, reply the packet is too big

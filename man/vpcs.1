@@ -1,6 +1,6 @@
 
-.TH VPCS "1" "2013-12-16" "0.6" "Virtual PC Simulator" 
-./ Last revision: 2014-11-18 15:50:00
+.TH VPCS "1" "2013-12-16" "0.8" "Virtual PC Simulator" 
+./ Last revision: 2015-10-04 16:07:00
 .hy 0 
 .if n 
 .ad l 
@@ -23,6 +23,9 @@ Print the command line options and exit
 .TP
 \fB-v\fR
 Print the version information and exit
+.TP
+\fB-R\fR
+Disable the relay function
 .TP
 [\fB-i\fR] \fInum\fR
 Start \fBvpcs\fR with \fInum\fR vitrual PCs, maximum 9.  If omitted \fBvpcs\fR will start with 9 virtual PCs. If \fInum\fR is 1, such as when GNS3 v1.x spawns PCs, commands that reference other PCs will have restricted options and the prompt will not display the PC number.  
