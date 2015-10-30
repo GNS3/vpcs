@@ -429,32 +429,32 @@ printf("\n%2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x\n",
 		/* normal key */	
 		off = 1;
 		i = kb[0];
-		if (isprint(i)) {
-			if (rls->pos < strlen(rls->kbuffer) - 1) {
-				j = strlen(rls->kbuffer);
-				/* avoid overflow */
-				if (j < rls->maxbuflen - 1) {
-					p = rls->kbuffer;
-					while (j > rls->pos) {
-						*(p + j) = *(p + j - 1);
-						j--;
-					}
-					rls->kbuffer[rls->pos] = kb[0];
-					vprint(rls->fdout, 
-					    &rls->kbuffer[rls->pos], 
-					    strlen(&rls->kbuffer[rls->pos]));
-					
-					j = strlen(rls->kbuffer) - rls->pos - 1;
-					for (i = 0; i < j; i++)
-						vprint(rls->fdout, "\b", 1);
+		if (!isprint(i))
+			continue;
+		if (rls->pos < strlen(rls->kbuffer) - 1) {
+			j = strlen(rls->kbuffer);
+			/* avoid overflow */
+			if (j < rls->maxbuflen - 1) {
+				p = rls->kbuffer;
+				while (j > rls->pos) {
+					*(p + j) = *(p + j - 1);
+					j--;
 				}
-			} else {
 				rls->kbuffer[rls->pos] = kb[0];
-				rls->kbuffer[rls->pos + 1] = '\0';
-				vprint(rls->fdout, &kb[0], 1);
+				vprint(rls->fdout, &rls->kbuffer[rls->pos], 
+				    strlen(&rls->kbuffer[rls->pos]));
+				
+				j = strlen(rls->kbuffer) - rls->pos - 1;
+				for (i = 0; i < j; i++)
+					vprint(rls->fdout, "\b", 1);
 			}
-			rls->pos++;
+		} else {
+			rls->kbuffer[rls->pos] = kb[0];
+			rls->kbuffer[rls->pos + 1] = '\0';
+			vprint(rls->fdout, &kb[0], 1);
+			break;
 		}
+		rls->pos++;
 	} while (kb[0] != CTRLP);
 		
 	if (isatty(rls->fdin))

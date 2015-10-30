@@ -53,7 +53,7 @@
 #include "dhcp.h"
 #include "frag6.h"
 
-const char *ver = "0.8a";
+const char *ver = "0.8b";
 /* track the binary */
 static const char *ident = "$Id$";
 
@@ -159,7 +159,7 @@ int main(int argc, char **argv)
 	rhost = inet_addr("127.0.0.1");
 	
 	devtype = DEV_UDP;		
-	while ((c = getopt(argc, argv, "?c:ehm:p:r:Rs:t:uvFi:d:")) != -1) {
+	while ((c = getopt(argc, argv, "?c:efhm:p:r:Rs:t:uvFi:d:")) != -1) {
 		switch (c) {
 			case 'c':
 				rport_flag = 1;
@@ -167,6 +167,9 @@ int main(int argc, char **argv)
 				break;
 			case 'e':
 				devtype = DEV_TAP;
+				break;
+			case 'f':
+				daemon_bg = 0;
 				break;
 			case 'm':
 				macaddr = arg2int(optarg, 0, 240, 0);

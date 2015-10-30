@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -98,7 +98,7 @@ static FILE *fptys;
 static int sock = -1;
 static int sock_cli = -1;
 static int cmd_quit = 0;
-static volatile int cmd_wait = 0;
+//static volatile int cmd_wait = 0;
 static pthread_t pid_master, pid_salve;
 static int hvport = 2000;
 static struct rls *rls = NULL;

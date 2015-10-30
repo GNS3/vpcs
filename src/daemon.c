@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -76,7 +76,9 @@ static void sig_usr2(int sig);
 static void sig_quit(int sig);
 static void sig_term(int sig);
 static void sig_int(int sig);
-static void set_telnet_mode(int s);
+static int set_telnet_mode(int s);
+static void set_nonblock(int fd);
+static int pipe_rw(int fds, int fdd);
 
 int 
 daemonize(int port, int bg)
@@ -126,6 +128,8 @@ daemonize(int port, int bg)
    	if (fdtty_pid == 0) 
    		return 0;
    	
+   	set_nonblock(fdtty);
+   	
    	/* daemon socket */
    	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sock < 0) {
@@ -160,16 +164,53 @@ err:
 	exit(-1);
 }
 
+static int 
+pipe_rw(int fds, int fdd)
+{
+	fd_set set;
+	struct timeval tv;
+	int rc, len;
+	int n;
+	u_char buf[512];
+	
+	tv.tv_sec = 0;
+	tv.tv_usec = 10 * 1000; 
+	
+	n = 0;
+	
+	while (1) {
+		FD_ZERO(&set);
+		FD_SET(fds, &set);
+		rc = select(fds + 1, &set, NULL, NULL, &tv);
+		
+		if (rc < 0)
+			return rc;
+		if (rc == 0) {
+			n++;
+			if (n < 10)
+				continue;
+			else
+				return 0;
+		}
+		n = 0;
+		if (FD_ISSET(fds, &set)) {
+			memset(buf, 0, sizeof(buf));	
+			len = read(fds, buf, sizeof(buf));
+			if (len <= 0)
+				return len;
+			write(fdd, buf, len);
+		}
+	}
+}
+
 static void 
 daemon_proc(int sock, int fdtty)
 {
+	char *goodbye = "\r\nGood-bye\r\n";
 	int sock_cli;
 	struct sockaddr_in cli;
 	int slen;
-	fd_set set;
-	struct timeval tv;
-	u_char buf[8192];
-	int i;
+	int rc;
 
 	slen = sizeof(cli);
 	while (1) {
@@ -179,50 +220,32 @@ daemon_proc(int sock, int fdtty)
 			continue;
 		
 		set_telnet_mode(sock_cli);
-			
+		set_nonblock(fdtty);
+		
 		while (!cmd_quit) {
-			FD_ZERO(&set);
-			FD_SET(sock_cli, &set);
-			FD_SET(fdtty, &set);
-			
-			/* wait 100ms */
-			tv.tv_sec = 0;
-			tv.tv_usec = 100000; 
-			i = select((fdtty > sock_cli) ? (fdtty+1) : (sock_cli+1),
-			    &set, NULL, NULL, &tv);
-			
+			if ((rc = pipe_rw(fdtty, sock_cli)) < 0)
+				break;
+			rc = pipe_rw(sock_cli, fdtty);
 			/* error */
-			if (i < 0)
+			if (rc < 0)
 				break;
 			/* time out */
-			if (i == 0)
+			if (rc == 0)
 				continue;
-				
-			if (FD_ISSET(fdtty, &set)) {
-				memset(buf, 0, sizeof(buf));
-				i = read(fdtty, buf, sizeof(buf));
-				if (i <= 0)
-					break;
-				
-				if (write(sock_cli, buf, i) <= 0) 
-					break;
-			}
-			if (FD_ISSET(sock_cli, &set)) {
-				memset(buf, 0, sizeof(buf));
-				i = read(sock_cli, buf, sizeof(buf));
-				if (i <= 0)
-					break;
-
-				if (buf[0] != 0xff && write(fdtty, buf, i) <= 0) 
-					break;
-			}
-		}
-		strcpy((char *)buf, "\r\nGood-bye\r\n");
-		i = write(sock_cli, buf, strlen((char *)buf));
+		}	
+		pipe_rw(fdtty, sock_cli);
+		rc = write(sock_cli, goodbye, strlen(goodbye));
 		close(sock_cli);
 	}
 }
 
+static void 
+set_nonblock(int fd)
+{
+	int flags = fcntl(fd, F_GETFL, 0);
+	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+}
+	
 #ifdef cygwin
 /* to stop VPCS from another process on Windows
  */
@@ -293,7 +316,7 @@ sig_int(int sig)
 	signal(SIGINT, &sig_int);
 }
 
-static void 
+static int 
 set_telnet_mode(int s)
 {
 	/* DO echo */
@@ -302,9 +325,13 @@ set_telnet_mode(int s)
 	    "\xFF\xFB\x01"
 	    "\xFF\xFD\x03"
 	    "\xFF\xFB\x03";
+	u_char buf[512];
+	int n;
 	
-	if (write(s, neg, strlen(neg)))
-		;
+	n = write(s, neg, strlen(neg));
+	n = read(s, buf, sizeof(buf));
+	
+	return n;
 }
 
 /* end of file */
