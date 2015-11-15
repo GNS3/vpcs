@@ -452,7 +452,6 @@ printf("\n%2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x - %2.2x\n",
 			rls->kbuffer[rls->pos] = kb[0];
 			rls->kbuffer[rls->pos + 1] = '\0';
 			vprint(rls->fdout, &kb[0], 1);
-			break;
 		}
 		rls->pos++;
 	} while (kb[0] != CTRLP);
