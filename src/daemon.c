@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2016, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -177,12 +177,10 @@ pipe_rw(int fds, int fdd)
 	tv.tv_usec = 10 * 1000; 
 	
 	n = 0;
-	
 	while (1) {
 		FD_ZERO(&set);
 		FD_SET(fds, &set);
 		rc = select(fds + 1, &set, NULL, NULL, &tv);
-		
 		if (rc < 0)
 			return rc;
 		if (rc == 0) {
@@ -197,8 +195,10 @@ pipe_rw(int fds, int fdd)
 			memset(buf, 0, sizeof(buf));	
 			len = read(fds, buf, sizeof(buf));
 			if (len <= 0)
-				return len;
-			write(fdd, buf, len);
+				return (-1);
+			rc = write(fdd, buf, len);
+			if (rc < 0)
+				return rc;
 		}
 	}
 }
@@ -211,6 +211,7 @@ daemon_proc(int sock, int fdtty)
 	struct sockaddr_in cli;
 	int slen;
 	int rc;
+	int fsess = 1;
 
 	slen = sizeof(cli);
 	while (1) {
@@ -218,10 +219,15 @@ daemon_proc(int sock, int fdtty)
 		sock_cli = accept(sock, (struct sockaddr *) &cli, (socklen_t *)&slen);
 		if (sock_cli < 0) 
 			continue;
-		
+
 		set_telnet_mode(sock_cli);
 		set_nonblock(fdtty);
+
+		/* to show the prompt if it is not the first connection */
+		if (!fsess)
+			rc = write(fdtty, "\n", 2);
 		
+		fsess = 0;
 		while (!cmd_quit) {
 			if ((rc = pipe_rw(fdtty, sock_cli)) < 0)
 				break;
@@ -231,7 +237,7 @@ daemon_proc(int sock, int fdtty)
 				break;
 			/* time out */
 			if (rc == 0)
-				continue;
+				continue;	
 		}	
 		pipe_rw(fdtty, sock_cli);
 		rc = write(sock_cli, goodbye, strlen(goodbye));
