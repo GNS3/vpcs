@@ -1,5 +1,5 @@
 RM=rm -f
-CC=gcc $(CCOPT)
+CC=gcc-5 $(CCOPT)
 OSTYPE=Darwin
 CPUTYPE=i386
 HVOPT=-DHV
