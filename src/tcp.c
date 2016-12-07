@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -59,12 +59,11 @@ extern int dmpflag;
  *                            close wait
  *                  ACk ->
  *******************************************************/
-int tcp_ack(int ipv)
+int tcp_ack(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m = NULL;
 	
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	
 	if (ipv == IPV6_VERSION)
 		fpacket = packet6;
@@ -73,24 +72,26 @@ int tcp_ack(int ipv)
 	
 	pc->mscb.flags = TH_ACK;
 
-	m = fpacket(&pc->mscb);
+	m = fpacket(pc);
 	
 	if (m == NULL) {
 		printf("out of memory\n");
 		return 0;
 	}
-	enq(&pc->oq, m);
+	
+	/* push m into the background output queue 
+	   which is watched by pth_output */
+	enq(&pc->bgoq, m);
 	
 	return 1;
 }
 
-int tcp_open(int ipv)
+int tcp_open(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m, *p;
 	int i = 0, ok;
 	int state = 0;
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	int (*fresponse)(struct packet *pkt, sesscb *sesscb);
 	
 	if (ipv == IPV6_VERSION) {
@@ -110,54 +111,64 @@ int tcp_open(int ipv)
 		pc->mscb.seq = rand();
 		pc->mscb.ack = 0;
 
-		m = fpacket(&pc->mscb);
+		m = fpacket(pc);
 	
 		if (m == NULL) {
 			printf("out of memory\n");
 			return 0;
 		}
-		enq(&pc->oq, m);   
+		/* push m into the background output queue 
+		   which is watched by pth_output */
+		enq(&pc->bgoq, m);
 		
 		//k = 0;
 		ok = 0;
 		gettimeofday(&(tv), (void*)0);
 		while (!timeout(tv, pc->mscb.waittime) && !ctrl_c) {
 			delay_ms(1);
-			
+
 			while ((p = deq(&pc->iq)) != NULL && 
 			    !timeout(tv, pc->mscb.waittime) && !ctrl_c) {	
 				
 				ok = fresponse(p, &pc->mscb);
 				del_pkt(p);
-				
+
 				if (!ok) 
 					continue;
 
 				if (ok == IPPROTO_ICMP)
 					return 2;
-				else if (pc->mscb.rack == (pc->mscb.seq + 1) && 
+				
+				if (pc->mscb.rack == (pc->mscb.seq + 1) && 
 					pc->mscb.rflags == (TH_SYN | TH_ACK)) {
 					state = 1;
-				} else if ((pc->mscb.rflags & TH_RST) != TH_RST) {
+					tv.tv_sec = 0;
+					break;
+				} 
+				
+				if ((pc->mscb.rflags & TH_RST) != TH_RST) {
 					pc->mscb.flags = TH_RST | TH_ACK;
 					pc->mscb.seq = pc->mscb.rack;
 					pc->mscb.ack = pc->mscb.rseq;
 					
-					m = fpacket(&pc->mscb);
+					m = fpacket(pc);
 					if (m == NULL) {
 						printf("out of memory\n");
 						return 0;
 					}
-					
-					enq(&pc->oq, m);
+					/* push m into the background output 
+					   queue which is watched 
+					   by pth_output */
+					enq(&pc->bgoq, m);
 					
 					delay_ms(1);
-				} else if ((pc->mscb.rflags & TH_RST) == TH_RST) {
-					return 3;	
+					tv.tv_sec = 0;
+					break;
 				}
+				if ((pc->mscb.rflags & TH_RST) == TH_RST)
+					return 3;	
 				
 				tv.tv_sec = 0;
-
 				break;
 			}
 		}
@@ -168,7 +179,7 @@ int tcp_open(int ipv)
 		/* reply ACK , ack+1 */
 		pc->mscb.seq = pc->mscb.rack;
 		pc->mscb.ack = pc->mscb.rseq + 1;
-		tcp_ack(ipv);
+		tcp_ack(pc, ipv);
 
 		return 1;
 	}
@@ -177,14 +188,13 @@ int tcp_open(int ipv)
 /*
  * return 1 if ACK, 2 if FIN|PUSH
  */
-int tcp_send(int ipv)
+int tcp_send(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m, *p;
 	int i = 0, ok;
 	int state = 0;
 	
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	int (*fresponse)(struct packet *pkt, sesscb *sesscb);
 	
 	if (ipv == IPV6_VERSION) {
@@ -206,7 +216,7 @@ int tcp_send(int ipv)
 		if (pc->mscb.rflags == (TH_ACK | TH_PUSH) &&
 			pc->mscb.seq == pc->mscb.rack) {
 			pc->mscb.ack = pc->mscb.rseq + pc->mscb.rdsize;
-			tcp_ack(ipv);
+			tcp_ack(pc, ipv);
 			delay_ms(1);
 		}
 	}	
@@ -216,13 +226,15 @@ int tcp_send(int ipv)
 		struct timeval tv;
 		
 		pc->mscb.flags = TH_ACK | TH_PUSH;
-		m = fpacket(&pc->mscb);
+		m = fpacket(pc);
 	
 		if (m == NULL) {
 			printf("out of memory\n");
 			return 0;
 		}
-		enq(&pc->oq, m);   
+		/* push m into the background output queue 
+		   which is watched by pth_output */
+		enq(&pc->bgoq, m);
 		
 		//k = 0;
 		ok = 0;
@@ -237,7 +249,7 @@ int tcp_send(int ipv)
 					continue;
 
 				if (pc->mscb.rflags == (TH_ACK) && 
-					pc->mscb.rack == pc->mscb.seq + pc->mscb.dsize) {
+				    pc->mscb.rack == pc->mscb.seq + pc->mscb.dsize) {
 					pc->mscb.seq = pc->mscb.rack;
 					pc->mscb.ack = pc->mscb.rseq;		
 					state = 1;
@@ -252,7 +264,7 @@ int tcp_send(int ipv)
 					pc->mscb.seq = pc->mscb.rack;
 					pc->mscb.ack = pc->mscb.rseq + pc->mscb.rdsize;
 					
-					tcp_ack(ipv);
+					tcp_ack(pc, ipv);
 					
 					if (pc->mscb.seq == tseq+ pc->mscb.dsize)
 						return 1;
@@ -284,15 +296,14 @@ int tcp_send(int ipv)
 	return 0;
 }
 
-int tcp_close(int ipv)
+int tcp_close(pcs *pc, int ipv)
 {
-	pcs *pc = &vpc[pcid];
 	struct packet *m, *p;
 	int i = 0, ok;
 	int state = 0;
 	int rfin = 0;
 	
-	struct packet * (*fpacket)(sesscb *sesscb);
+	struct packet * (*fpacket)(pcs *pc);
 	int (*fresponse)(struct packet *pkt, sesscb *sesscb);
 	
 	if (ipv == IPV6_VERSION) {
@@ -314,7 +325,7 @@ int tcp_close(int ipv)
 		if (pc->mscb.rflags == (TH_ACK | TH_PUSH) &&
 			pc->mscb.seq == pc->mscb.rack) {
 			pc->mscb.ack = pc->mscb.rseq + pc->mscb.rdsize;
-			tcp_ack(ipv);
+			tcp_ack(pc, ipv);
 			delay_ms(1);
 			continue;
 		}
@@ -328,7 +339,7 @@ int tcp_close(int ipv)
 			pc->mscb.ack = pc->mscb.rseq;
 			pc->mscb.ack++;
 			
-			tcp_ack(ipv);
+			tcp_ack(pc, ipv);
 			
 			delay_ms(1);
 			rfin = 1;
@@ -344,20 +355,21 @@ int tcp_close(int ipv)
 		state = 0;
 		
 		pc->mscb.flags = TH_FIN | TH_ACK | TH_PUSH;
-		m = fpacket(&pc->mscb);
+		m = fpacket(pc);
 	
 		if (m == NULL) {
 			printf("out of memory\n");
 			return 0;
 		}
-		enq(&pc->oq, m);   
+		
+		/* push m into the background output queue which is watched by pth_output */
+		enq(&pc->bgoq, m);   
 		
 		/* expect ACK */
-		//k = 0;
 		gettimeofday(&(tv), (void*)0);
 		while (!timeout(tv, pc->mscb.waittime) && !ctrl_c) {
 			delay_ms(1);
-			while ((p = deq(&pc->iq)) != NULL) {	
+			while ((p = deq(&pc->iq)) != NULL) {
 				ok = fresponse(p, &pc->mscb);
 				del_pkt(p);
 				
@@ -413,7 +425,7 @@ int tcp_close(int ipv)
 		
 		/* the remote sent FIN/ACK, response the ACK */
 		pc->mscb.ack++;
-		tcp_ack(ipv);
+		tcp_ack(pc, ipv);
 		
 		return 1;
 	}
@@ -501,6 +513,7 @@ int tcp(pcs *pc, struct packet *m)
 	 * 4. mscb.proto is TCP
 	 */
 	if (pc->mscb.sock && ntohs(ti->ti_dport) == pc->mscb.sport && 
+	    ntohs(ti->ti_sport) == pc->mscb.dport && 
 	    ip->sip == pc->mscb.dip && pc->mscb.proto == ip->proto) {
 		/* mscb is actived, up to the upper application */
 		if (time_tick - pc->mscb.timeout <= TCP_TIMEOUT)
@@ -517,9 +530,10 @@ int tcp(pcs *pc, struct packet *m)
 		rcb.flags = TH_RST | TH_FIN | TH_ACK;
 		
 		p = tcpReply(m, &rcb);
+		
+		/* push m into the background output queue which is watched by pth_output */
 		if (p != NULL) {
-			fix_dmac(pc, p);
-			enq(&pc->oq, p);
+			enq(&pc->bgoq, p);			
 		} else
 			printf("reply error\n");
 		
@@ -575,20 +589,20 @@ int tcp(pcs *pc, struct packet *m)
 		} else {
 			cb->timeout = time_tick;
 			p = tcpReply(m, cb);
+			
+			/* push m into the background output queue which is watched by pth_output */
 			if (p != NULL) {
-				fix_dmac(pc, p);
-				if (pc->ip4.flags & IPF_FRAG)
-					p = ipfrag(p, pc->mtu);
-				enq(&pc->oq, p);
+				enq(&pc->bgoq, p);
 			}
 			
 			/* send FIN after ACK if got FIN */
 			if ((cb->rflags & TH_FIN) == TH_FIN && 
 			    cb->flags == (TH_ACK | TH_FIN)) {
 				p = tcpReply(m, cb);
+				
+				/* push m into the background output queue which is watched by pth_output */
 				if (p != NULL) {
-					fix_dmac(pc, p);
-					enq(&pc->oq, p);
+					enq(&pc->bgoq, p);
 				}
 			}
 		}
@@ -665,24 +679,26 @@ int tcp6(pcs *pc, struct packet *m)
 	sesscb *cb = NULL;
 	struct packet *p = NULL;
 	int i;
-	
+
 	/* from linklocal */
 	if (ip->src.addr16[0] == IPV6_ADDR_INT16_ULL) {
-		if (!IP6EQ(&(pc->link6.ip), &(ip->dst)) || th->th_sport != th->th_dport)
+		if (!IP6EQ(&(pc->link6.ip), &(ip->dst)))// || th->th_sport != th->th_dport)
 			return PKT_DROP;
 	} else {
-		if (!IP6EQ(&(pc->ip6.ip), &(ip->dst)) || th->th_sport != th->th_dport)
+		if (!IP6EQ(&(pc->ip6.ip), &(ip->dst)))// || th->th_sport != th->th_dport)
 			return PKT_DROP;
 	}
+
 	/* response packet 
 	 * 1. socket opened
 	 * 2. same port
 	 * 3. destination is me
 	 * 4. mscb.proto is TCP
 	 */
-	if (pc->mscb.sock && ntohs(th->th_sport) == pc->mscb.sport && 
-	    IP6EQ(&(pc->mscb.dip6), &(ip->src)) && 
-	    pc->mscb.proto == ip->ip6_nxt) {
+	if (pc->mscb.sock && pc->mscb.proto == ip->ip6_nxt &&
+	    ntohs(th->th_dport) == pc->mscb.sport && 
+	    ntohs(th->th_sport) == pc->mscb.dport &&
+	    IP6EQ(&(pc->mscb.dip6), &(ip->src))) {
 		/* mscb is actived, up to the upper application */
 		if (time_tick - pc->mscb.timeout <= TCP_TIMEOUT)
 			return PKT_UP;
@@ -699,9 +715,10 @@ int tcp6(pcs *pc, struct packet *m)
 		rcb.seq = time(0);
 		
 		p = tcp6Reply(m, &rcb);
+		
+		/* push m into the background output queue which is watched by pth_output */
 		if (p != NULL) {
-			fix_dmac6(pc, p);
-			enq(&pc->oq, p);
+			enq(&pc->bgoq, p);
 		} else
 			printf("reply error\n");
 		
@@ -727,10 +744,12 @@ int tcp6(pcs *pc, struct packet *m)
 				memcpy(cb->dip6.addr8, ip->dst.addr8, 16);
 				cb->sport = th->th_sport;
 				cb->dport = th->th_dport;
-				
+
 				break;
 			}
 		} else {
+
+	
 			if ((time_tick - 
 			    pc->sesscb[i].timeout <= TCP_TIMEOUT) && 
 			    IP6EQ(&(pc->sesscb[i].sip6), &(ip->src)) && 
@@ -743,7 +762,7 @@ int tcp6(pcs *pc, struct packet *m)
 			}	
 		}
 	}
-	
+
 	if (th->th_flags == TH_SYN && cb == NULL) {
 		printf("VPCS %d out of session\n", pc->id);
 		return PKT_DROP;
@@ -756,17 +775,18 @@ int tcp6(pcs *pc, struct packet *m)
 		} else {
 			cb->timeout = time_tick;
 			p = tcp6Reply(m, cb);
-			if (p != NULL) {
-				fix_dmac6(pc, p);
-				enq(&pc->oq, p);
-			}
 			
+			/* push m into the background output queue which is watched by pth_output */
+			if (p != NULL) {
+				enq(&pc->bgoq, p);
+			}
+
 			/* send FIN after ACK if got FIN */	
 			if ((cb->rflags & TH_FIN) == TH_FIN && cb->flags == (TH_ACK | TH_FIN)) {	
 				p = tcp6Reply(m, cb);
+				/* push m into the background output queue which is watched by pth_output */
 				if (p != NULL) {
-					fix_dmac6(pc, p);
-					enq(&pc->oq, p);
+					enq(&pc->bgoq, p);
 				}
 			}
 		}

@@ -158,8 +158,9 @@ int sameNet6(char *s, char *d, int cidr)
 			return 0;
 		i++;
 	}
+	
 	b = 8 - cidr % 8;
-	if ((s[i] >> b) != (d[i] >> b))
+	if (i < 16 && ((s[i] >> b) & 0xff) != ((d[i] >> b) & 0xff))
 		return 0;
 	
 	return 1;
@@ -277,6 +278,8 @@ const char *icmpTypeCode2String(int ipv, u_int8_t type, u_int8_t code)
 				if (code <= 6)
 					return Dest6Unreach[code];
 				break;
+			case 2:
+				return "ICMPv6 packet too big";
 			case 3:
 				if (code <= 1)
 					return Time6Exceed[code];

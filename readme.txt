@@ -1,5 +1,5 @@
 
-   Welcome to Virtual PC Simulator, Ver 0.5b2.
+   Welcome to Virtual PC Simulator, Ver 0.8.
    
    VPCS is free software, distributed under the terms of the "BSD" licence.
    Source code and license can be found at vpcs.sf.net.
@@ -26,33 +26,32 @@ execute the commands in it if you are not set the startup file from the command
 line. All the commands in the startup file are the internal commands of the VPCS.
 The line started with '#' or '!' will be discarded.
 
-   usage: vpcs [options] [scriptfile]
-   Option:
-       -h         print this help then exit
-       -v         print version information then exit
-
-       -i num     number of vpc instances to start (default is 9)
-       -p port    run as a daemon listening on the tcp 'port'
-       -m num     start byte of ether address, default from 0
-       -r file    load and execute script file
-                  compatible with older versions, DEPRECATED.
-   
-       -e         tap mode, using /dev/tapx (linux only)
-       -u         udp mode, default
-   
-   udp mode options:
-       -s port    local udp base port, default from 20000
-       -c port    remote udp base port (dynamips udp port), default from 30000
-       -t ip      remote host IP, default 127.0.0.1
-
-   tap mode options:
-       -d device  device name, works only when -i is set to 1
-
-   hypervisor mode option:
-    -H port    run as the hypervisor listening on the tcp 'port'
-
-     If no 'scriptfile' specified, vpcs will read and execute the file named
-     'startup.vpc' if it exsits in the current directory.
+  usage: vpcs [OPTIONS] [FILENAME]
+  OPTIONS:
+    -h             print this help then exit
+    -v             print version information then exit
+  
+    -i num         number of vpc instances to start (default is 9)
+    -p port        run as a daemon listening on the tcp port
+    -m num         start byte of ether address, default from 0
+    [-r] FILENAME  load and execute script file FILENAME
+  
+    -e             tap mode, using /dev/tapx by default (linux only)
+    [-u]           udp mode, default
+  
+  udp mode options:
+    -s port        local udp base port, default from 20000
+    -c port        remote udp base port (dynamips udp port), default from 30000
+    -t ip          remote host IP, default 127.0.0.1
+  
+  tap mode options:
+    -d device      device name, works only when -i is set to 1
+  
+  hypervisor mode option:
+    -H port        run as the hypervisor listening on the tcp port
+  
+    If no FILENAME specified, vpcs will read and execute the file named
+    startup.vpc if it exists in the current directory.
 
    NOTE: 
    1. The cygwin1.dll used by VPCS maybe conflicted with other version. Please 
@@ -63,7 +62,20 @@ The line started with '#' or '!' will be discarded.
 Website: http://wiki.freecode.com.cn or http://mirnshi.cublog.cn
    
 History:
+   0.8     Support IPv6 fragmentation
+           Support DNS AAAA record
+           Add an option to disable the relay function from the command line
 
+   0.6     bugfix: use MAC of gateway while replying in the background
+           bugfix: command with more than 20 arguments will cause core dump
+           check mtu when receiving the packet, reply the packet is too big
+           drop 'ip mtu', add 'set mtu'
+           dump relay packets to file
+           reformat help text
+           renew the dhcp4 lease automatically
+           support ip fragmentation
+           zero, loopback and broadcast address are invalid now
+           
    0.5b2   fix: using getenv+access to the real path of VPCS.
            patch for Debian GNU/kFreeBSD from Daniel Lintott
            flush out the output buffer while running 'echo ...'

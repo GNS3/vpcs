@@ -2,10 +2,9 @@ RM=rm -f
 CC=gcc $(CCOPT)
 OSTYPE=Linux
 CPUTYPE=i386
-OPT=-O2
 HVOPT=-DHV
 
-CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) -Dcygwin $(OPT) $(HVOPT) -Wall -I.
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) -Dcygwin $(HVOPT) -Wall -I.
 LDFLAGS=-static -lpthread -s -static-libgcc -lutil
 OBJS=vpcs.o \
 	daemon.o \
@@ -27,7 +26,9 @@ OBJS=vpcs.o \
 	help.o \
 	dump.o \
 	relay.o \
-	hv.o
+	hv.o \
+	frag.o \
+	frag6.o
 
 all: vpcs
 

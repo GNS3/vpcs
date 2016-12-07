@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -98,7 +98,7 @@ static FILE *fptys;
 static int sock = -1;
 static int sock_cli = -1;
 static int cmd_quit = 0;
-static volatile int cmd_wait = 0;
+//static volatile int cmd_wait = 0;
 static pthread_t pid_master, pid_salve;
 static int hvport = 2000;
 static struct rls *rls = NULL;
@@ -801,16 +801,16 @@ ret:
 static int 
 run_help(int ac, char **av)
 {
-	fprintf(fptys,
-		"help | ?              Print help\r\n"
-		"vpcs [parameters]     Start vpcs with parameters of vpcs\r\n"
-		"stop id               Stop vpcs process\r\n"
-		"list                  List vpcs process\r\n"
-		"disconnect            Exit the telnet session\r\n"
-		"quit [-f]             Stop vpcs processes and hypervisor\r\n"
-		"                        -f force quit without prompting\r\n"
-		"telnet [<ip>] <port>  Telnet to <port> at <ip> (def 127.0.0.1)\r\n"
-		"rlogin [<ip>] <port>  Same as telnet\r\n"
+	esc_fprn(fptys,
+		"{Hhelp} | {H?}              Print help\r\n"
+		"{Hdisconnect}            Exit the telnet session\r\n"
+		"{Hlist}                  List vpcs process\r\n"
+		"{Hquit} [{H-f}]             Stop vpcs processes and hypervisor\r\n"
+		"                        {H-f} force quit without prompting\r\n"
+		"{Hrlogin} [{Uip}] {Uport}  Same as telnet\r\n"
+		"{Hstop} {Uid}               Stop vpcs process\r\n"
+		"{Htelnet} [{Uip}] {Uport}  Telnet to {Uport} at {Uip} (def 127.0.0.1)\r\n"
+		"{Hvpcs} [{Uparameters}]     Start vpcs with {Uparameters} of vpcs\r\n"
 		);
 	
 	return 0;

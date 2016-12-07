@@ -39,9 +39,6 @@ typedef struct {
 	int timeout;
 } ipmac;
 
-#define ARP_SIZE 10
-#define NB_SIZE 10
-
 typedef struct {
 	u_int svr;
 	u_char smac[6];
@@ -65,13 +62,20 @@ typedef struct {
 } ip6mac;
 
 typedef struct {
-	ip6	ip;			/* local host ip6 */
-	int cidr;			/* local host ip6 netmask */
-	int type;			/* 1:eui-64 2:locallink */
+	int timeout;
+	ip6 ip;
+	u_int32_t mtu;
+} ip6mtu;
+
+typedef struct {
+	ip6	ip;		/* local host ip6 */
+	int cidr;		/* local host ip6 netmask */
+	int type;		/* 1:eui-64 2:locallink */
 #define IP6TYPE_NONE 0	
 #define IP6TYPE_EUI64 1
 #define IP6TYPE_LOCALLINK 2
-	u_char gmac[6];			/* destination host mac */
+	u_char gmac[6];		/* destination host mac */
+	ip6 dns[2];		/* local host ip6 */
 } hipv6;
 	
 typedef struct {
@@ -90,12 +94,16 @@ typedef struct {
 } hipv4;
 
 #define MAX_NAMES_LEN	(6)
-#define MAX_SESSIONS 1000	
+#define MAX_SESSIONS	1000
+#define POOL_SIZE	32
+#define POOL_TIMEOUT	120
+
 typedef struct {
 	int id;				/* pc id */
 	char xname[MAX_NAMES_LEN + 1];	/* pc name */
-	pthread_t rpid;                 /* reader pthread id */
-	pthread_t wpid;                 /* writer pthread id */	
+	pthread_t outid;		/* ip output pthread id */
+	pthread_t rpid;			/* reader pthread id */
+	pthread_t wpid;			/* writer pthread id */	
 	int dmpflag;			/* dump flag */
 	FILE *dmpfile;			/* dump file pointer */
 	int bgjobflag;			/* backgroun job flag */
@@ -105,14 +113,16 @@ typedef struct {
 	int rport;			/* remote udp port */
 	u_int rhost;			/* remote host */
 	struct pq bgiq;			/* background input queue */
+	struct pq bgoq;			/* background output queue */
 	struct pq iq;			/* queue */
 	struct pq oq;			/* queue */
 	pthread_mutex_t locker;		/* mutex */
 	sesscb mscb;			/* opened by app */
 	sesscb sesscb[MAX_SESSIONS];	/* tcp session pool */
 	tcpcb6 tcpcb6[MAX_SESSIONS];	/* tcp6 session pool */
-	ipmac ipmac4[ARP_SIZE];		/* arp pool */
-	ip6mac ipmac6[NB_SIZE];		/* neighbor pool */
+	ipmac ipmac4[POOL_SIZE];	/* arp pool */
+	ip6mac ipmac6[POOL_SIZE];	/* neighbor pool */
+	ip6mtu ip6mtu[POOL_SIZE];	/* mtu6 record */
 	hipv4 ip4;
 	int ip6auto;
 	hipv6 ip6;

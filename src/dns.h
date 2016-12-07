@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -49,10 +49,10 @@ typedef struct {
 	u_char z:3;
 	u_char ra:1;
 } dnsflags;
-		
+
 #define MAX_DNS_NAME 64
 
-int hostresolv(pcs *pc, char *name, u_int *ip);
+int hostresolv(pcs *pc, char *name, char *ipstr);
 int dmp_dns_rname(char *s, char *se, char *name);
 
 #endif

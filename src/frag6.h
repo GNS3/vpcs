@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2013, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -24,51 +24,32 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
 **/
 
-#ifndef _PKTQ_H_
-#define _PKTQ_H_
+#ifndef _FRAG6_H_
+#define _FRAG6_H_
 
-#include <sys/types.h>
-#include <pthread.h>		
-#include <sys/time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
-#define PKTQ_SIZE	(101)
+#include "ip.h"
 
-#define PKT_DROP	0	/* drop it */
-#define PKT_ENQ		1	/* enqueued */
-#define PKT_UP		2	/* application */
-
-struct packet {
-	struct packet *next;
-	int len;
-	struct timeval ts;
-	char data[0];
+struct frag6link {
+	struct frag6link *prev;
+	struct frag6link *next;
+	struct packet *m;	/* to ip headers of fragments */
+	u_int  expired;
+	u_int  flags:4,		/* first and last fragments */
+	       nfrags:4;	/* count of fragments */
+#define FF_HEAD 1
+#define FF_TAIL  2
+	u_char  proto;		/* protocol of this fragment */
+	u_int32_t id;		/* sequence id for reassembly */
+	ip6 sip;
+	ip6 dip;
 };
 
-struct pq {
-	int type;				/* for debug */
-	int ip;					/* pointer of the queue */
-	int size;				/* size of queue */
-	pthread_mutex_t locker;
-	pthread_cond_t cond;
-	struct packet *q;
-};
-
-#define copy_pkt(dst, src) { \
-	dst->len = src->len; \
-	memcpy(dst->data, src->data, src->len); \
-	dst->ts = src->ts; \
-}
-
-void init_queue(struct pq*);
-struct packet *enq(struct pq*, struct packet *pkt);
-struct packet *deq(struct pq*);
-struct packet *waitdeq(struct pq *pq);
-void lock_q(struct pq*);
-void ulock_q(struct pq*);
-struct packet *new_pkt(int len);
-void del_pkt(struct packet *m);
-void free_pkts(struct packet *m);
+void init_ip6frag(void);
+struct packet *ipfrag6(struct packet *m0, int mtu);
+struct packet *ipreass6(struct packet *m);
 
 #endif
-
-/* end of file */

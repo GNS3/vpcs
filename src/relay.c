@@ -52,6 +52,7 @@ static int relay_fd = 0;
 static int relay_port = 0;
 static FILE *relay_dumpfile = NULL;
 static int relaydump = 0;
+extern int runRelay;
 
 int run_relay(int argc, char **argv)
 {
@@ -61,6 +62,11 @@ int run_relay(int argc, char **argv)
 	char tmp[32];
 	char *p;
 	int i, j;
+	
+	if (!runRelay) {
+		printf("Relay function is disabled\n");
+		return 0;
+	}
 	
 	if (argc == 3 && !strcmp(argv[1], "dump")) {
 		if (!strcasecmp(argv[2], "on"))
@@ -307,13 +313,16 @@ void save_relay(FILE *fp)
 
 void *pth_relay(void *dummy)
 {
-	char buf[1500];
+	char buf[1600];
 	int len;
 	int n = 0;
 	struct sockaddr_in peeraddr;
 	struct sockaddr_in addr;
 	socklen_t size;
 	struct peerlist *peerhost;
+	
+	if (!runRelay)
+		return NULL;
 		
 	relay_port = vpc[0].lport + MAX_NUM_PTHS;
 	relay_fd = open_udp(relay_port);
@@ -354,8 +363,8 @@ void *pth_relay(void *dummy)
 			if (peerhost->nodeb.port == peeraddr.sin_port) {
 				if (peerhost->nodeb.ip == htonl(INADDR_ANY) ||
 				    peerhost->nodeb.ip == peeraddr.sin_addr.s_addr) {
-			    		addr.sin_addr.s_addr = peerhost->nodea.ip;
-			    		addr.sin_port = peerhost->nodea.port;
+					addr.sin_addr.s_addr = peerhost->nodea.ip;
+					addr.sin_port = peerhost->nodea.port;
 					break;
 				}
 			}

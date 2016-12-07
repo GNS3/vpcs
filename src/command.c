@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -112,6 +112,9 @@ int run_show(int argc, char **argv)
 		if (!strncmp("ipv6", argv[1], strlen(argv[1])))
 			return show_ipv6(argc, argv);
 		
+		if (!strncmp("mtu6", argv[1], strlen(argv[1])))
+			return show_mtu6(argc, argv);
+		
 		if (!strncmp("echo", argv[1], strlen(argv[1])))
 			return show_echo(argc, argv);
 		
@@ -219,6 +222,7 @@ int run_ping(int argc, char **argv)
 	pcs *pc = &vpc[pcid];
 	char dname[256];
 	u_char flags;
+	char ipstr[64];
 
 	char proto_seq[16];
 	int count = 5;
@@ -369,26 +373,44 @@ int run_ping(int argc, char **argv)
 		}
 	}
 	
+	if (!(pc->mscb.frag & IPF_FRAG) && 
+	    (pc->mscb.mtu < (pc->mscb.dsize + sizeof(iphdr)))) {
+		printf("packet size is greater than MTU(%d)\n", pc->mscb.mtu);
+		return 0;
+	}
 	if (pc->mscb.winsize == 0)
 		pc->mscb.winsize = 0xb68; /* 1460 * 4 */
 
-	if (strchr(argv[1], ':') != NULL) {
+	if (strchr(argv[1], ':') == NULL) {
+		pc->mscb.dip = inet_addr(argv[1]);
+		
+		if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
+			strcpy(dname, argv[1]);
+			if (hostresolv(pc, dname, ipstr) == 0) {
+				printf("Cannot resolve %s\n", argv[1]);
+				return 0;
+			}
+			
+			printf("%s resolved to ", argv[1]);
+			if (strcmp(argv[1], dname) == 0)
+				printf("%s\n", ipstr);
+			else
+				printf("%s(%s)\n", dname, ipstr);
+
+			if (strchr(ipstr, ':')) {
+				pc->mscb.mtu = pc->mtu;
+				argv[1] = ipstr;
+				return run_ping6(argc, argv);
+			}
+			
+			pc->mscb.dip = inet_addr(ipstr);
+		}
+	} else {
 		pc->mscb.mtu = pc->mtu;
 		return run_ping6(argc, argv);
-	}	
-	pc->mscb.dip = inet_addr(argv[1]);
-	
-	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
-		strcpy(dname, argv[1]);
-		if (hostresolv(pc, dname, &(pc->mscb.dip)) == 0) {
-			printf("Cannot resolve %s\n", argv[1]);
-			return 0;
-		} else {
-			in.s_addr = pc->mscb.dip;
-			printf("%s resolved to %s\n", dname, inet_ntoa(in)); 	
-		}
 	}
 	
+	printf("\n");
 	/* find ether address of destination host or gateway */
 	if (pc->mscb.dip == pc->ip4.ip) {
 		i = 1;
@@ -445,16 +467,18 @@ redirect:
 			
 			dsize = pc->mscb.dsize;
 			pc->mscb.dsize = PAYLOAD56;
-			k = tcp_open(4);
+			k = tcp_open(pc, 4);
 			
 			/* restore data size */
 			pc->mscb.dsize = dsize;
 			
 			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+			    ts0.tv_usec - ts.tv_usec;
 
 			if (k == 0) {
-				printf("Connect   %d@%s timeout\n", pc->mscb.dport, argv[1]);
+				printf("Connect   %d@%s timeout\n", 
+				    pc->mscb.dport, argv[1]);
 				continue;
 			} else if (k == 2) {
 				struct in_addr din;
@@ -462,7 +486,8 @@ redirect:
 				if (pc->mscb.icmptype == ICMP_REDIRECT && 
 				    pc->mscb.icmpcode == ICMP_REDIRECT_NET) {
 					din.s_addr = pc->ip4.gw;	
-					printf("Redirect Network, gateway %s",  inet_ntoa(din));
+					printf("Redirect Network, gateway %s",
+					    inet_ntoa(din));
 					din.s_addr = pc->mscb.rdip;
 					printf(" -> %s\n", inet_ntoa(din));
 					
@@ -471,33 +496,41 @@ redirect:
 					goto redirect;
 				}
 				printf("*%s %s=%d ttl=%d time=%.3f ms", 
-				    inet_ntoa(din), proto_seq, i++, pc->mscb.rttl, usec / 1000.0);
+				    inet_ntoa(din), proto_seq, i++, 
+				    pc->mscb.rttl, usec / 1000.0);
 						
 				printf(" (ICMP type:%d, code:%d, %s)\n", 
 				    pc->mscb.icmptype, pc->mscb.icmpcode, 
-				    icmpTypeCode2String(4, pc->mscb.icmptype, pc->mscb.icmpcode));
+				    icmpTypeCode2String(4, pc->mscb.icmptype, 
+				        pc->mscb.icmpcode));
 				continue;
 			} else if (k == 3) {
-				printf("Connect   %d@%s RST returned\n", pc->mscb.dport, argv[1]);
+				printf("Connect   %d@%s RST returned\n", 
+				    pc->mscb.dport, argv[1]);
 				continue;	
 			}
 			printf("Connect   %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
+			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+			    
+			    usec / 1000.0);
 			
 			traveltime = 0.6 * usec / 1000;
 			/* send data after 1.5 * time2travel */
 			delay_ms(traveltime);
 			gettimeofday(&(ts), (void*)0);
-			k = tcp_send(4);
+			k = tcp_send(pc, 4);
 			if (k == 0) {
-				printf("SendData  %d@%s timeout\n", pc->mscb.dport, argv[1]);
+				printf("SendData  %d@%s timeout\n", 
+				    pc->mscb.dport, argv[1]);
 				continue;
 			}
 			
 			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
+			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+			    ts0.tv_usec - ts.tv_usec;
 			printf("SendData  %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
+			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+			    usec / 1000.0);
 			
 			/* close after 1.5 * time2travel */
 			if (k != 2)
@@ -505,17 +538,20 @@ redirect:
 			gettimeofday(&(ts), (void*)0);	
 			dsize = pc->mscb.dsize;
 			pc->mscb.dsize = PAYLOAD56;
-			k = tcp_close(4);
+			k = tcp_close(pc, 4);
 			pc->mscb.dsize = dsize;
+
+			gettimeofday(&(ts0), (void*)0);
+			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + 
+			    ts0.tv_usec - ts.tv_usec;
 			if (k == 0) {
-				printf("Close     %d@%s timeout\n", pc->mscb.dport, argv[1]);
+				printf("Close     %d@%s timeout(%.3fms)\n", 
+				    pc->mscb.dport, argv[1], usec / 1000.0);
 				continue;
 			}
-			
-			gettimeofday(&(ts0), (void*)0);
-			usec = (ts0.tv_sec - ts.tv_sec) * 1000000 + ts0.tv_usec - ts.tv_usec;
 			printf("Close     %d@%s seq=%d ttl=%d time=%.3f ms\n", 
-			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, usec / 1000.0);
+			    pc->mscb.dport, argv[1], i, pc->mscb.rttl, 
+			    usec / 1000.0);
 		}
 	} else {
 		i = 1;
@@ -528,7 +564,7 @@ redirect:
 			pc->mscb.sn = i;
 			pc->mscb.timeout = time_tick;
 			
-			m = packet(&pc->mscb);
+			m = packet(pc);
 			if (m == NULL) {
 				printf("out of memory\n");
 				return 0;
@@ -934,6 +970,10 @@ int run_ipconfig(int argc, char **argv)
 		return 1;
 	}
 
+	if (!strncmp("dns6", argv[1], strlen(argv[1]))) {
+		return run_ipdns6(argc, argv);
+	}
+	
 	rip = inet_addr(argv[1]);
 	hasgip = gip = 0;
 	icidr = 24;
@@ -970,7 +1010,12 @@ int run_ipconfig(int argc, char **argv)
 	if (icidr < 1 || icidr > 30)
 		icidr = 24;
 		
-	if (rip == -1 || gip == -1 || rip == gip) {
+	if (rip == -1 || gip == -1 || rip == gip ||
+#ifdef Linux
+	    ((rip & 0x7f) == 0x7f) || rip == 0 || IN_MULTICAST(ntohl(rip))) {
+#else
+	    IN_LOOPBACK(ntohl(rip)) || IN_ZERONET(ntohl(rip)) || IN_MULTICAST(ntohl(rip))) {
+#endif
 		printf("Invalid address\n");
 		return 0;
 	}
@@ -1054,6 +1099,7 @@ int run_tracert(int argc, char **argv)
 	char outbuf[1024];
 	int buf_off = 0;
 	char dname[256];
+	char ipstr[64];
 		
 	pc->mscb.seq = time(0);
 	pc->mscb.proto = IPPROTO_UDP;
@@ -1148,13 +1194,18 @@ int run_tracert(int argc, char **argv)
 
 	if (pc->mscb.dip == -1 || pc->mscb.dip == 0) {
 		strcpy(dname, argv[1]);
-		if (hostresolv(pc, dname, &(pc->mscb.dip)) == 0) {
+		if (hostresolv(pc, dname, ipstr) == 0) {
 			printf("Cannot resolve %s\n", argv[1]);
 			return 0;
-		} else {
-			in.s_addr = pc->mscb.dip;
-			printf("%s resolved to %s\n", dname, inet_ntoa(in)); 	
 		}
+		printf("%s resolved to %s\n", dname, ipstr);
+		if (strchr(ipstr, ':')) {
+			pc->mscb.mtu = pc->mtu;
+			argv[1] = ipstr;
+			return run_tracert6(argc, argv);
+		}
+		
+		pc->mscb.dip = inet_addr(ipstr);
 	}
 	
 	if (pc->mscb.dip == pc->ip4.ip) {
@@ -1212,7 +1263,7 @@ redirect:
 			pc->mscb.ttl = i;
 			pc->mscb.icmptype = 0;
 			pc->mscb.rdip = pc->mscb.dip;
-			m = packet(&pc->mscb);
+			m = packet(pc);
 			if (m == NULL) {
 				printf("out of memory\n");
 				return false;
@@ -1627,19 +1678,19 @@ int show_arp(int argc, char **argv)
 				pc = &vpc[si];
 				printf("%s[%d]:\n", pc->xname, si + 1);
 				
-				for (i = 0; i < ARP_SIZE; i++) {
+				for (i = 0; i < POOL_SIZE; i++) {
 					if (pc->ipmac4[i].ip == 0)
 						continue;
 					if (memcmp(pc->ipmac4[i].mac, zero, ETH_ALEN) == 0)
 						continue;
-					if (time_tick - pc->ipmac4[i].timeout > 120)
+					if (time_tick - pc->ipmac4[i].timeout > POOL_TIMEOUT)
 						continue;
 					for (j = 0; j < 6; j++)
 						sprintf(buf + j * 3, "%2.2x:", pc->ipmac4[i].mac[j]);
 					buf[17] = '\0';
 					in.s_addr = pc->ipmac4[i].ip;
 					printf("%s  %s expires in %d seconds \n", buf, inet_ntoa(in), 
-					    120 - (time_tick - pc->ipmac4[i].timeout));
+					    POOL_TIMEOUT - (time_tick - pc->ipmac4[i].timeout));
 					empty = 0;
 					
 				}
@@ -1664,18 +1715,18 @@ int show_arp(int argc, char **argv)
 		printf("%s[%d]:\n", vpc[si].xname, si + 1);
 	
 	pc = &vpc[si];
-	for (i = 0; i < ARP_SIZE; i++) {
+	for (i = 0; i < POOL_SIZE; i++) {
 		if (pc->ipmac4[i].ip == 0)
 			continue;
 		if (etherIsZero(pc->ipmac4[i].mac))
 			continue;
-		if (time_tick - pc->ipmac4[i].timeout < 120) {
+		if (time_tick - pc->ipmac4[i].timeout < POOL_TIMEOUT) {
 			for (j = 0; j < 6; j++)
 				sprintf(buf + j * 3, "%2.2x:", pc->ipmac4[i].mac[j]);
 			buf[17] = '\0';
 			in.s_addr = pc->ipmac4[i].ip;
 			printf("%s  %s expires in %d seconds \n", buf, inet_ntoa(in), 
-			    120 - (time_tick - pc->ipmac4[i].timeout));
+			    POOL_TIMEOUT - (time_tick - pc->ipmac4[i].timeout));
 			empty = 0;
 		}
 	}
@@ -1684,6 +1735,7 @@ int show_arp(int argc, char **argv)
 	
 	return 1;
 }
+
 static int show_dump(int argc, char **argv)
 {
 	int i;
@@ -1841,7 +1893,7 @@ static int show_ip(int argc, char **argv)
 		printf("LPORT       : %d\n", vpc[id].lport);
 		in.s_addr = vpc[id].rhost;
 		printf("RHOST:PORT  : %s:%d\n", inet_ntoa(in), vpc[id].rport);
-		printf("MTU:        : %d\n", vpc[id].mtu);
+		printf("MTU         : %d\n", vpc[id].mtu);
 		return 1;
 	}
 
@@ -1875,7 +1927,7 @@ int run_ver(int argc, char **argv)
 		"Welcome to Virtual PC Simulator, version %s\r\n"
 		"Dedicated to Daling.\r\n"
 		"Build time: %s %s\r\n"
-		"Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)\r\n"
+		"Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)\r\n"
 		"All rights reserved.\r\n\r\n"
 		"VPCS is free software, distributed under the terms of the \"BSD\" licence.\r\n"
 		"Source code and license can be found at vpcs.sf.net.\r\n"

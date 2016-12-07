@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2014, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -39,6 +39,7 @@ int timeout(struct timeval tv, int mseconds);
 int digitstring(const char *s);
 char *ttrim(char *s);
 void esc_prn(const char *fmt, ...);
+void esc_fprn(FILE *f, const char *fmt, ...);
 
 int arg2int(const char* arg, int min, int max, int defalt);
 

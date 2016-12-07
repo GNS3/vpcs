@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2007-2012, Paul Meng (mirnshi@gmail.com)
+ * Copyright (c) 2007-2015, Paul Meng (mirnshi@gmail.com)
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without 
@@ -27,9 +27,12 @@
 #ifndef _IP_H_
 #define _IP_H_
 
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#include <stdio.h>
 
 #define MTU          1500
 #define IPV6_MMTU    1280
@@ -300,6 +303,40 @@ typedef struct {
 #define IPV6_ADDR_INT16_MLL     0x02ff
 
 #define IP6EQ(s, d) (!memcmp((s)->addr8, (d)->addr8, 16))
+#define IP6ZERO(s)	(((s)->addr32[0] == 0) && \
+			((s)->addr32[1] == 0) && \
+			((s)->addr32[0] == 0) && \
+			((s)->addr32[0] == 0))
+
+typedef struct {
+	u_int8_t nxt;
+	u_int8_t len;
+} ip6eh;
+
+struct ip6frag {
+	u_int8_t  nxt;		/* next header */
+	u_int8_t  reserved;	/* reserved field */
+	u_int16_t offlg;	/* 13 bits offset */
+	u_int32_t ident;	/* identification */
+};
+
+#define IPV6_SFRAG_OFFSET(p, o) (p)->offlg =  htons((ntohs((p)->offlg) & ~0x1fff) + ((o) & 0x1fff))
+
+#define IP6F_OFF_MASK           0xf8ff  /* mask out offset from _offlg */
+#define IP6F_RESERVED_MASK      0x0600  /* reserved bits in ip6f_offlg */
+#define IP6F_MORE_FRAG          0x0100  /* more-fragments flag */
+
+#ifndef IPPROTO_FRAGMENT
+#define IPPROTO_FRAGMENT 44
+#endif
+
+#ifndef IPPROTO_AH
+#define IPPROTO_AH 51		/* only for check ehdr, its length is */
+#endif
+
+#ifndef IPV6_MMTU
+#define IPV6_MMTU	1280
+#endif
 
 typedef struct {
 	u_int8_t	type;	/* type field */
@@ -352,6 +389,9 @@ typedef struct {
 #endif
 #ifndef ICMP6_DST_UNREACH
 #define ICMP6_DST_UNREACH		1	/* dest unreachable, codes: */
+#endif
+#ifndef ICMP6_PACKET_TOO_BIG
+#define ICMP6_PACKET_TOO_BIG            2       /* packet too big */
 #endif
 #ifndef ICMP6_TIME_EXCEEDED
 #define ICMP6_TIME_EXCEEDED		3	/* time exceeded, code: */

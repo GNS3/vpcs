@@ -30,6 +30,18 @@
 #include <time.h>
 #include "queue.h"
 
+void
+free_pkts(struct packet *m)
+{
+	struct packet *m0;
+	
+	while (m) {
+		m0 = m->next;
+		del_pkt(m);
+		m = m0;
+	}
+}
+
 void del_pkt(struct packet *m)
 {
 	free(m);
@@ -39,9 +51,9 @@ struct packet *new_pkt(int len)
 {
 	struct packet *m = NULL;
 	
-	m = (struct packet *)malloc(len + sizeof(struct packet) - 1);
+	m = (struct packet *)malloc(len + sizeof(struct packet));
 	if (m != NULL) {
-		memset(m, 0, len + sizeof(struct packet) - 1);
+		memset(m, 0, len + sizeof(struct packet));
 		m->len = len;
 		return m;
 	} else
@@ -54,17 +66,18 @@ struct packet *deq_impl(struct pq *pq, int cond)
 	
 	lock_q(pq);
 	
-	if (cond && (pq->q == NULL) )
+	if (cond && (pq->q == NULL))
 		pthread_cond_wait(&(pq->cond), &(pq->locker));
-	
+
 	if (pq->q != NULL) {
 		m = pq->q;
 		pq->q = pq->q->next;
 		pq->size --;
+		m->next = NULL;
 	}	
 	
 	ulock_q(pq);
-	
+
 	return m;
 }
 
@@ -86,7 +99,7 @@ struct packet *enq(struct pq *pq, struct packet *m)
 		printf("queue is full \n");
 		return NULL;
 	}
-	
+
 	lock_q(pq);
 
 	gettimeofday(&(m->ts), (void*)0);
@@ -98,6 +111,7 @@ struct packet *enq(struct pq *pq, struct packet *m)
 		while (q->next != NULL) q = q->next;
 		q->next = m;	
 	}
+
 	while (m) {
 		pq->size ++;
 		m = m->next;
@@ -106,7 +120,7 @@ struct packet *enq(struct pq *pq, struct packet *m)
 
 	ulock_q(pq);
 	
-	return q;	
+	return q;
 }
 
 void init_queue(struct pq *pq)
