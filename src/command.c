@@ -997,14 +997,11 @@ int run_ipconfig(int argc, char **argv)
 	pc->ip4.ip = rip;
 
     printf("Checking for duplicate address...\n");
-	if (arpResolve(pc, rip, mac) == 1 && !memcmp(mac, pc->ip4.mac, ETH_ALEN)) {
+    if ((arpResolve(pc, rip, mac) == 1) && (memcmp(mac, pc->ip4.mac, ETH_ALEN) != 0)) {
 		in.s_addr = rip;
 		printf("%s is being used by MAC ",  inet_ntoa(in));
 		PRINT_MAC(mac);
 		printf("\nAddress not changed\n");
-		printf("Source MAC is ");
-		PRINT_MAC(pc->ip4.mac);
-		printf("\n%d", !memcmp(mac, pc->ip4.mac, ETH_ALEN));
 		memset(pc->ipmac4, 0, sizeof(pc->ipmac4));
 		// clear ip address
 		pc->ip4.ip = 0;
