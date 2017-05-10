@@ -81,6 +81,6 @@ case ${os} in
         make -f Makefile.osx ${MKOPT}
         ;;
     *)
-    	echo "Not support"
+    	echo "Not support: ${os}"
     	;;
 esac
