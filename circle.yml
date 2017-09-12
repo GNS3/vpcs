@@ -1,0 +1,24 @@
+machine:
+  pre:
+    # fixes circle-ci bug https://discuss.circleci.com/t/virtualenv-error-on-osx-build/387/7
+    - sudo -H pip install --upgrade virtualenv
+
+dependencies:
+  override:
+    - brew install gcc5
+
+test:
+  override:
+    - cd src && ./mk.sh amd64
+
+  post:
+    - mv src/vpcs $CIRCLE_ARTIFACTS/vpcs-osx
+    - >
+      if [ -n "${RUN_NIGHTLY_BUILD}" ]; then
+        ssh-keyscan -H frs.sourceforge.net >> ~/.ssh/known_hosts
+        echo "mkdir \"/home/frs/project/gns-3/Nightly Builds/$(date +"%Y-%m-%d")/\"" | sftp gns3build@frs.sourceforge.net
+        echo -ne "
+          cd \"/home/frs/project/gns-3/Nightly Builds/$(date +"%Y-%m-%d")/\"
+          put \"$CIRCLE_ARTIFACTS/vpcs-osx\"
+        " | sftp gns3build@frs.sourceforge.net
+      fi
