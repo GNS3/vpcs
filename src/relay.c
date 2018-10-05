@@ -89,15 +89,16 @@ int run_relay(int argc, char **argv)
 	}
 	if (argc == 3 && !strcmp(argv[1], "port")) {
 		port = atoi(argv[2]);
-		if (port > 1024 && port < 65534)
+		if (port > 1024 && port < 65534) {
 			relay_port = port;
 			if (relay_fd) {
 				close(relay_fd);
 			
-			relay_fd = open_udp(relay_port);
-			if (relay_fd <= 0) {
-				printf("Open relay port %d error [%s]\n", 
-				    relay_port, strerror(errno));
+				relay_fd = open_udp(relay_port);
+				if (relay_fd <= 0) {
+					printf("Open relay port %d error [%s]\n", 
+					    relay_port, strerror(errno));
+				}
 			}
 		} else
 			printf("The port is out of range\n");
