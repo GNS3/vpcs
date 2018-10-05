@@ -1,11 +1,11 @@
 RM=rm -f
 CC=gcc $(CCOPT)
 OSTYPE=Linux
-CPUTYPE=i386
+CPUTYPE:=$(shell uname -m)
 HVOPT=-DHV
 
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall -I. -DTAP
-LDFLAGS=-lpthread -lutil -s -static
+LDFLAGS=-lpthread -lutil
 OBJS=vpcs.o \
 	daemon.o \
 	readline.o \
