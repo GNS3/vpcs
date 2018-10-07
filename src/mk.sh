@@ -24,7 +24,7 @@ case ${os} in
     FreeBSD|Darwin|Linux)
     	make -f Makefile.unix ${MKOPT}
     	;;
-    CYGWIN*)
+    CYGWIN*|MSYS*)
         make -f Makefile.cygwin ${MKOPT}
         ;;
     *)
