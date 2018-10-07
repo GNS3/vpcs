@@ -28,6 +28,6 @@ case ${os} in
         make -f Makefile.cygwin ${MKOPT}
         ;;
     *)
-    	echo "Not support"
+    	echo "build script is not supported for OS ${os}"
     	;;
 esac
