@@ -138,11 +138,11 @@ void appenddomain(pcs *pc, char *dname, const char *name)
 		dn = pc->ip4.dhcp.domain;
 	
 	if (strchr(name, '.') || dn == NULL) {
-		snprintf(dname, sizeof(dname), "%s", name);
+		snprintf(dname, 127, "%s", name);
 		return;
 	}
 	
-	snprintf(dname, sizeof(dname), "%s.%s", name, dn);
+	snprintf(dname, 127, "%s.%s", name, dn);
 }
 
 struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
