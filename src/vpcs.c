@@ -148,7 +148,8 @@ int main(int argc, char **argv)
 	int i;
 	char prompt[MAX_LEN];
 	int c;
-	pthread_t timer_pid, relay_pid, bgjob_pid;
+	pthread_t timer_pid, bgjob_pid;
+	// pthread_t relay_pid;
 	int daemon_bg = 1;
 	char *cmd;
 
