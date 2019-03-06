@@ -1,7 +1,7 @@
 RM=rm -f
 CC=gcc $(CCOPT)
 OSTYPE=Linux
-CPUTYPE=$(shell uname -m)
+CPUTYPE=i386
 HVOPT=-DHV
 
 CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) -Dcygwin $(HVOPT) -Wall -I.
