@@ -1,0 +1,41 @@
+RM=rm -f
+CC=gcc $(CCOPT)
+OSTYPE=Linux
+CPUTYPE:=$(shell uname -m)
+HVOPT=-DHV
+
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall -I. -DTAP
+LDFLAGS=-lpthread -lutil
+OBJS=vpcs.o \
+	daemon.o \
+	readline.o \
+	packets.o \
+	utils.o \
+	queue.o \
+	command.o \
+	dev.o \
+	dhcp.o \
+	command6.o \
+	packets6.o \
+	ip.o \
+	tcp.o \
+	inet6.o \
+	dns.o \
+	remote.o \
+	help.o \
+	dump.o \
+	relay.o \
+	hv.o \
+	frag.o \
+	frag6.o
+	
+all: vpcs
+
+vpcs: $(OBJS)
+	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
+
+.c.o: keys.h vpcs.h packets.h dhcp.h
+	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
+
+clean:
+	$(RM) *.o vpcs

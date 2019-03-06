@@ -1,12 +1,11 @@
 RM=rm -f
-OSTYPE=$(shell uname)
-ARCH=$(shell uname -m)
-CC=cc
+CC=gcc-5 $(CCOPT)
+OSTYPE=Darwin
+CPUTYPE=i386
 HVOPT=-DHV
-CCOPT=-Wall
 
-CFLAGS=$(CCOPT) -D$(OSTYPE) -D$(ARCH) $(HVOPT) -I.
-LDFLAGS=-lpthread -lutil
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall
+LDFLAGS=-lpthread
 OBJS=vpcs.o \
 	daemon.o \
 	readline.o \
@@ -29,14 +28,16 @@ OBJS=vpcs.o \
 	hv.o \
 	frag.o \
 	frag6.o
-	
+
 all: vpcs
 
 vpcs: $(OBJS)
 	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
 
+debug: vpcs
+
 .c.o: keys.h vpcs.h packets.h dhcp.h
-	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
+	$(CC) $(INCLUDE_PATH) $(CFLAGS) $(OPT) -c $<
 
 clean:
 	$(RM) *.o vpcs
