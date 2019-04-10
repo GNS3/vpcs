@@ -93,7 +93,7 @@ typedef struct {
 #define IPF_FRAG 0x1
 } hipv4;
 
-#define MAX_NAMES_LEN	(6)
+#define MAX_NAMES_LEN	(12)
 #define MAX_SESSIONS	1000
 #define POOL_SIZE	32
 #define POOL_TIMEOUT	120
