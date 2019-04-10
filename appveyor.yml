@@ -19,4 +19,4 @@ build_script:
 
 
 artifacts:
-  - path: 'vpcs.exe'
+  - path: 'src\vpcs.exe'
