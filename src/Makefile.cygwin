@@ -32,7 +32,7 @@ OBJS=vpcs.o \
 all: vpcs
 
 vpcs: $(OBJS)
-	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
+	$(CC) $(OBJS) -o vpcs.exe $(LDFLAGS)
 
 .c.o: keys.h vpcs.h packets.h dhcp.h
 	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<

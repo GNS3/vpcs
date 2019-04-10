@@ -15,7 +15,7 @@ install:
 
 build_script:
     - '%CYG_ROOT%/bin/bash -lc "ls $APPVEYOR_BUILD_FOLDER'
-    - '%CYG_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER && cd src && ./mk.sh"'
+    - '%CYG_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER && cd src && ./mk.sh amd64"'
 
 
 artifacts:
