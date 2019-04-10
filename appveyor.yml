@@ -14,5 +14,9 @@ install:
     - 'setup.exe -qnNdO -R "%CYG_ROOT%" -s "%CYG_MIRROR%" -l "%CYG_CACHE%" -P make -P gcc-core >NUL'
 
 build_script:
-    - '%CYG_ROOT%/bin/bash -lc "cd \"$OLDPWD/src\" '
-    - '%CYG_ROOT%/bin/bash -lc "./mk.sh"'
+    - '%CYG_ROOT%/bin/bash -lc "ls $APPVEYOR_BUILD_FOLDER'
+    - '%CYG_ROOT%/bin/bash -lc "cd $APPVEYOR_BUILD_FOLDER\src && ./mk.sh"'
+
+
+artifacts:
+  - path: 'vpcs.exe'
