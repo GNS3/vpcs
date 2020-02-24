@@ -4,7 +4,7 @@ OSTYPE=Linux
 CPUTYPE:=$(shell uname -m)
 HVOPT=-DHV
 
-CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall -I. -DTAP
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall -DTAP
 LDFLAGS=-lpthread -lutil
 OBJS=vpcs.o \
 	daemon.o \
