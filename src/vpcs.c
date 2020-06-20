@@ -57,6 +57,8 @@ const char *ver = "0.8c";
 /* track the binary */
 static const char *ident = "$Id$";
 
+pcs vpc[MAX_NUM_PTHS];
+
 int pcid = 0;  /* current vpc id */
 int devtype = 0;
 int lport = 20000;

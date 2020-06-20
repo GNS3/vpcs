@@ -136,7 +136,7 @@ struct echoctl {
 	int bgcolor;
 };
 
-pcs vpc[MAX_NUM_PTHS];
+extern pcs vpc[MAX_NUM_PTHS];
 
 #define delay_ms(s) usleep(s * 1000)
 
