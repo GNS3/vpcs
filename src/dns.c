@@ -83,14 +83,12 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 			if (cnt4 < 2) {
 				m = dns4(pc, cnt4, data, dlen);
 				cnt4++;
-				if (m == NULL)
-					continue;
 			} else if (cnt6 < 2) {
 				m = dns6(pc, cnt6, data, dlen);
 				cnt6++;
-				if (m == NULL)
-					continue;
 			}
+			if (m == NULL)
+				continue;
 			gettimeofday(&(tv), (void*)0);
 			enq(&pc->oq, m);
 			while (!timeout(tv, 1000) && !ctrl_c) {
