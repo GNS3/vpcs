@@ -134,12 +134,11 @@ void appenddomain(pcs *pc, char *dname, int sdname, const char *name)
 		dn = pc->ip4.domain;
 	else if (pc->ip4.dhcp.domain[0] != '\0')
 		dn = pc->ip4.dhcp.domain;
-	
-	if (strchr(name, '.') || dn == NULL) {
-		snprintf(dname, sdname, "%s", name);
-		return;
-	}
-	
+		else {
+			snprintf(dname, sdname, "%s", name);
+			return;
+		}
+
 	snprintf(dname, sdname, "%s.%s", name, dn);
 }
 
