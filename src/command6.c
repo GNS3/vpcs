@@ -887,9 +887,9 @@ void autoconf6(void)
 const char *ip6Info(const int id)
 {
 	struct in6_addr ipaddr;
-	static char buf[INET6_ADDRSTRLEN + 1];
+	static char buf[4 + INET6_ADDRSTRLEN + sizeof(vpc[0].ip6.cidr) + 1];
 	char tmp[INET6_ADDRSTRLEN + 1];
-	
+
 	if (vpc[id].ip6.ip.addr32[0] != 0 || vpc[id].ip6.ip.addr32[1] != 0 || 
 		vpc[id].ip6.ip.addr32[2] != 0 || vpc[id].ip6.ip.addr32[3] != 0) {
 		memset(buf, 0, INET6_ADDRSTRLEN + 1);
