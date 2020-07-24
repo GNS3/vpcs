@@ -51,7 +51,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	
 	struct packet *m;
 	char data[512];
-	char *pdn = NULL;
+	//char *pdn = NULL;
 	int dlen;
 
 	struct timeval tv;
@@ -78,7 +78,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 		if (dlen == 0) 
 			return 0;
 
-		pdn = data + sizeof(dnshdr);
+		//pdn = data + sizeof(dnshdr);
 		for (i = 0; i < 4 && !tryagain; i++) {
 			if (cnt4 < 2) {
 				m = dns4(pc, cnt4, data, dlen);
@@ -146,7 +146,7 @@ void appenddomain(pcs *pc, char *dname, const char *name)
 struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
 {
 	u_int gip;
-	struct in_addr in;
+	//struct in_addr in;
 	sesscb cb;
 	u_char mac[ETH_ALEN];
 	struct packet *m;
@@ -163,7 +163,7 @@ struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
 	}
 
 	if (!arpResolve(pc, gip, mac)) {
-		in.s_addr = gip;
+		//in.s_addr = gip;
 		return NULL;
 	}
 	
