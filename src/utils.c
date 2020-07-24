@@ -42,7 +42,7 @@ char *getkv(char *str)
 	
 	if (str != NULL) {
 		memset(buf, 0, sizeof(buf));
-		strncpy(buf, str, strlen(str));
+		memcpy(buf, str, strlen(str));
 		p = strtok(buf, " \t");
 	} else 
 		p = strtok(NULL, " \t");

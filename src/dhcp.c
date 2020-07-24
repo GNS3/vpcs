@@ -80,7 +80,7 @@ struct packet * dhcp4_discover(pcs *pc, int renew)
 	dh->options[i++] = DHO_HOST_NAME;
 	k = strlen(pc->xname);
 	dh->options[i++] = k;
-	strncpy((char *)(dh->options + i), pc->xname, k);
+	memcpy((char *)(dh->options + i), pc->xname, k);
 	i += k;
 	
 	dh->options[i++] = DHO_DHCP_CLIENT_IDENTIFIER;
@@ -189,7 +189,7 @@ struct packet * dhcp4_request(pcs *pc)
 	dh->options[i++] = DHO_HOST_NAME;
 	k = strlen(pc->xname);
 	dh->options[i++] = k;
-	strncpy((char *)(dh->options + i), pc->xname, k);
+	memcpy((char *)(dh->options + i), pc->xname, k);
 	i += k;
 	
 	dh->options[i++] = DHO_DHCP_PARAMETER_REQUEST_LIST;
@@ -289,7 +289,7 @@ struct packet * dhcp4_release(pcs *pc)
 	dh->options[i++] = DHO_HOST_NAME;
 	k = strlen(pc->xname);
 	dh->options[i++] = k;
-	strncpy((char *)(dh->options + i), pc->xname, k);
+	memcpy((char *)(dh->options + i), pc->xname, k);
 	i += k;
 	
 	dh->options[i++] = DHO_DHCP_CLIENT_IDENTIFIER;
