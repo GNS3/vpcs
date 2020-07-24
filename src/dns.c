@@ -42,7 +42,7 @@ static int fmtstring(const char *name, char *buf);
 static int dnsrequest(u_short id, const char *name, int type, char *data, int *namelen);
 static int dnsparse(struct packet *m, u_short id, char *data, int dlen, u_char *ip);
 static int ip2str(u_char *ip, char *str);
-static void appenddomain(pcs *pc, char *dname, const char *name);
+static void appenddomain(pcs *pc, char *dname, int sdname, const char *name);
 static struct packet *dns4(pcs *pc, int sw, char *data, int dlen);
 static struct packet *dns6(pcs *pc, int sw, char *data, int dlen);
 
@@ -68,7 +68,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	u_char ip[20];
 	int tryagain = 0;
 	
-	appenddomain(pc, dname, name);
+	appenddomain(pc, dname, sizeof(dname), name);
 	
 	while (reqcnt++ < 3) {
 		tryagain = 0;
@@ -121,7 +121,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	return 0;
 }
 
-void appenddomain(pcs *pc, char *dname, const char *name)
+void appenddomain(pcs *pc, char *dname, int sdname, const char *name)
 {
 	char *dn = NULL;
 	
@@ -136,11 +136,11 @@ void appenddomain(pcs *pc, char *dname, const char *name)
 		dn = pc->ip4.dhcp.domain;
 	
 	if (strchr(name, '.') || dn == NULL) {
-		snprintf(dname, sizeof(dname), "%s", name);
+		snprintf(dname, sdname, "%s", name);
 		return;
 	}
 	
-	snprintf(dname, sizeof(dname), "%s.%s", name, dn);
+	snprintf(dname, sdname, "%s.%s", name, dn);
 }
 
 struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
