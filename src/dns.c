@@ -59,7 +59,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	int namelen;
 	int i;
 	
-	char dname[64];
+	char dname[64+1];
 	u_short magicid;
 	int reqcnt = 0;
 	int atype = 1;
