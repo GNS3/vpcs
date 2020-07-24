@@ -153,8 +153,8 @@ struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
 	if (pc->ip4.dns[sw] == 0)
 		return 0;
 	
-	if (sameNet(cb.dip, pc->ip4.ip, pc->ip4.cidr))
-		gip = cb.dip;
+	if (sameNet(pc->ip4.dns[sw], pc->ip4.ip, pc->ip4.cidr))
+		gip = pc->ip4.dns[sw];
 	else {
 		if (pc->ip4.gw == 0)
 			return NULL;
