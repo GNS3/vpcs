@@ -86,8 +86,9 @@ int upv4(pcs *pc, struct packet **m0)
 	if (etherIsMulticast(eh->src)) 
 		return PKT_DROP;
 
-	if (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 &&
-	    ((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
+	if ( (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 ||
+		memcmp(eh->dst, broadcast, ETH_ALEN) == 0)
+		&& ((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
 		iphdr *ip = (iphdr *)(eh + 1);
 
 		if (ntohs(ip->len) > pc->mtu) {
