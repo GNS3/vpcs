@@ -42,7 +42,7 @@ static int fmtstring(const char *name, char *buf);
 static int dnsrequest(u_short id, const char *name, int type, char *data, int *namelen);
 static int dnsparse(struct packet *m, u_short id, char *data, int dlen, u_char *ip);
 static int ip2str(u_char *ip, char *str);
-static void appenddomain(pcs *pc, char *dname, const char *name);
+static void appenddomain(pcs *pc, char *dname, int sdname, const char *name);
 static struct packet *dns4(pcs *pc, int sw, char *data, int dlen);
 static struct packet *dns6(pcs *pc, int sw, char *data, int dlen);
 
@@ -51,7 +51,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	
 	struct packet *m;
 	char data[512];
-	char *pdn = NULL;
+	//char *pdn = NULL;
 	int dlen;
 
 	struct timeval tv;
@@ -59,7 +59,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	int namelen;
 	int i;
 	
-	char dname[64];
+	char dname[64+1];
 	u_short magicid;
 	int reqcnt = 0;
 	int atype = 1;
@@ -68,7 +68,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	u_char ip[20];
 	int tryagain = 0;
 	
-	appenddomain(pc, dname, name);
+	appenddomain(pc, dname, sizeof(dname), name);
 	
 	while (reqcnt++ < 3) {
 		tryagain = 0;
@@ -78,7 +78,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 		if (dlen == 0) 
 			return 0;
 
-		pdn = data + sizeof(dnshdr);
+		//pdn = data + sizeof(dnshdr);
 		for (i = 0; i < 4 && !tryagain; i++) {
 			if (cnt4 < 2) {
 				m = dns4(pc, cnt4, data, dlen);
@@ -121,7 +121,7 @@ int hostresolv(pcs *pc, char *name, char *ipstr)
 	return 0;
 }
 
-void appenddomain(pcs *pc, char *dname, const char *name)
+void appenddomain(pcs *pc, char *dname, int sdname, const char *name)
 {
 	char *dn = NULL;
 	
@@ -134,19 +134,18 @@ void appenddomain(pcs *pc, char *dname, const char *name)
 		dn = pc->ip4.domain;
 	else if (pc->ip4.dhcp.domain[0] != '\0')
 		dn = pc->ip4.dhcp.domain;
-	
-	if (strchr(name, '.') || dn == NULL) {
-		snprintf(dname, sizeof(dname), "%s", name);
-		return;
-	}
-	
-	snprintf(dname, sizeof(dname), "%s.%s", name, dn);
+		else {
+			snprintf(dname, sdname, "%s", name);
+			return;
+		}
+
+	snprintf(dname, sdname, "%s.%s", name, dn);
 }
 
 struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
 {
 	u_int gip;
-	struct in_addr in;
+	//struct in_addr in;
 	sesscb cb;
 	u_char mac[ETH_ALEN];
 	struct packet *m;
@@ -154,8 +153,8 @@ struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
 	if (pc->ip4.dns[sw] == 0)
 		return 0;
 	
-	if (sameNet(cb.dip, pc->ip4.ip, pc->ip4.cidr))
-		gip = cb.dip;
+	if (sameNet(pc->ip4.dns[sw], pc->ip4.ip, pc->ip4.cidr))
+		gip = pc->ip4.dns[sw];
 	else {
 		if (pc->ip4.gw == 0)
 			return NULL;
@@ -163,7 +162,7 @@ struct packet *dns4(pcs *pc, int sw, char *data, int dlen)
 	}
 
 	if (!arpResolve(pc, gip, mac)) {
-		in.s_addr = gip;
+		//in.s_addr = gip;
 		return NULL;
 	}
 	
