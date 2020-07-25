@@ -40,6 +40,8 @@
 #define IPFRG_HASHMASK (IPFRG_MAXHASH - 1)
 #define IPFRG_HASH(x,y) \
         (((((x) & 0xF) | ((((x) >> 8) & 0xF) << 4)) ^ (y)) & IPFRG_HASHMASK)
+
+u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
         
 static struct packet *arp(pcs *pc, u_int dip);
 static struct packet *udpReply(struct packet *m0);
@@ -560,7 +562,6 @@ struct packet *arp(pcs *pc, u_int dip)
 	arphdr *ah;
 	struct packet *m;
 	u_int *si, *di;
-	u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	
 	m = new_pkt(ARP_PSIZE);
 	if (m == NULL)
