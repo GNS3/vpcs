@@ -5,7 +5,7 @@ CPUTYPE=i386
 OPT=-O2
 HVOPT=-DHV
 
-CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) $(HVOPT) -Wall -I. -DTAP
+CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(OPT) $(HVOPT) -Wall -DTAP
 LDFLAGS=-lpthread -lutil -s -static
 OBJS=vpcs.o \
 	daemon.o \
