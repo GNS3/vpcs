@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   build:
     macos:
-      xcode: "9.4.0"
+      xcode: "10.1.0"
 
     steps:
       - checkout
@@ -15,9 +15,9 @@ jobs:
             echo "Today is $(date +"%Y-%m-%d %T")"
 
       - run:
-          name: Install gcc5
+          name: Install gcc
           command: |
-            HOMEBREW_NO_AUTO_UPDATE=1 brew install gcc5
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install gcc
 
       - run:
           name: Build vpcs
