@@ -40,6 +40,8 @@
 #define IPFRG_HASHMASK (IPFRG_MAXHASH - 1)
 #define IPFRG_HASH(x,y) \
         (((((x) & 0xF) | ((((x) >> 8) & 0xF) << 4)) ^ (y)) & IPFRG_HASHMASK)
+
+u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
         
 static struct packet *arp(pcs *pc, u_int dip);
 static struct packet *udpReply(struct packet *m0);
@@ -84,8 +86,9 @@ int upv4(pcs *pc, struct packet **m0)
 	if (etherIsMulticast(eh->src)) 
 		return PKT_DROP;
 
-	if (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 &&
-	    ((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
+	if ( (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 ||
+		memcmp(eh->dst, broadcast, ETH_ALEN) == 0)
+		&& ((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
 		iphdr *ip = (iphdr *)(eh + 1);
 
 		if (ntohs(ip->len) > pc->mtu) {
@@ -560,7 +563,6 @@ struct packet *arp(pcs *pc, u_int dip)
 	arphdr *ah;
 	struct packet *m;
 	u_int *si, *di;
-	u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	
 	m = new_pkt(ARP_PSIZE);
 	if (m == NULL)
