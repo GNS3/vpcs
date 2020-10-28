@@ -1041,7 +1041,7 @@ int run_ipconfig(int argc, char **argv)
 	/* check ip address via gratuitous ARP */
 	pc->ip4.ip = rip;
 	printf("Checking for duplicate address...\n");
-	if (arpResolve(pc, rip, mac) == 1 && !memcmp(mac, pc->ip4.mac, ETH_ALEN)) {
+	if (arpResolve(pc, rip, mac) == 1 && memcmp(mac, pc->ip4.mac, ETH_ALEN)) {
 		in.s_addr = rip;
 		printf("%s is being used by MAC ",  inet_ntoa(in));
 		PRINT_MAC(mac);
@@ -1073,7 +1073,7 @@ int run_ipconfig(int argc, char **argv)
 	
 	/* display configuration */
 	in.s_addr = pc->ip4.ip;
-	printf("PC%d : %s", pcid + 1, inet_ntoa(in));
+	printf("%s : %s", vpc[pcid].xname, inet_ntoa(in));
 	in.s_addr = ntohl(ip_masks[icidr]);
 	printf(" %s", inet_ntoa(in));
 	
