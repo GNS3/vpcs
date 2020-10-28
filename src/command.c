@@ -1073,7 +1073,7 @@ int run_ipconfig(int argc, char **argv)
 	
 	/* display configuration */
 	in.s_addr = pc->ip4.ip;
-	printf("PC%d : %s", pcid + 1, inet_ntoa(in));
+	printf("%s : %s", vpc[pcid].xname, inet_ntoa(in));
 	in.s_addr = ntohl(ip_masks[icidr]);
 	printf(" %s", inet_ntoa(in));
 	
