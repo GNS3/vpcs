@@ -230,6 +230,16 @@ int help_save(int argc, char **argv)
 	return 1;
 }
 
+int help_write(int argc, char **argv)
+{
+	esc_prn("\n{Hwrite} [{UFILENAME}[.vpc]]\n"
+		"  Save the configuration to the file {UFILENAME.vpc}. If there is no '.' in\n"
+		"  {UFILENAME} then a '.vpc' extension is added. If {UFILENAME} is omitted then the\n"
+		"  configuration will be saved to {Ustartup.vpc}\n");
+
+	return 1;
+}
+
 int help_set(int argc, char **argv)
 {
 	if (argc == 3 && !strncmp(argv[1], "dump", strlen(argv[1])) && 

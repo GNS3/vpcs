@@ -136,6 +136,7 @@ static cmdStub cmd_entry[] = {
 	{"tracer",	NULL,	run_tracert,	help_trace},
 	{"rlogin",      NULL,	run_remote,	help_rlogin},
 	{"save",	NULL,	run_save,	help_save},
+	{"write",	NULL,	run_save,	help_write},
 	{"set",		NULL,	run_set,	help_set},
 	{"show",	NULL,	run_show,	help_show},
 	{"version",	NULL,	run_ver,	NULL},
