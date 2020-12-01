@@ -2046,8 +2046,8 @@ int run_save(int argc, char **argv)
 		if (num_pths > 1)
 			fprintf(fp, "%d\n", i + 1);
 		sprintf(buf, "VPCS[%d]", i + 1);
-		if (strncmp(vpc[i].xname, buf, MAX_NAMES_LEN))
-		    fprintf(fp, "set pcname %s\n", vpc[i].xname);
+		//if (strncmp(vpc[i].xname, buf, 6))
+		fprintf(fp, "set pcname %s\n", vpc[i].xname);
 
 		if (num_pths > 1) {
 			if (vpc[i].lport != (20000 + i))
