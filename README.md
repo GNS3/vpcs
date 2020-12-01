@@ -1,8 +1,5 @@
 # VPCS
-This is not the official VPCS repository and used only by GNS3 team to develop patch before sending them
-to the VPCS team.
-The latest VPCS release can be downloaded from http://sourceforge.net/projects/vpcs/files/
 
-## Update git from offical SVN
-git svn fetch
-git svn rebase
+This is a continuation of VPCS, based on the last development version and improved with patches wrote by various 
+people from the community. The original VPCS code, which is unfortunately not maintained anymore, can be viewed on 
+https://sourceforge.net/p/vpcs/code/
