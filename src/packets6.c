@@ -262,6 +262,7 @@ int sub_nbadv(pcs *pc, struct packet *m)
 	ethdr *eh;
 	ip6hdr *ip;
 	icmp6hdr *icmp;
+	int setMtu = 0, setMac = 0;
 	u_int32_t mtu = 0;
 	char *p = NULL, *mac = NULL;
 	ndrahdr *ndr = NULL;
@@ -312,45 +313,45 @@ int sub_nbadv(pcs *pc, struct packet *m)
 	 *            32-bits mtu
 	 */
 	
-	p = (char *)(ndr + 1);
-	
-	/* link-layer address */
-	if (*p == 1 && *(p + 1) == 1) {
-		mac = p + 2;
-		p += 8;
-	}
-	/* mtu, skip it*/
-	if (*p == 5 && *(p + 1) == 1) {
-		mtu = ntohl(*(u_int32_t *)(p + 4));
-		p += 8;
-	}
-	/* prefix */
-	if (*p == 3 && *(p + 1) == 4) {
-		int cidr;
-		cidr = 	*(p + 2);
-		if (pc->ip6.cidr == 0) {
-			memcpy(pc->ip6.ip.addr8, p + 16, 16);
-			pc->ip6.cidr = cidr;
-			
-			pc->ip6.ip.addr8[15] = pc->ip4.mac[5];
-			pc->ip6.ip.addr8[14] = pc->ip4.mac[4];
-			pc->ip6.ip.addr8[13] = pc->ip4.mac[3];
-			pc->ip6.ip.addr8[12] = 0xfe;
-			pc->ip6.ip.addr8[11] = 0xff;
-			pc->ip6.ip.addr8[10] = pc->ip4.mac[2];
-			pc->ip6.ip.addr8[9]  = pc->ip4.mac[1];
-			pc->ip6.ip.addr8[8]  = (pc->ip4.mac[0] &0x20) ? 
-			    pc->ip4.mac[0] & 0xef : (pc->ip4.mac[0] | 0x20);
+	for (p = (char *)(ndr + 1);
+	    p < ((char*)icmp + ntohs(ip->ip6_plen));
+	    p += *(p + 1) * 8)
+	{
+		/* link-layer address */
+		if (*p == 1 && *(p + 1) == 1)
+			mac = p + 2;
+		/* mtu */
+		else if (*p == 5 && *(p + 1) == 1)
+			mtu = ntohl(*(u_int32_t *)(p + 4));
+		/* prefix */
+		else if (*p == 3 && *(p + 1) == 4) {
+			if (pc->ip6.cidr == 0) {
+				memcpy(pc->ip6.ip.addr8, p + 16, 16);
+				pc->ip6.cidr = *(p + 2);
 
-			pc->ip6.type = IP6TYPE_EUI64;
-			if (mtu != 0)
-				pc->mtu = mtu;
-			mtu = 0;
-		} 
-		if (sameNet6((char *)pc->ip6.ip.addr8, p + 16, pc->ip6.cidr)) {
-			memcpy(pc->ip6.gmac, mac, 6);
+				pc->ip6.ip.addr8[15] = pc->ip4.mac[5];
+				pc->ip6.ip.addr8[14] = pc->ip4.mac[4];
+				pc->ip6.ip.addr8[13] = pc->ip4.mac[3];
+				pc->ip6.ip.addr8[12] = 0xfe;
+				pc->ip6.ip.addr8[11] = 0xff;
+				pc->ip6.ip.addr8[10] = pc->ip4.mac[2];
+				pc->ip6.ip.addr8[9]  = pc->ip4.mac[1];
+				pc->ip6.ip.addr8[8]  = (pc->ip4.mac[0] &0x20) ?
+				    pc->ip4.mac[0] & 0xef : (pc->ip4.mac[0] | 0x20);
+
+				pc->ip6.type = IP6TYPE_EUI64;
+				setMtu = 1;
+			}
+			if (sameNet6((char *)pc->ip6.ip.addr8, p + 16, pc->ip6.cidr))
+				setMac = 1;
 		}
 	}
+
+	if (setMtu != 0 && mtu != 0)
+		pc->mtu = mtu;
+	if (setMac != 0 && mac != NULL)
+		memcpy(pc->ip6.gmac, mac, 6);
+
 	return PKT_DROP;	
 }
 
