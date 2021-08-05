@@ -133,7 +133,7 @@ int upv4(pcs *pc, struct packet **m0)
 			char *data = NULL;
 			ui = (udpiphdr *)ip;
 			
-			if (IN_MULTICAST(ip->dip))
+			if (IN_MULTICAST(ntohl(ip->dip)))
 				return PKT_DROP;
 			
 			/* dhcp packet */
