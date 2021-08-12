@@ -99,7 +99,6 @@ void parse_cmd(char *cmdstr);
 static void sig_int(int sig);
 static void sig_clean(int sig);
 void clear_hist(void);
-static int invoke_cmd(const char *);
 
 static void welcome(void);
 void usage();
@@ -358,22 +357,7 @@ void parse_cmd(char *cmdstr)
 		fflush(stdout);
 		return;
 	}
-	
-	if (*cmdstr == '!') {
-		char *p = NULL;
-		if (strlen(cmdstr) > 1) {
-			p = cmdstr + 1;
-			while (*p== ' ' || *p == '\t')
-				p++;
-				
-			if (*p && strcmp(p, "?")) {
-				invoke_cmd(p);
-				return;
-			}
-		}
-		help_shell(0, NULL);
-		return;
-	}
+
 	pcmd = argv[0];
 	if (*pcmd == '@') {
 		at = 1;
@@ -719,20 +703,6 @@ void welcome(void)
 	return;			
 }
 
-static int 
-invoke_cmd(const char *cmd)
-{
-	int rc = 0;
-	
-#ifdef cygwin
-	char str[1024];
-	snprintf(str, sizeof(str), "%s /c %s", getenv("COMSPEC"), cmd);
-	rc = WinExec(str, SW_SHOW);
-#else	
-	rc = system(cmd);
-#endif	
-	return rc;
-}
 
 void usage()
 {

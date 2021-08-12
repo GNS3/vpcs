@@ -298,14 +298,6 @@ int help_set(int argc, char **argv)
 	return 1;
 }
 
-int help_shell(int argc, char **argv)
-{
-	esc_prn("\n{H!} {UCOMMAND} [{UARG} ...]\n"
-		" Invoke an OS command {UCOMMAND} with optional [{UARG} ...] as arguments\n");
-
-	return 1;
-}
-
 int help_show(int argc, char **argv)
 {
 	char *harp[2] = {
@@ -457,9 +449,8 @@ int help_shut(int argc, char **argv)
 int run_help(int argc, char **argv) 
 {
 	esc_prn("\n"
-		"{H?}                        Print help\n"
-		"{H!} {UCOMMAND} [{UARG} ...]      Invoke an OS {UCOMMAND} with optional {UARG(s)}\n");
-	
+		"{H?}                        Print help\n");
+
 	if (num_pths > 1) {
 		esc_prn("{Udigit}                    Switch to the VPC{Udigit}. "
 			"{Udigit} range 1 to %d\n", num_pths); 
