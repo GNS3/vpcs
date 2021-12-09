@@ -57,7 +57,10 @@ static void free_packet(struct packet *m);
 static struct ipfrag *new_ipfrag(struct packet *m, iphdr *ip);
 static struct packet *defrag_pkt(struct packet **);
 */
-static void fix_dmac(pcs *pc, struct packet *m);
+
+// 1 : ok
+// 0 : error
+static int fix_dmac(pcs *pc, struct packet *m);
 
 extern u_int time_tick;
 
@@ -220,8 +223,10 @@ void send4(pcs *pc, struct packet *m)
 		del_pkt(m);
 		return;
 	}
-	fix_dmac(pc, m);
-	
+	if( ! fix_dmac(pc, m) ){
+		del_pkt(m);
+		return;
+	}
 	
 	if (pc->ip4.flags & IPF_FRAG) {
 		m = ipfrag(m, pc->mtu);
@@ -740,8 +745,9 @@ save_eaddr(pcs *pc, u_int addr, u_char *mac)
 	}
 }
 
-void
-fix_dmac(pcs *pc, struct packet *m)
+// return 1 : ok
+// return 0 : error
+int fix_dmac(pcs *pc, struct packet *m)
 {
 	ethdr *eh = NULL;
 	iphdr *ip = NULL;
@@ -751,10 +757,18 @@ fix_dmac(pcs *pc, struct packet *m)
 	ip = (iphdr *)(eh + 1);
 	
 	if (sameNet(ip->dip, pc->ip4.ip, pc->ip4.cidr))
-		return;
-		
+		return 1;
+
+	if( pc->ip4.gw == 0 ) // gw == 0.0.0.0
+		return 0;
+
 	if (arpResolve(pc, pc->ip4.gw, mac))
+	{
 		memcpy(eh->dst, mac, sizeof(mac));
+		return 1;
+	}
+
+	return 0;
 }
 
 
