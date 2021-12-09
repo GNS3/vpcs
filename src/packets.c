@@ -756,6 +756,10 @@ int fix_dmac(pcs *pc, struct packet *m)
 	
 	if (sameNet(ip->dip, pc->ip4.ip, pc->ip4.cidr))
 		return 1;
+
+	if( pc->ip4.gw == 0 ) // gw == 0.0.0.0
+		return 0;
+
 	if (arpResolve(pc, pc->ip4.gw, mac))
 	{
 		memcpy(eh->dst, mac, sizeof(mac));
