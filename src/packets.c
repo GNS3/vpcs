@@ -223,8 +223,10 @@ void send4(pcs *pc, struct packet *m)
 		del_pkt(m);
 		return;
 	}
-	fix_dmac(pc, m);
-	
+	if( ! fix_dmac(pc, m) ){
+		del_pkt(m);
+		return;
+	}
 	
 	if (pc->ip4.flags & IPF_FRAG) {
 		m = ipfrag(m, pc->mtu);
