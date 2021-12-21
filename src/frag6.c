@@ -216,7 +216,7 @@ ipreass6(struct packet *m)
 			    IPPROTO_FRAGMENT);
 			
 			if (hoff == 0)
-				return m;
+				goto ret;
 	
 			fg0 = (struct ip6frag *)((char *)ip0 + hoff);
 			
