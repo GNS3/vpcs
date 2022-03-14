@@ -13,19 +13,23 @@ jobs:
           command: |
             sudo systemsetup -settimezone Europe/Warsaw
             echo "Today is $(date +"%Y-%m-%d %T")"
+
       - run:
-          name: Install gcc5
+          name: Install gcc
           command: |
-            brew install gcc5
+            HOMEBREW_NO_AUTO_UPDATE=1 brew install gcc
+
       - run:
           name: Build vpcs
           command: |
             cd src && ./mk.sh amd64
+
       - run:
           name: Gather artifacts
           command: |
             mkdir artifacts
             mv src/vpcs artifacts/vpcs-osx
+
       - store_artifacts:
           path: artifacts
           destination: artifacts
@@ -41,3 +45,4 @@ jobs:
                 put \"artifacts/vpcs-osx\"
               " | sftp gns3build@frs.sourceforge.net
             fi
+
