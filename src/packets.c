@@ -556,7 +556,7 @@ struct packet *packet(pcs *pc)
 	ip->cksum = 0;
 	ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
 		
-	if ((sesscb->frag & IPF_FRAG) == IPF_FRAG)
+	if (sesscb->frag)
 		m = ipfrag(m, sesscb->mtu);
 	
 	return m;

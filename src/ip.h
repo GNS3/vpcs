@@ -487,7 +487,7 @@ typedef struct sesscb {
 	u_char icmptype;
 	u_char icmpcode;
 	int mtu;
-	int frag;
+	u_char frag;
 	char *data;
 } sesscb;
 
