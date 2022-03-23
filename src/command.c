@@ -373,11 +373,6 @@ int run_ping(int argc, char **argv)
 		}
 	}
 
-	if (!pc->mscb.frag &&
-	    (pc->mscb.mtu < (pc->mscb.dsize + sizeof(iphdr)))) {
-		printf("packet size is greater than MTU(%d)\n", pc->mscb.mtu);
-		return 0;
-	}
 	if (pc->mscb.winsize == 0)
 		pc->mscb.winsize = 0xb68; /* 1460 * 4 */
 
