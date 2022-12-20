@@ -56,7 +56,7 @@ jobs:
 
     - run: |
        echo "Run, Build Application using script"
-       ./src/mk.sh amd64
+       cd src && ./mk.sh amd64
   
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
