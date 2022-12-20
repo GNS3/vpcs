@@ -232,7 +232,7 @@ int run_ping(int argc, char **argv)
 		return help_ping(argc, argv);
 	}
 
-	pc->mscb.frag = IPF_FRAG;
+	pc->mscb.frag = true;
 	pc->mscb.mtu = pc->mtu;
 	pc->mscb.waittime = 1000;
 	pc->mscb.ipid = time(0) & 0xffff;
@@ -257,7 +257,7 @@ int run_ping(int argc, char **argv)
 
 		switch (c) {
 			case 'D':
-				pc->mscb.frag = ~IPF_FRAG;
+				pc->mscb.frag = false;
 				break;
 			case 'u':
 				if (i < argc)
@@ -373,11 +373,6 @@ int run_ping(int argc, char **argv)
 		}
 	}
 
-	if (!(pc->mscb.frag & IPF_FRAG) &&
-	    (pc->mscb.mtu < (pc->mscb.dsize + sizeof(iphdr)))) {
-		printf("packet size is greater than MTU(%d)\n", pc->mscb.mtu);
-		return 0;
-	}
 	if (pc->mscb.winsize == 0)
 		pc->mscb.winsize = 0xb68; /* 1460 * 4 */
 
