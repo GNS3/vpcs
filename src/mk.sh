@@ -71,6 +71,9 @@ case ${os} in
     FreeBSD)
     	make -f Makefile.fbsd ${MKOPT}
     	;;
+    OpenBSD)
+	make -f Makefile.obsd ${MKOPT}
+	;;
     Linux)
         make -f Makefile.linux ${MKOPT}
         ;;

@@ -51,7 +51,7 @@ typedef struct ethdr ethdr;
 #define ARPOP_REQUEST	1	/* request to resolve address */
 #define ARPOP_REPLY	2	/* response to previous request */
 
-struct  arphdr {
+struct  vpcs_arphdr {
 	u_short hrd;			/* format of hardware address */
 	u_short pro;			/* format of protocol address */
 	u_char  hln;			/* length of hardware address */
@@ -62,7 +62,7 @@ struct  arphdr {
 	u_char dea[ETH_ALEN];
 	u_char dip[4];
 };
-typedef struct arphdr arphdr;
+typedef struct vpcs_arphdr vpcs_arphdr;
 
 struct iphdr {
 	u_int   ihl:4,		/* ip header length, should be 20 bytes */
