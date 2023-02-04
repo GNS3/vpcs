@@ -59,6 +59,9 @@
 #include <pty.h>
 #elif FreeBSD
 #include <libutil.h>
+#elif OpenBSD
+#include <termios.h>
+#include <util.h>
 #endif
 
 #ifdef cygwin
@@ -392,7 +395,7 @@ run_vpcs(int ac, char **av)
 	
 	/* reinitialized, maybe call getopt twice */
 	optind = 1;
-#if ((!defined(GNUkFreeBSD) && defined(FreeBSD)) || defined(Darwin))
+#if ((!defined(GNUkFreeBSD) && (defined(FreeBSD) || defined(OpenBSD))) || defined(Darwin))
 	optreset = 1;
 #endif	
 	while ((c = getopt(ac, av, "p:m:s:c:")) != -1) {

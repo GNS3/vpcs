@@ -175,7 +175,7 @@ int upv4(pcs *pc, struct packet **m0)
 		}	
 
 	} else if (eh->type == htons(ETHERTYPE_ARP)) {
-		arphdr *ah = (arphdr *)(eh + 1);
+		vpcs_arphdr *ah = (vpcs_arphdr *)(eh + 1);
 		si = (u_int *)ah->sip;
 		di = (u_int *)ah->dip;
 			
@@ -565,7 +565,7 @@ struct packet *packet(pcs *pc)
 struct packet *arp(pcs *pc, u_int dip)
 {
 	ethdr *eh;
-	arphdr *ah;
+	vpcs_arphdr *ah;
 	struct packet *m;
 	u_int *si, *di;
 	
@@ -574,7 +574,7 @@ struct packet *arp(pcs *pc, u_int dip)
 		return NULL;
 
 	eh = (ethdr *)(m->data);
-	ah = (arphdr *)(eh + 1);
+	ah = (vpcs_arphdr *)(eh + 1);
 
 	ah->hrd = htons(ARPHRD_ETHER);
 	ah->pro = htons(ETHERTYPE_IP);

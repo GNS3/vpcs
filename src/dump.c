@@ -130,7 +130,7 @@ int dmp_packet(const struct packet *m, const int flag)
 
 static void dmp_arp(void *dat)
 {
-	arphdr *ah = (arphdr *)dat;	
+	vpcs_arphdr *ah = (vpcs_arphdr *)dat;
 	struct in_addr in;
 	u_char broadcast[ETH_ALEN] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 	u_int *si, *di;

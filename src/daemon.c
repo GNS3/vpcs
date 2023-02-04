@@ -55,6 +55,8 @@
 #include <pty.h>
 #elif FreeBSD
 #include <libutil.h>
+#elif OpenBSD
+#include <util.h>
 #endif
 
 #ifdef cygwin
@@ -139,7 +141,7 @@ daemonize(int port, int bg)
 	(void) setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
 	    (char *)&on, sizeof(on));
 
-	bzero((char *) &serv, sizeof(serv));
+	memset((char *) &serv, 0, sizeof(serv));
 	serv.sin_family = AF_INET;
 	serv.sin_addr.s_addr = htonl(INADDR_ANY);
 	serv.sin_port = htons(port);
@@ -171,7 +173,7 @@ pipe_rw(int fds, int fdd)
 	struct timeval tv;
 	int rc, len;
 	int n;
-	u_char buf[512];
+	unsigned char buf[512];
 	
 	tv.tv_sec = 0;
 	tv.tv_usec = 10 * 1000; 
@@ -331,7 +333,7 @@ set_telnet_mode(int s)
 	    "\xFF\xFB\x01"
 	    "\xFF\xFD\x03"
 	    "\xFF\xFB\x03";
-	u_char buf[512];
+	unsigned char buf[512];
 	int n;
 	
 	n = write(s, neg, strlen(neg));
