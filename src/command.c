@@ -1364,7 +1364,6 @@ int run_set(int argc, char **argv)
 
 	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
 		return help_set(argc, argv);
-		return 0;
 	}
 
 	if (!strncmp("dump", argv[1], strlen(argv[1]))) {
