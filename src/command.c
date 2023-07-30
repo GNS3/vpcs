@@ -1083,7 +1083,7 @@ int run_ipconfig(int argc, char **argv)
 
 int run_tracert(int argc, char **argv)
 {
-	int i, j;
+	int i;
 	u_int gip, gwip;
 	struct in_addr in;
 	int count = 128;
@@ -1130,7 +1130,7 @@ int run_tracert(int argc, char **argv)
 					printf("Invalid protocol\n");
 					return 0;
 				}
-				j = atoi(argv[i]);
+				int j = atoi(argv[i]);
 				if (j == IPPROTO_ICMP) {
 					pc->mscb.proto = IPPROTO_ICMP;
 				} else if (j == IPPROTO_UDP) {
@@ -1155,7 +1155,7 @@ int run_tracert(int argc, char **argv)
 					return 0;
 				}
 				i++;
-				j = atoi(argv[i]);
+				int j = atoi(argv[i]);
 				if (j > 0 && j <= 64)
 					count = j;
 				else {
@@ -1167,7 +1167,7 @@ int run_tracert(int argc, char **argv)
 			}
 			if (digitstring(argv[i])) {
 				if (count == 128) {
-					j = atoi(argv[i]);
+					int j = atoi(argv[i]);
 					if (j > 0 && j <= 64)
 						count = j;
 					else {

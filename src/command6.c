@@ -62,7 +62,6 @@ int run_ping6(int argc, char **argv)
 	struct in6_addr ipaddr;
 	struct packet *m = NULL;
 	int i;
-	char *p;
 	char proto_seq[16];
 	int count = 5;
 
@@ -100,7 +99,7 @@ int run_ping6(int argc, char **argv)
 	}
 	
 	/* find destination */
-	p = (char*)nbDiscovery(pc, &pc->mscb.dip6);	
+	char *p = (char*)nbDiscovery(pc, &pc->mscb.dip6);
 	if (p == NULL) {
 		printf("host (%s) not reachable\n", argv[1]);
 		return 0;
@@ -206,7 +205,7 @@ int run_ping6(int argc, char **argv)
 	} else {
 		i = 1;
 		while ((i <= count || count == -1) && !ctrl_c) {
-			struct packet *p;
+			struct packet *packet;
 			struct timeval tv;
 			int usec;
 			int respok = 0;
@@ -232,16 +231,16 @@ int run_ping6(int argc, char **argv)
 				delay_ms(1);
 				respok = 0;	
 				
-				while ((p = deq(&pc->iq)) != NULL && !respok && 
+				while ((packet = deq(&pc->iq)) != NULL && !respok &&
 				    !timeout(tv, pc->mscb.waittime) && !ctrl_c) {
 					
 					pc->mscb.icmptype = pc->mscb.icmpcode = 0; 
-					respok = response6(p, &pc->mscb);
-					usec = (p->ts.tv_sec - tv.tv_sec) * 1000000 +
-					    p->ts.tv_usec - tv.tv_usec;
+					respok = response6(packet, &pc->mscb);
+					usec = (packet->ts.tv_sec - tv.tv_sec) * 1000000 +
+					    packet->ts.tv_usec - tv.tv_usec;
 					if (usec < 0)
 						usec = 0;	
-					del_pkt(p);
+					del_pkt(packet);
 					
 					if (respok == 0)
 						continue;
