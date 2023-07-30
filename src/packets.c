@@ -314,7 +314,7 @@ int response(struct packet *m, sesscb *sesscb)
 			n > 0) {
 			int i = 0;
 
-			while (data[i] == 0x1 && i < sesscb->rdsize) i++;
+			while ( i < sesscb->rdsize && data[i] == 0x1 ) i++;
 			
 			for (;i < n;) {
 				if (data[i] == TCPOPT_MAXSEG && 

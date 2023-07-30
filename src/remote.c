@@ -140,7 +140,7 @@ next:
 			if (rc > 0) {
 				i = 0;
 				/* discard IAC */
-				while (outbuf[i] == 0xff && i < rc) 
+				while ( i < rc && outbuf[i] == 0xff )
 					i += 3;
 				if (i < rc) {
 					rc = write(fdio, outbuf + i, rc - i);

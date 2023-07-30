@@ -444,7 +444,7 @@ int response6(struct packet *m, sesscb *sesscb)
 		    sesscb->rflags == (TH_SYN | TH_ACK)) {
 			int i = 0;
 
-			while (data[i] == 0x1 && i < sesscb->rdsize) i++;
+			while ( i < sesscb->rdsize && data[i] == 0x1 ) i++;
 			
 			for (;i < sesscb->rdsize;) {
 				if (data[i] == TCPOPT_MAXSEG && 
