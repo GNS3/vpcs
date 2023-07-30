@@ -1872,7 +1872,7 @@ static int show_ip(int argc, char **argv)
 			printf("DHCP SERVER : %s\n", inet_ntoa(in));
 			k = time_tick - vpc[id].ip4.dhcp.timetick;
 			k = vpc[id].ip4.dhcp.lease - k;
-			printf("DHCP LEASE  : %u, %u/%u/%u\n",
+			printf("DHCP LEASE  : %d, %u/%u/%u\n",
 			    k > 0 ? k : 0,
 			    vpc[id].ip4.dhcp.lease,
 			    vpc[id].ip4.dhcp.renew,

@@ -61,7 +61,7 @@ int dmp_packet(const struct packet *m, const int flag)
 	
 	gettimeofday(&tv, 0);
 	usec = (tv.tv_sec - gtv.tv_sec) * 1000000 + tv.tv_usec - gtv.tv_usec;
-	printf("\n\033[32m%04d.%d\033[0m", usec / 1000000, usec % 1000000);
+	printf("\n\033[32m%04u.%u\033[0m", usec / 1000000, usec % 1000000);
 	if (flag & DMP_MAC) {
 		printf("  ");
 		printf("\033[33m");
