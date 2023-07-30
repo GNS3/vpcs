@@ -55,24 +55,6 @@ static int opt_offset = 0;             /* Index into compounded "-option" */
 static int dashdash = 0;               /* True if "--" option reached */
 static int nonopt = 0;                 /* How many nonopts we've found */
 
-int arg_to_int(const char* arg, int min, int max, int defalt)
-{
-	int i = defalt;
-	int rv;
-
-	/* no argument means we use the default value */
-	if (arg) {
-		/* make sure we got an integer argument */
-		rv = sscanf(arg, "%d", &i);
-		if(rv == 1) {
-			if(i < min || max < i)
-				i = defalt;
-		} else
-			i = defalt;
-	}
-	return i;
-}
-
 static void increment_index()
 {
 	/* Move onto the next option */

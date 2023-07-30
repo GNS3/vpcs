@@ -35,21 +35,6 @@
 
 static int search_pairs(const char *s, char **lf, char **rt);
 
-char *getkv(char *str)
-{
-	static char buf[MAX_LEN];
-	static char *p;
-	
-	if (str != NULL) {
-		memset(buf, 0, sizeof(buf));
-		memcpy(buf, str, strlen(str));
-		p = strtok(buf, " \t");
-	} else 
-		p = strtok(NULL, " \t");
-
-	return p;
-}
-
 int mkargv(char *str, char **argv, int max)
 {
 	int n = 0;

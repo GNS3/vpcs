@@ -636,56 +636,6 @@ redirect:
 	return 1;
 }
 
-int run_dhcp(int argc, char **argv)
-{
-	int dump = 0;
-	int flag = 0;
-	int i;
-
-	i = 0;
-	while (++i < argc) {
-		if (!strcmp(argv[i], "-d")) {
-			dump = 1;
-			continue;
-		}
-
-		if (!strcmp(argv[i], "-r")) {
-			flag = (flag << 4) + 0x5;
-			continue;
-		}
-
-		if (!strcmp(argv[i], "-x")) {
-			flag = (flag << 4) + 0xa;
-			continue;
-		}
-		flag = -1;
-		break;
-	}
-	if (flag == -1)
-		return help_ip(argc, argv);
-
-	switch (flag) {
-		case 0:
-			run_dhcp_new(0, dump);
-			break;
-		case 0x5:
-			run_dhcp_new(1, dump);
-			break;
-		case 0xa:
-			run_dhcp_release(dump);
-			break;
-		case 0x5a:
-			run_dhcp_new(1, dump);
-			run_dhcp_release(dump);
-			break;
-		case 0xa5:
-			run_dhcp_release(dump);
-			run_dhcp_new(1, dump);
-			break;
-	}
-	return 1;
-}
-
 static int run_dhcp_new(int renew, int dump)
 {
 	int i;

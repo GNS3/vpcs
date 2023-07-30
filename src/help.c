@@ -40,16 +40,6 @@ int help_clear(int argc, char **argv)
 }
 
 
-int help_echo(int argc, char **argv)
-{
-	return 1;
-}
-
-int help_hist(int argc, char **argv)
-{
-	return 1;
-}
-
 int help_relay(int argc, char **argv)
 {
 	char *s[2] = {
@@ -157,11 +147,6 @@ int help_load(int argc, char **argv)
 		"  See {Hset echo} and {Hshow echo}\n\n"
 		"  Note: Press Ctrl+C to interrupt the running script.\n");
 
-	return 1;
-}
-
-int help_neighbor(int argc, char **argv)
-{
 	return 1;
 }
 
@@ -415,11 +400,6 @@ int help_show(int argc, char **argv)
 	return 0;	
 }
 
-int help_version(int argc, char **argv)
-{
-	return 1;
-}
-
 int help_sleep(int argc, char **argv)
 {
 	esc_prn("\n{Hsleep} [{Useconds}] [{Utext}]\n"
@@ -435,13 +415,6 @@ int help_help(int argc, char **argv)
 {
 	esc_prn("\n{H%s}, Print help. Use {UCOMMAND} {H?} or "
 		"{HCOMMAND} {UARG} {H?} for more help\n", argv[0]);
-
-	return 1;
-}
-
-int help_shut(int argc, char **argv)
-{
-	esc_prn("\n{H%s}, shutdown the process (only in daemon mode)\n", argv[0]);
 
 	return 1;
 }
