@@ -472,10 +472,10 @@ int findhistory(struct rls *rls, int start)
 		if (start >= 0) {
 			start++;
 			return (start < rls->hist_total) ? start : -1;
-		} else {
-			start = 0 - start;
-			start --;
-			return (start > - 1) ? start : -1;
+		} else { // [-1 , -inf [
+			start = 0 - start; // [1 , inf [
+			start --; // [0 , inf [
+			return start;
 		}
 	} else {
 		if (start >= 0) {

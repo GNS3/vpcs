@@ -724,7 +724,7 @@ int dhcp_rebind(pcs *pc)
 	/* request */
 	i = 0;
 	ok = 0;
-	while (i < 3 && !ok) {	
+	while (!ok) {
 		m = dhcp4_request(pc);
 		if (m == NULL) {
 			sleep(1);
@@ -739,14 +739,12 @@ int dhcp_rebind(pcs *pc)
 			free(p);
 		}
 	}
-	if (ok) {
-		if (pc->ip4.dhcp.renew == 0)
-			pc->ip4.dhcp.renew = pc->ip4.dhcp.lease / 2;
-		if (pc->ip4.dhcp.rebind == 0)
-			pc->ip4.dhcp.rebind = pc->ip4.dhcp.lease * 7 / 8;
-		return 1;
-	}
-	return 0;
+
+	if (pc->ip4.dhcp.renew == 0)
+		pc->ip4.dhcp.renew = pc->ip4.dhcp.lease / 2;
+	if (pc->ip4.dhcp.rebind == 0)
+		pc->ip4.dhcp.rebind = pc->ip4.dhcp.lease * 7 / 8;
+	return 1;
 }
 
 int dhcp_enq(pcs *pc, const struct packet *m)
