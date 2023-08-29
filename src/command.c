@@ -1610,7 +1610,7 @@ int show_arp(int argc, char **argv)
 	pcs *pc;
 	int i, j;
 	struct in_addr in;
-	char buf[18];
+	char buf[19];
 	u_char zero[ETH_ALEN] = {0};
 	int empty = 1;
 	int si;
