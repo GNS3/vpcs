@@ -390,7 +390,7 @@ void parse_cmd(char *cmdstr)
 		
 		if (echoctl.enable && runLoad) {
 			if (!strcmp(cmd->name, "sleep") && 
-			    (argc != 2 || (argc == 2 && !digitstring(argv[1])))) {
+			    (argc != 2 || !digitstring(argv[1]))) {
 				;
 			} else if (at == 0)
 				printf("%s[%d] %s\n", vpc[pcid].xname, pcid + 1, cmdstr);

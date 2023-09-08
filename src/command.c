@@ -636,56 +636,6 @@ redirect:
 	return 1;
 }
 
-int run_dhcp(int argc, char **argv)
-{
-	int dump = 0;
-	int flag = 0;
-	int i;
-
-	i = 0;
-	while (++i < argc) {
-		if (!strcmp(argv[i], "-d")) {
-			dump = 1;
-			continue;
-		}
-
-		if (!strcmp(argv[i], "-r")) {
-			flag = (flag << 4) + 0x5;
-			continue;
-		}
-
-		if (!strcmp(argv[i], "-x")) {
-			flag = (flag << 4) + 0xa;
-			continue;
-		}
-		flag = -1;
-		break;
-	}
-	if (flag == -1)
-		return help_ip(argc, argv);
-
-	switch (flag) {
-		case 0:
-			run_dhcp_new(0, dump);
-			break;
-		case 0x5:
-			run_dhcp_new(1, dump);
-			break;
-		case 0xa:
-			run_dhcp_release(dump);
-			break;
-		case 0x5a:
-			run_dhcp_new(1, dump);
-			run_dhcp_release(dump);
-			break;
-		case 0xa5:
-			run_dhcp_release(dump);
-			run_dhcp_new(1, dump);
-			break;
-	}
-	return 1;
-}
-
 static int run_dhcp_new(int renew, int dump)
 {
 	int i;
@@ -1083,7 +1033,7 @@ int run_ipconfig(int argc, char **argv)
 
 int run_tracert(int argc, char **argv)
 {
-	int i, j;
+	int i;
 	u_int gip, gwip;
 	struct in_addr in;
 	int count = 128;
@@ -1130,7 +1080,7 @@ int run_tracert(int argc, char **argv)
 					printf("Invalid protocol\n");
 					return 0;
 				}
-				j = atoi(argv[i]);
+				int j = atoi(argv[i]);
 				if (j == IPPROTO_ICMP) {
 					pc->mscb.proto = IPPROTO_ICMP;
 				} else if (j == IPPROTO_UDP) {
@@ -1155,7 +1105,7 @@ int run_tracert(int argc, char **argv)
 					return 0;
 				}
 				i++;
-				j = atoi(argv[i]);
+				int j = atoi(argv[i]);
 				if (j > 0 && j <= 64)
 					count = j;
 				else {
@@ -1167,7 +1117,7 @@ int run_tracert(int argc, char **argv)
 			}
 			if (digitstring(argv[i])) {
 				if (count == 128) {
-					j = atoi(argv[i]);
+					int j = atoi(argv[i]);
 					if (j > 0 && j <= 64)
 						count = j;
 					else {
@@ -1364,7 +1314,6 @@ int run_set(int argc, char **argv)
 
 	if (argc < 2 || (argc == 2 && strlen(argv[1]) == 1 && argv[1][0] == '?')) {
 		return help_set(argc, argv);
-		return 0;
 	}
 
 	if (!strncmp("dump", argv[1], strlen(argv[1]))) {
@@ -1661,7 +1610,7 @@ int show_arp(int argc, char **argv)
 	pcs *pc;
 	int i, j;
 	struct in_addr in;
-	char buf[18];
+	char buf[19];
 	u_char zero[ETH_ALEN] = {0};
 	int empty = 1;
 	int si;
@@ -1872,7 +1821,7 @@ static int show_ip(int argc, char **argv)
 			printf("DHCP SERVER : %s\n", inet_ntoa(in));
 			k = time_tick - vpc[id].ip4.dhcp.timetick;
 			k = vpc[id].ip4.dhcp.lease - k;
-			printf("DHCP LEASE  : %u, %u/%u/%u\n",
+			printf("DHCP LEASE  : %d, %u/%u/%u\n",
 			    k > 0 ? k : 0,
 			    vpc[id].ip4.dhcp.lease,
 			    vpc[id].ip4.dhcp.renew,

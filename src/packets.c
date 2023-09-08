@@ -74,7 +74,6 @@ extern u_int time_tick;
 int upv4(pcs *pc, struct packet **m0)
 {
 	struct packet *m = *m0;
-	struct packet *p = NULL;
 	ethdr *eh = (ethdr *)(m->data);
 	u_int *si, *di;
 	
@@ -92,87 +91,87 @@ int upv4(pcs *pc, struct packet **m0)
 	if ( (memcmp(eh->dst, pc->ip4.mac, ETH_ALEN) == 0 ||
 		memcmp(eh->dst, broadcast, ETH_ALEN) == 0)
 		&& ((u_short*)m->data)[6] == htons(ETHERTYPE_IP)) {
-		iphdr *ip = (iphdr *)(eh + 1);
+			struct packet *p;
+			iphdr *ip = (iphdr *)(eh + 1);
 
-		if (ntohs(ip->len) > pc->mtu) {
-			p = icmpReply(m, ICMP_UNREACH, ICMP_UNREACH_NEEDFRAG);
-			if (p) {
-				fix_dmac(pc, p);
-				if (pc->ip4.flags & IPF_FRAG) {
-					p = ipfrag(p, pc->mtu);
+			if (ntohs(ip->len) > pc->mtu) {
+				p = icmpReply(m, ICMP_UNREACH, ICMP_UNREACH_NEEDFRAG);
+				if (p) {
+					fix_dmac(pc, p);
+					if (pc->ip4.flags & IPF_FRAG) {
+						p = ipfrag(p, pc->mtu);
+					}
+					enq(&pc->oq, p);
 				}
-				enq(&pc->oq, p);
-			}
-			return PKT_ENQ;
-		}
-
-		if (ntohs(ip->frag) & (IP_MF | IP_OFFMASK)) {
-			m = ipreass(m);
-			if (m == NULL)
 				return PKT_ENQ;
-			else
-				*m0 = m;
-			ip = (iphdr *)(m->data + sizeof(ethdr));
-		}
-
-		/* ping me, reply */
-		if (ip->proto == IPPROTO_ICMP) {
-			icmphdr *icmp = (icmphdr *)(ip + 1);
-
-			if (ip->dip != pc->ip4.ip)
-				return PKT_DROP;
-
-			/* other type will be sent to application */
-			if (icmp->type != ICMP_ECHO)
-				return PKT_UP;
-
-			p = icmpReply(m, ICMP_ECHOREPLY, 0);
-			if (p != NULL) {
-				enq(&pc->bgoq, p);
 			}
-			return PKT_ENQ;
-		} else if (ip->proto == IPPROTO_UDP) {
-			udpiphdr *ui;
-			char *data = NULL;
-			ui = (udpiphdr *)ip;
-			
-			if (IN_MULTICAST(ntohl(ip->dip)))
-				return PKT_DROP;
-			
-			/* dhcp packet */
-			if (ui->ui_sport == htons(67) && ui->ui_dport == htons(68)) 
-				return PKT_UP;
-			
-			if (ip->dip != pc->ip4.ip)
-				return PKT_DROP;
-				
-			/* dns response */
-			if (ui->ui_sport == htons(53))
-				return PKT_UP;
-						
-			data = ((char*)(ui + 1));
-			
-			/* udp echo reply */	
-			if (memcmp(data, eh->dst, ETH_ALEN) == 0)
-				return PKT_UP;
-			else {
-				struct packet *p;
-				if (ip->ttl == 1)
-					p = icmpReply(m, ICMP_UNREACH, ICMP_UNREACH_PORT);
+
+			if (ntohs(ip->frag) & (IP_MF | IP_OFFMASK)) {
+				m = ipreass(m);
+				if (m == NULL)
+					return PKT_ENQ;
 				else
-					p = udpReply(m);
-				
+					*m0 = m;
+				ip = (iphdr *)(m->data + sizeof(ethdr));
+			}
+
+			/* ping me, reply */
+			if (ip->proto == IPPROTO_ICMP) {
+				icmphdr *icmp = (icmphdr *)(ip + 1);
+
+				if (ip->dip != pc->ip4.ip)
+					return PKT_DROP;
+
+				/* other type will be sent to application */
+				if (icmp->type != ICMP_ECHO)
+					return PKT_UP;
+
+				p = icmpReply(m, ICMP_ECHOREPLY, 0);
 				if (p != NULL) {
 					enq(&pc->bgoq, p);
 				}
-			}			
-			/* anyway tell caller to drop this packet */
-			return PKT_DROP;
-		} else if (ip->proto == IPPROTO_TCP) {
-			if (ip->dip != pc->ip4.ip)
+				return PKT_ENQ;
+			} else if (ip->proto == IPPROTO_UDP) {
+				udpiphdr *ui;
+				char *data = NULL;
+				ui = (udpiphdr *)ip;
+
+				if (IN_MULTICAST(ntohl(ip->dip)))
+					return PKT_DROP;
+
+				/* dhcp packet */
+				if (ui->ui_sport == htons(67) && ui->ui_dport == htons(68))
+					return PKT_UP;
+
+				if (ip->dip != pc->ip4.ip)
+					return PKT_DROP;
+
+				/* dns response */
+				if (ui->ui_sport == htons(53))
+					return PKT_UP;
+
+				data = ((char*)(ui + 1));
+
+				/* udp echo reply */
+				if (memcmp(data, eh->dst, ETH_ALEN) == 0)
+					return PKT_UP;
+				else {
+					if (ip->ttl == 1)
+						p = icmpReply(m, ICMP_UNREACH, ICMP_UNREACH_PORT);
+					else
+						p = udpReply(m);
+
+					if (p != NULL) {
+						enq(&pc->bgoq, p);
+					}
+				}
+				/* anyway tell caller to drop this packet */
 				return PKT_DROP;
-			return tcp(pc, m);	
-		}	
+			} else if (ip->proto == IPPROTO_TCP) {
+				if (ip->dip != pc->ip4.ip)
+					return PKT_DROP;
+				return tcp(pc, m);
+			}
 
 	} else if (eh->type == htons(ETHERTYPE_ARP)) {
 		vpcs_arphdr *ah = (vpcs_arphdr *)(eh + 1);
@@ -315,7 +314,7 @@ int response(struct packet *m, sesscb *sesscb)
 			n > 0) {
 			int i = 0;
 
-			while (data[i] == 0x1 && i < sesscb->rdsize) i++;
+			while ( i < sesscb->rdsize && data[i] == 0x1 ) i++;
 			
 			for (;i < n;) {
 				if (data[i] == TCPOPT_MAXSEG && 

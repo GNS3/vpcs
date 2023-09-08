@@ -395,7 +395,6 @@ int tcp_close(pcs *pc, int ipv)
 		
 		/* local send FIN/ACK first */
 		if (state == 2) {
-			struct timeval tv;
 			/* expect FIN */
 			state = 0;
 			//k = 0;

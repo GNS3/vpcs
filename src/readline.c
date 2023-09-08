@@ -472,10 +472,10 @@ int findhistory(struct rls *rls, int start)
 		if (start >= 0) {
 			start++;
 			return (start < rls->hist_total) ? start : -1;
-		} else {
-			start = 0 - start;
-			start --;
-			return (start > - 1) ? start : -1;
+		} else { // [-1 , -inf [
+			start = 0 - start; // [1 , inf [
+			start --; // [0 , inf [
+			return start;
 		}
 	} else {
 		if (start >= 0) {
@@ -588,16 +588,17 @@ int main(int argc, char **argv)
 	readline_tab(my_complete, rls);
 	while (rls) {
 		p = readline("CLI> ", rls);
-		if (p != NULL)
+		if (p != NULL) {
 			printf("\nget %s\n", p);
-		if (!strcmp(p, "h")) {
-			printf("\n");
-			for (i = 0; i < rls->hist_total; i++)
-				printf("%d: %s\n", i + 1, rls->history[i]);
-		}	
-		if (strcmp(p, "quit"))
-			continue;
-		break;
+			if (!strcmp(p, "h")) {
+				printf("\n");
+				for (i = 0; i < rls->hist_total; i++)
+					printf("%d: %s\n", i + 1, rls->history[i]);
+			}
+			else if (strcmp(p, "quit"))
+				continue;
+			break;
+		}
 	}
 	return 1;
 }

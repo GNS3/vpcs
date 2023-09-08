@@ -444,7 +444,7 @@ int response6(struct packet *m, sesscb *sesscb)
 		    sesscb->rflags == (TH_SYN | TH_ACK)) {
 			int i = 0;
 
-			while (data[i] == 0x1 && i < sesscb->rdsize) i++;
+			while ( i < sesscb->rdsize && data[i] == 0x1 ) i++;
 			
 			for (;i < sesscb->rdsize;) {
 				if (data[i] == TCPOPT_MAXSEG && 
@@ -729,7 +729,7 @@ struct packet *udp6Reply(struct packet *m0)
  */
 u_char *nbDiscovery(pcs *pc, ip6 *dst)
 {
-	int i, j;
+	int i;
 	static u_char mac[ETH_ALEN] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x0};	
 	int waittime = 1000;
 	struct timeval tv;
@@ -777,8 +777,7 @@ u_char *nbDiscovery(pcs *pc, ip6 *dst)
 	
 	/* find neighbor */
 	i = 0;
-	j = -1;
-	while ((i++ < 3) &&  (j == -1)){
+	while ( i++ < 3 ){
 		struct packet *m;
 		
 		m = nb_sol(pc, dst);	
