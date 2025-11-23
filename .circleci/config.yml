@@ -3,7 +3,8 @@ version: 2.1
 jobs:
   build:
     macos:
-      xcode: "12.5.1"
+      xcode: "15.4.0"
+    resource_class: m4pro.medium
 
     steps:
       - checkout
