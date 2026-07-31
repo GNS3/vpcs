@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <errno.h>
+#include <sys/select.h>
 
 #if Linux || Darwin
 #include <sys/ioctl.h>
@@ -183,6 +184,36 @@ void readline_free(struct rls *rls)
 	free(rls);
 }
 
+/* In non-canonical mode with VMIN=1, a multi-byte escape sequence (arrow
+ * keys, Home/End, etc.) can be split across read() calls: the first read
+ * returns only ESC, and the remaining bytes arrive shortly after. After a
+ * lone ESC, drain any trailing bytes arriving within a short window so the
+ * whole sequence is parsed as a single key rather than leaking its control
+ * bytes into the input line. */
+static int
+read_escape_tail(int fd, char *kb, int rc, int max)
+{
+	fd_set rfds;
+	struct timeval tv;
+	int n;
+
+	tv.tv_sec = 0;
+	tv.tv_usec = 50000; /* wait up to 50ms for the next byte */
+	while (rc < max) {
+		FD_ZERO(&rfds);
+		FD_SET(fd, &rfds);
+		n = select(fd + 1, &rfds, NULL, NULL, &tv);
+		if (n <= 0)
+			break;
+		n = read(fd, kb + rc, max - rc);
+		if (n <= 0)
+			break;
+		rc += n;
+		tv.tv_usec = 10000; /* 10ms between subsequent bytes */
+	}
+	return rc;
+}
+
 int _readline(struct rls *rls)
 {
 	int histmode;
@@ -211,6 +242,11 @@ int _readline(struct rls *rls)
 			rc = read(rls->fdin, kb, sizeof(rls->kb));
 			if (rc <= 0)
 				continue;
+			/* with VMIN=1, gather any trailing bytes of an
+			   escape sequence so it is handled as one key */
+			if (rc == 1 && kb[0] == ESC)
+				rc = read_escape_tail(rls->fdin, kb, rc,
+				    (int)sizeof(rls->kb));
 			off = 0;
 		} else {
 			memmove(kb, kb + off, rc - off);
@@ -535,8 +571,8 @@ void set_terminal(int fd, struct termios *stored_settings)
 	new_settings = *stored_settings;
 	new_settings.c_lflag &= ~(ICANON | ECHO | ISIG);
 	//new_settings.c_iflag &= IGNCR;
-	new_settings.c_cc[VTIME] = 1;
-	new_settings.c_cc[VMIN] = 3;
+	new_settings.c_cc[VTIME] = 0;
+	new_settings.c_cc[VMIN] = 1;
 
 	tcsetattr(fd, TCSANOW, &new_settings);
 	return;
