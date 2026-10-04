@@ -342,7 +342,7 @@ static int dnsparse(struct packet *m, u_short magicid, char *data, int dlen, u_c
 		return 0;
 
 	/* invalid name or answer */
-	if ((dh->flags & 0x8081) != 0x8081) {
+	if ((dh->flags & 0x0081) != 0x0081) {
 		c = (dh->flags >> 8) & 0xf;
 		if (c == 0)
 			return 0;
