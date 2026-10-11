@@ -1,14 +1,10 @@
-run src/mk.sh to compile
+build:
 
-Options:
- [i386 | amd64 | 32 | 64] [clean]
-
- i386 or 32, generate code for 32bit
- amd64 or 64, generate code for 64bit
+ make            (or: src/mk.sh [i386 | amd64 | 32 | 64] [clean | debug])
 
 install (Linux):
 
- make -C src -f Makefile.linux install [BINDIR=dir] [DESTDIR=dir]
+ sudo make install [BINDIR=dir] [DESTDIR=dir]
 
  'make install' grants cap_net_admin to the binary via setcap when
  available, so tap mode (-e) works for unprivileged users. Without it,

@@ -34,7 +34,7 @@ all: vpcs
 vpcs: $(OBJS)
 	$(CC) $(OBJS) -o vpcs $(LDFLAGS)
 
-.c.o: keys.h vpcs.h packets.h dhcp.h
+%.o: %.c keydef.h vpcs.h packets.h dhcp.h
 	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
 
 BINDIR ?= /usr/local/bin
