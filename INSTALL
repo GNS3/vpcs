@@ -6,3 +6,12 @@ Options:
  i386 or 32, generate code for 32bit
  amd64 or 64, generate code for 64bit
 
+install (Linux):
+
+ make -C src -f Makefile.linux install [BINDIR=dir] [DESTDIR=dir]
+
+ 'make install' grants cap_net_admin to the binary via setcap when
+ available, so tap mode (-e) works for unprivileged users. Without it,
+ tap mode requires root; udp mode (default) needs no privileges.
+ The -n option disables vpcs configuring the host tap interface.
+
