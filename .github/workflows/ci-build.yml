@@ -17,8 +17,6 @@ jobs:
         include:
           - arch: amd64
             platform: amd64/x86_64
-          - arch: i386
-            platform: i386/x86
     steps:
     - uses: actions/checkout@v7
 
