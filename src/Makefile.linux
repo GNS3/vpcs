@@ -38,10 +38,13 @@ vpcs: $(OBJS)
 	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
 
 BINDIR ?= /usr/local/bin
+MANDIR ?= /usr/local/share/man
 
 install: vpcs
 	mkdir -p $(DESTDIR)$(BINDIR)
 	install -m 755 vpcs $(DESTDIR)$(BINDIR)/vpcs
+	mkdir -p $(DESTDIR)$(MANDIR)/man1
+	install -m 644 ../man/vpcs.1 $(DESTDIR)$(MANDIR)/man1/vpcs.1
 	-@if command -v setcap >/dev/null 2>&1; then \
 		setcap cap_net_admin+ep $(DESTDIR)$(BINDIR)/vpcs || \
 			echo "warning: setcap failed, TAP mode (-e) needs root or cap_net_admin"; \

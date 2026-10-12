@@ -4,10 +4,12 @@ build:
 
 install (Linux):
 
- sudo make install [BINDIR=dir] [DESTDIR=dir]
+ sudo make install [BINDIR=dir] [MANDIR=dir] [DESTDIR=dir]
+
+ The vpcs.1 man page is installed under MANDIR/man1 (default:
+ /usr/local/share/man/man1).
 
  'make install' grants cap_net_admin to the binary via setcap when
  available, so tap mode (-e) works for unprivileged users. Without it,
  tap mode requires root; udp mode (default) needs no privileges.
  The -n option disables vpcs configuring the host tap interface.
-
