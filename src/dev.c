@@ -166,7 +166,7 @@ int open_tap(int id)
 	struct ifreq ifr;
 	int fd;
 
-	char dev[IFNAMESIZ];
+	char dev[IFNAMSIZ];
 	
 	if (num_pths > 1)
 		sprintf(dev, "tap%d", id);
@@ -188,7 +188,7 @@ int open_tap(int id)
 	 *             TUNSLMODE | TUNSIFHEAD on the freebsd.
 	 */
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
-	strncpy(ifr.ifr_name, dev, IFNAMESIZ);
+	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
 
 	if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
 		close(fd);
