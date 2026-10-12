@@ -11,12 +11,16 @@ on:
 jobs:
   linux:
     name: Linux (${{ matrix.platform }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
         include:
           - arch: amd64
             platform: amd64/x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: arm64/aarch64
+            runner: ubuntu-24.04-arm
     steps:
     - uses: actions/checkout@v7
 
