@@ -1,8 +1,8 @@
 run src/mk.sh to compile
 
 Options:
- [i386 | amd64 | 32 | 64] [clean]
+ [i386 | amd64 | arm64 | 32 | 64] [clean]
 
  i386 or 32, generate code for 32bit
  amd64 or 64, generate code for 64bit
-
+ arm64, generate code for ARM64 (requires an ARM64 host)
