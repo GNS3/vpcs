@@ -32,10 +32,22 @@ OBJS=vpcs.o \
 all: vpcs
 
 vpcs: $(OBJS)
-	$(CC) $(OBJS) -o vpcs $(LDFLAGS) 
+	$(CC) $(OBJS) -o vpcs $(LDFLAGS)
 
-.c.o: keys.h vpcs.h packets.h dhcp.h
+%.o: %.c keydef.h vpcs.h packets.h dhcp.h
 	$(CC) $(INCLUDE_PATH) $(CFLAGS) -c $<
+
+BINDIR ?= /usr/local/bin
+
+install: vpcs
+	mkdir -p $(DESTDIR)$(BINDIR)
+	install -m 755 vpcs $(DESTDIR)$(BINDIR)/vpcs
+	-@if command -v setcap >/dev/null 2>&1; then \
+		setcap cap_net_admin+ep $(DESTDIR)$(BINDIR)/vpcs || \
+			echo "warning: setcap failed, TAP mode (-e) needs root or cap_net_admin"; \
+	else \
+		echo "warning: setcap not found, TAP mode (-e) needs root or cap_net_admin"; \
+	fi
 
 clean:
 	$(RM) *.o vpcs

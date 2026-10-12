@@ -118,7 +118,7 @@ int help_ip(int argc, char **argv)
 		"                   the gateway to 10.1.1.65, the netmask to 255.255.255.192.\n"
 		"                   In tap mode, the ip of the tapx is the maximum host ID\n"
 		"                   of the subnet. In the example above the tapx ip would be \n"
-		"                   10.1.1.126\n"
+		"                   10.1.1.126 (unless -n is given)\n"
 		"                   {Umask} may be written as /26, 26 or 255.255.255.192\n"
 		"    {Hauto}           Attempt to obtain IPv6 address, mask and gateway using SLAAC\n"
 		"    {Hdhcp} [{UOPTION}]  Attempt to obtain IPv4 address, mask, gateway, DNS via DHCP\n"

@@ -86,6 +86,7 @@ int daemon_port = 0;
 int num_pths = MAX_NUM_PTHS;  /* number of VPCs */
 
 char *tapname = "tap0";  /* TAP device name (only when 1 VPC is created) */
+int hostconf = 1;  /* auto-configure the host tap interface (tap mode) */
 
 int macaddr = 0; /* the last byte of ether address */
 
@@ -161,7 +162,7 @@ int main(int argc, char **argv)
 	rhost = inet_addr("127.0.0.1");
 	
 	devtype = DEV_UDP;		
-	while ((c = getopt(argc, argv, "?c:efhm:p:r:Rs:t:uvFi:d:")) != -1) {
+	while ((c = getopt(argc, argv, "?c:efhm:p:r:Rs:t:uvFi:d:n")) != -1) {
 		switch (c) {
 			case 'c':
 				rport_flag = 1;
@@ -211,6 +212,9 @@ int main(int argc, char **argv)
 					exit(0);
 				}
 				tapname = strdup(optarg);
+				break;
+			case 'n':
+				hostconf = 0;
 				break;
 
 			case 'h':
@@ -726,6 +730,7 @@ void usage()
 		"  {H-t} {Uip}          remote host {UIP}, default 127.0.0.1\r\n"
 		"\r\ntap mode options:\r\n"
 		"  {H-d} {Udevice}      {Udevice} name, works only when -i is set to 1\r\n"
+		"  {H-n}             do not auto-configure the host tap interface\r\n"
 		"\r\nhypervisor mode option:\r\n"
 		"  {H-H} {Uport}        run as the hypervisor listening on the tcp {Uport}\r\n"
 		"\r\n"

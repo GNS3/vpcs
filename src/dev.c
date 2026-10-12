@@ -165,8 +165,9 @@ int open_tap(int id)
 {
 	struct ifreq ifr;
 	int fd;
+	int s;
 
-	char dev[IFNAMESIZ];
+	char dev[IFNAMSIZ];
 	
 	if (num_pths > 1)
 		sprintf(dev, "tap%d", id);
@@ -188,11 +189,30 @@ int open_tap(int id)
 	 *             TUNSLMODE | TUNSIFHEAD on the freebsd.
 	 */
 	ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
-	strncpy(ifr.ifr_name, dev, IFNAMESIZ);
+	strncpy(ifr.ifr_name, dev, IFNAMSIZ);
 
 	if (ioctl(fd, TUNSETIFF, (void *) &ifr) < 0) {
 		close(fd);
 		return(-1);
+	}
+
+	/*
+	 * TUNSETIFF attaches (or creates) the interface but leaves it
+	 * administratively DOWN, and no frames can flow until it is
+	 * brought up. Activate it here; this is device activation, not
+	 * host configuration - addresses and masks stay with the caller
+	 * (see the -n option). Needs the same CAP_NET_ADMIN as TUNSETIFF.
+	 */
+	s = socket(AF_INET, SOCK_DGRAM, 0);
+	if (s >= 0) {
+		memset(&ifr, 0, sizeof(ifr));
+		snprintf(ifr.ifr_name, IFNAMSIZ, "%s", dev);
+		if (ioctl(s, SIOCGIFFLAGS, &ifr) == 0 &&
+		    !(ifr.ifr_flags & IFF_UP)) {
+			ifr.ifr_flags |= IFF_UP;
+			ioctl(s, SIOCSIFFLAGS, &ifr);
+		}
+		close(s);
 	}
 	return(fd);
 }

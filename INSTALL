@@ -1,8 +1,13 @@
-run src/mk.sh to compile
+build:
 
-Options:
- [i386 | amd64 | arm64 | 32 | 64] [clean]
+ make            (or: src/mk.sh [i386 | amd64 | arm64 | 32 | 64] [clean | debug])
 
- i386 or 32, generate code for 32bit
- amd64 or 64, generate code for 64bit
- arm64, generate code for ARM64 (requires an ARM64 host)
+install (Linux):
+
+ sudo make install [BINDIR=dir] [DESTDIR=dir]
+
+ 'make install' grants cap_net_admin to the binary via setcap when
+ available, so tap mode (-e) works for unprivileged users. Without it,
+ tap mode requires root; udp mode (default) needs no privileges.
+ The -n option disables vpcs configuring the host tap interface.
+

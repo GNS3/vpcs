@@ -54,6 +54,8 @@
 
 extern int pcid;
 extern int devtype;
+extern int hostconf;
+extern char *tapname;
 extern int ctrl_c;
 extern int ctrl_z;
 extern u_int time_tick;
@@ -1008,10 +1010,13 @@ int run_ipconfig(int argc, char **argv)
 	pc->mtu = MTU;
 
 	/* set tap ip address */
-	if (DEV_TAP == devtype) {
+	if (DEV_TAP == devtype && hostconf) {
 		tip = (ntohl(rip) | (~ip_masks[icidr])) - 1;
 		in.s_addr = ntohl(tip);
-		i = sprintf(buf, "ifconfig tap%d %s ", pcid, inet_ntoa(in));
+		if (num_pths > 1)
+			i = sprintf(buf, "ifconfig tap%d %s ", pcid, inet_ntoa(in));
+		else
+			i = sprintf(buf, "ifconfig %s %s ", tapname, inet_ntoa(in));
 		in.s_addr = ntohl(ip_masks[icidr]);
 		sprintf(buf + i, " netmask %s up", inet_ntoa(in));
 		i = system(buf);
