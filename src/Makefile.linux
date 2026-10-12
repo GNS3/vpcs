@@ -4,8 +4,8 @@ OSTYPE=Linux
 CPUTYPE:=$(shell uname -m)
 HVOPT=-DHV
 
-CFLAGS=-D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall -DTAP
-LDFLAGS=-lpthread -lutil
+CFLAGS:=$(CFLAGS) -D$(OSTYPE) -D$(CPUTYPE) $(HVOPT) -Wall -DTAP
+LDFLAGS:=$(LDFLAGS) -lpthread -lutil
 OBJS=vpcs.o \
 	daemon.o \
 	readline.o \
