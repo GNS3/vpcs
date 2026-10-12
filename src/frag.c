@@ -263,7 +263,7 @@ static struct packet *defrag(struct packet **m0)
 {
 	struct packet *m, *mh, *m2;
 	iphdr *ip;
-	int len;
+	int len, lenfr;
 	int elen;
 	int off;
 	
@@ -280,22 +280,23 @@ static struct packet *defrag(struct packet **m0)
 		return *m0;
 
 	mh = *m0;
-	memcpy(m->data, mh->data, mh->len);
-	ip = (iphdr *)(m->data + sizeof(ethdr));
-	ip->len = ntohs(len + sizeof(iphdr));
-	off = mh->len;
+	/* copy header from first fragment */
 	elen = sizeof(ethdr) + sizeof(iphdr);
-	m2 = mh;
-	mh = mh->next;
-	del_pkt(m2);
+	memcpy(m->data, mh->data, elen);
+	off = elen;
 	while (mh) {
-		len = mh->len - elen;
-		memcpy(m->data + off, mh->data + elen, len);
-		off += len;
+		ip = (iphdr *)(mh->data + sizeof(ethdr));
+		lenfr = ntohs(ip->len) - sizeof(iphdr);
+		/* copy IP payload */
+		memcpy(m->data + off, mh->data + elen, lenfr);
+		off += lenfr;
 		m2 = mh;
 		mh = mh->next;
 		del_pkt(m2);
 	}
+	/* fix header */
+	ip = (iphdr *)(m->data + sizeof(ethdr));
+	ip->len = ntohs(len + sizeof(iphdr));
 	ip->frag = 0;
 	ip->cksum = 0;
 	ip->cksum = cksum((u_short *)ip, sizeof(iphdr));
