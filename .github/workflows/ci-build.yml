@@ -1,0 +1,51 @@
+name: CI build
+
+on:
+  workflow_dispatch: # run manually https://docs.github.com/en/actions/using-workflows/manually-running-a-workflow
+  push:
+    branches: [ "master" ] # run for these branches
+  pull_request:
+    branches: [ "master" ] # run for pull requests that target these branches
+
+
+jobs:
+  linux:
+    name: Linux (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            platform: amd64/x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: arm64/aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Build ${{ matrix.arch }}
+      run: |
+        cd ${{github.workspace}}/src
+        ./mk.sh ${{ matrix.arch }}
+
+    - name: Test
+      run: |
+        cd ${{github.workspace}}/src
+        ./vpcs -h
+
+    - name: Upload success
+      if: ${{ success() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: linux-${{ matrix.arch }}-success
+        path: ${{github.workspace}}/src/vpcs
+        compression-level: 9 # maximum compression
+
+    - name: Upload failure
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: linux-${{ matrix.arch }}-failure
+        path: ${{github.workspace}}/src/vpcs
+        compression-level: 9 # maximum compression
